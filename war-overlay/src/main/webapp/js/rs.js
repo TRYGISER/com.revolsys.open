@@ -406,10 +406,11 @@ $(document).ready(function() {
         $('> iframe.autoHeight', ui.panel).iframeAutoHeight();
       },
       activate : function(event, ui) {
-        var tables = $.fn.dataTable.tables();
+        var tables = $.fn.dataTable.tables(true);
         if (tables.length > 0) {
-          $(tables).DataTable().scroller().measure();
           $(tables).DataTable().columns.adjust();
+          $(tables).DataTable().draw();
+          $(tables).DataTable().scroller().measure();
         }
         $('> iframe.autoHeight', ui.panel).iframeAutoHeight();
       },

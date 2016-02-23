@@ -125,7 +125,7 @@ public class ShapefileDataObjectWriter extends XbaseDataObjectWriter {
   }
 
   private void createPrjFile(final GeometryFactory geometryFactory)
-      throws IOException {
+    throws IOException {
     if (geometryFactory != null) {
       final CoordinateSystem coordinateSystem = geometryFactory.getCoordinateSystem();
       if (coordinateSystem != null) {
@@ -209,12 +209,12 @@ public class ShapefileDataObjectWriter extends XbaseDataObjectWriter {
         case ShapefileConstants.POLYGON_ZM_SHAPE:
           out.writeLEDouble(this.zMin);
           out.writeLEDouble(this.zMax);
-          break;
+        break;
 
         default:
           out.writeLEDouble(0.0);
           out.writeLEDouble(0.0);
-          break;
+        break;
       }
       out.writeLEDouble(0.0);
       out.writeLEDouble(0.0);
@@ -230,10 +230,10 @@ public class ShapefileDataObjectWriter extends XbaseDataObjectWriter {
       Geometry geometry = object.getGeometryValue();
       geometry = GeometryProjectionUtil.performCopy(geometry,
         this.geometryFactory);
-      this.envelope.expandToInclude(geometry.getEnvelopeInternal());
       if (geometry == null || geometry.isEmpty()) {
         writeNull(this.out);
       } else {
+        this.envelope.expandToInclude(geometry.getEnvelopeInternal());
         if (this.geometryWriteMethod == null) {
           createGeometryWriter(geometry);
         }

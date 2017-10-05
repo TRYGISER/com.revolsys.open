@@ -10,7 +10,7 @@
   <parent>
     <artifactId>com.revolsys.open.parent</artifactId>
     <groupId>com.revolsys.open</groupId>
-    <version>TRUNK-SNAPSHOT</version>
+    <version>0.20171005.131236-CPF_5_0_6-RELEASE</version>
   </parent>
   <licenses>
     <license>

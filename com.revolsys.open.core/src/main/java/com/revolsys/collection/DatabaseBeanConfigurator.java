@@ -8,26 +8,25 @@ import javax.sql.DataSource;
 
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
-import org.springframework.util.StringUtils;
 
-import com.revolsys.converter.string.StringConverter;
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.gis.data.model.types.DataType;
-import com.revolsys.gis.data.model.types.DataTypes;
+import com.revolsys.datatype.DataType;
+import com.revolsys.datatype.DataTypes;
 import com.revolsys.jdbc.JdbcUtils;
+import com.revolsys.logging.Logs;
 import com.revolsys.spring.config.BeanConfigurrer;
+import com.revolsys.util.Property;
 
 public class DatabaseBeanConfigurator extends BeanConfigurrer {
 
   private DataSource dataSource;
 
-  private String tableName;
-
   private String propertyColumnName;
 
-  private String valueColumnName;
+  private String tableName;
 
   private String typeColumnName;
+
+  private String valueColumnName;
 
   private String whereClause;
 
@@ -36,43 +35,43 @@ public class DatabaseBeanConfigurator extends BeanConfigurrer {
   }
 
   public DataSource getDataSource() {
-    return dataSource;
+    return this.dataSource;
   }
 
   public String getPropertyColumnName() {
-    return propertyColumnName;
+    return this.propertyColumnName;
   }
 
   public String getTableName() {
-    return tableName;
+    return this.tableName;
   }
 
   public String getTypeColumnName() {
-    return typeColumnName;
+    return this.typeColumnName;
   }
 
   public String getValueColumnName() {
-    return valueColumnName;
+    return this.valueColumnName;
   }
 
   public String getWhereClause() {
-    return whereClause;
+    return this.whereClause;
   }
 
   @Override
-  public void postProcessBeanFactory(
-    final ConfigurableListableBeanFactory beanFactory) throws BeansException {
+  public void postProcessBeanFactory(final ConfigurableListableBeanFactory beanFactory)
+    throws BeansException {
     try {
-      final boolean hasTypeColumnName = StringUtils.hasText(typeColumnName);
-      String sql = "SELECT " + propertyColumnName + ", " + valueColumnName;
+      final boolean hasTypeColumnName = Property.hasValue(this.typeColumnName);
+      String sql = "SELECT " + this.propertyColumnName + ", " + this.valueColumnName;
       if (hasTypeColumnName) {
-        sql += ", " + typeColumnName;
+        sql += ", " + this.typeColumnName;
       }
-      sql += " FROM " + JdbcUtils.getQualifiedTableName(tableName);
-      if (StringUtils.hasText(whereClause)) {
-        sql += " WHERE " + whereClause;
+      sql += " FROM " + JdbcUtils.getQualifiedTableName(this.tableName);
+      if (Property.hasValue(this.whereClause)) {
+        sql += " WHERE " + this.whereClause;
       }
-      final Connection connection = dataSource.getConnection();
+      final Connection connection = this.dataSource.getConnection();
       try {
         final PreparedStatement statement = connection.prepareStatement(sql);
         try {
@@ -85,15 +84,10 @@ public class DatabaseBeanConfigurator extends BeanConfigurrer {
               if (hasTypeColumnName) {
                 typePath = resultSet.getString(3);
               }
-              final DataType dataType = DataTypes.getType(typePath);
+              final DataType dataType = DataTypes.getDataType(typePath);
               Object value = valueString;
               if (dataType != null) {
-                final Class<?> dataTypeClass = dataType.getJavaClass();
-                final StringConverter<?> converter = StringConverterRegistry.getInstance()
-                  .getConverter(dataTypeClass);
-                if (converter != null) {
-                  value = converter.toObject(valueString);
-                }
+                value = dataType.toObject(valueString);
               }
               setAttribute(property, value);
             }
@@ -105,10 +99,10 @@ public class DatabaseBeanConfigurator extends BeanConfigurrer {
           JdbcUtils.close(statement);
         }
       } finally {
-        JdbcUtils.release(connection, dataSource);
+        JdbcUtils.release(connection, this.dataSource);
       }
     } catch (final Throwable e) {
-      LOG.error("Unable to load configuration from database ", e);
+      Logs.error(this, "Unable to load configuration from database ", e);
     } finally {
       super.postProcessBeanFactory(beanFactory);
     }

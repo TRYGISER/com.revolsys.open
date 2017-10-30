@@ -2,8 +2,7 @@ package com.revolsys.swing.preferences;
 
 import javax.swing.JComponent;
 
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.gis.model.data.equals.EqualsRegistry;
+import com.revolsys.datatype.DataType;
 import com.revolsys.swing.SwingUtil;
 import com.revolsys.swing.field.Field;
 import com.revolsys.util.OS;
@@ -12,46 +11,39 @@ public class Preference {
 
   private final String applicationName;
 
+  private final Field field;
+
+  private final JComponent fieldComponent;
+
   private final String path;
 
   private final String propertyName;
-
-  private final Class<?> valueClass;
 
   private Object savedValue;
 
   private Object value;
 
-  private final Field field;
+  private final DataType dataType;
 
-  private final JComponent fieldComponent;
-
-  public Preference(final String applicationName, final String path,
-    final String propertyName, final Class<?> valueClass,
-    final Object defaultValue) {
-    this(applicationName, path, propertyName, valueClass, defaultValue,
-      (JComponent)null);
+  public Preference(final String applicationName, final String path, final String propertyName,
+    final DataType dataType, final Object defaultValue) {
+    this(applicationName, path, propertyName, dataType, defaultValue, (JComponent)null);
   }
 
-  public Preference(final String applicationName, final String path,
-    final String propertyName, final Class<?> valueClass,
-    final Object defaultValue, final Field field) {
-    this(applicationName, path, propertyName, valueClass, defaultValue,
-      (JComponent)field);
+  public Preference(final String applicationName, final String path, final String propertyName,
+    final DataType dataType, final Object defaultValue, final Field field) {
+    this(applicationName, path, propertyName, dataType, defaultValue, (JComponent)field);
   }
 
-  public Preference(final String applicationName, final String path,
-    final String propertyName, final Class<?> valueClass,
-    final Object defaultValue, final JComponent field) {
+  public Preference(final String applicationName, final String path, final String propertyName,
+    final DataType dataType, final Object defaultValue, final JComponent field) {
     this.applicationName = applicationName;
     this.path = path;
     this.propertyName = propertyName;
-    this.valueClass = valueClass;
-    this.savedValue = OS.getPreference(applicationName, path, propertyName,
-      defaultValue);
+    this.dataType = dataType;
+    this.savedValue = OS.getPreference(applicationName, path, propertyName, defaultValue);
     if (field == null) {
-      this.fieldComponent = SwingUtil.createField(valueClass, propertyName,
-        defaultValue);
+      this.fieldComponent = SwingUtil.newField(dataType, propertyName, defaultValue);
     } else {
       this.fieldComponent = field;
     }
@@ -60,7 +52,8 @@ public class Preference {
   }
 
   public void cancelChanges() {
-    field.setFieldValue(StringConverterRegistry.toObject(valueClass, savedValue));
+    final Object convertedValue = this.dataType.toObject(this.savedValue);
+    this.field.setFieldValue(convertedValue);
   }
 
   @Override
@@ -69,9 +62,9 @@ public class Preference {
       return true;
     } else if (object instanceof Preference) {
       final Preference other = (Preference)object;
-      if (EqualsRegistry.equal(other.applicationName, applicationName)) {
-        if (EqualsRegistry.equal(other.path, path)) {
-          if (EqualsRegistry.equal(other.propertyName, propertyName)) {
+      if (DataType.equal(other.applicationName, this.applicationName)) {
+        if (DataType.equal(other.path, this.path)) {
+          if (DataType.equal(other.propertyName, this.propertyName)) {
             return true;
           }
         }
@@ -81,60 +74,60 @@ public class Preference {
   }
 
   public String getApplicationName() {
-    return applicationName;
+    return this.applicationName;
   }
 
   public Field getField() {
-    return field;
+    return this.field;
   }
 
   public JComponent getFieldComponent() {
-    return fieldComponent;
+    return this.fieldComponent;
   }
 
   public String getPath() {
-    return path;
+    return this.path;
   }
 
   public String getPropertyName() {
-    return propertyName;
+    return this.propertyName;
   }
 
   public Object getSavedValue() {
-    return savedValue;
+    return this.savedValue;
   }
 
   public Object getValue() {
-    return value;
+    return this.value;
   }
 
-  public Class<?> getValueClass() {
-    return valueClass;
+  public DataType getValueClass() {
+    return this.dataType;
   }
 
   @Override
   public int hashCode() {
     final int prime = 31;
     int result = 1;
-    if (applicationName != null) {
-      result = prime * result + applicationName.hashCode();
+    if (this.applicationName != null) {
+      result = prime * result + this.applicationName.hashCode();
     }
-    if (path != null) {
-      result = prime * result + path.hashCode();
+    if (this.path != null) {
+      result = prime * result + this.path.hashCode();
     }
-    if (propertyName != null) {
-      result = prime * result + propertyName.hashCode();
+    if (this.propertyName != null) {
+      result = prime * result + this.propertyName.hashCode();
     }
     return result;
   }
 
   public boolean isValid() {
-    return field.isFieldValid();
+    return this.field.isFieldValid();
   }
 
   public void saveChanges() {
-    final Object value = field.getFieldValue();
-    OS.setPreference(applicationName, path, propertyName, value);
-    savedValue = value;
+    final Object value = this.field.getFieldValue();
+    OS.setPreference(this.applicationName, this.path, this.propertyName, value);
+    this.savedValue = value;
   }
 }

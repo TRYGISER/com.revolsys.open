@@ -11,7 +11,7 @@ import org.apache.commons.beanutils.MethodUtils;
 import com.revolsys.swing.map.layer.LayerGroup;
 import com.revolsys.swing.map.layer.Project;
 import com.revolsys.swing.preferences.PreferencesDialog;
-import com.revolsys.util.JavaBeanUtil;
+import com.revolsys.util.Property;
 
 public class MacApplicationListenerHandler implements InvocationHandler {
 
@@ -35,8 +35,8 @@ public class MacApplicationListenerHandler implements InvocationHandler {
   }
 
   @Override
-  public Object invoke(final Object proxy, final Method method,
-    final Object[] args) throws Throwable {
+  public Object invoke(final Object proxy, final Method method, final Object[] args)
+    throws Throwable {
     if (method.getName().equals("openFiles")) {
       final Object event = args[0];
       openFiles(event);
@@ -47,7 +47,7 @@ public class MacApplicationListenerHandler implements InvocationHandler {
   }
 
   private void openFiles(final Object event) {
-    final List<File> files = JavaBeanUtil.getProperty(event, "files");
+    final List<File> files = Property.getSimple(event, "files");
     final LayerGroup layerGroup = Project.get();
     if (layerGroup != null) {
       layerGroup.openFiles(files);

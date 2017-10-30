@@ -1,6 +1,7 @@
 package com.revolsys.spring;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Collection;
@@ -14,8 +15,7 @@ import com.revolsys.io.filter.ExtensionFilenameFilter;
 
 public class ClassLoaderFactoryBean extends AbstractFactoryBean<ClassLoader> {
 
-  private static final ExtensionFilenameFilter JAR_FILTER = new ExtensionFilenameFilter(
-    "jar", "zip");
+  private static final FilenameFilter JAR_FILTER = new ExtensionFilenameFilter("jar", "zip");
 
   public static void addJars(final Collection<URL> urls, final File directory) {
     if (directory.exists() && directory.isDirectory()) {
@@ -30,42 +30,40 @@ public class ClassLoaderFactoryBean extends AbstractFactoryBean<ClassLoader> {
     }
   }
 
-  public static URLClassLoader createClassLoader(
-    final ClassLoader parentClassLoader, final Collection<URL> urls) {
+  public static URLClassLoader newClassLoader(final ClassLoader parentClassLoader,
+    final Collection<URL> urls) {
     URL[] urlArray = new URL[urls.size()];
     urlArray = urls.toArray(urlArray);
     return new URLClassLoader(urlArray, parentClassLoader);
   }
 
-  public static URLClassLoader createClassLoader(
-    final ClassLoader parentClassLoader, final File file) {
-    final Collection<URL> urls = new LinkedHashSet<URL>();
+  public static URLClassLoader newClassLoader(final ClassLoader parentClassLoader,
+    final File file) {
+    final Collection<URL> urls = new LinkedHashSet<>();
     if (file.isDirectory()) {
       addJars(urls, file);
-    } else if (JAR_FILTER.accept(file.getParentFile(),
-      FileUtil.getFileName(file))) {
+    } else if (JAR_FILTER.accept(file.getParentFile(), FileUtil.getFileName(file))) {
       urls.add(FileUtil.toUrl(file));
     }
-    return createClassLoader(parentClassLoader, urls);
+    return newClassLoader(parentClassLoader, urls);
   }
 
-  private Collection<URL> urls = new LinkedHashSet<URL>();
+  private Collection<File> libDirectories = new LinkedHashSet<>();
 
-  private final Collection<URL> mergedUrls = new LinkedHashSet<URL>();
+  private final Collection<URL> mergedUrls = new LinkedHashSet<>();
 
-  private Collection<File> libDirectories = new LinkedHashSet<File>();
+  private Collection<URL> urls = new LinkedHashSet<>();
 
   @Override
   protected ClassLoader createInstance() throws Exception {
     final Class<? extends ClassLoaderFactoryBean> clazz = getClass();
     final ClassLoader parentClassLoader = clazz.getClassLoader();
-    final URLClassLoader classLoader = createClassLoader(parentClassLoader,
-      mergedUrls);
+    final URLClassLoader classLoader = newClassLoader(parentClassLoader, this.mergedUrls);
     return classLoader;
   }
 
   public Collection<File> getLibDirectories() {
-    return libDirectories;
+    return this.libDirectories;
   }
 
   @Override
@@ -74,18 +72,18 @@ public class ClassLoaderFactoryBean extends AbstractFactoryBean<ClassLoader> {
   }
 
   public Collection<URL> getUrls() {
-    return urls;
+    return this.urls;
   }
 
   public void setLibDirectories(final Collection<File> libDirectories) {
     this.libDirectories = libDirectories;
     for (final File directory : libDirectories) {
-      addJars(mergedUrls, directory);
+      addJars(this.mergedUrls, directory);
     }
   }
 
   public void setUrls(final Collection<URL> urls) {
     this.urls = urls;
-    mergedUrls.addAll(urls);
+    this.mergedUrls.addAll(urls);
   }
 }

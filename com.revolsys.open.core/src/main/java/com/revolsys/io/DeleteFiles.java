@@ -14,13 +14,13 @@ public class DeleteFiles {
 
   private static final ResourcePatternResolver RESOLVER = new PathMatchingResourcePatternResolver();
 
-  private List<String> filePatterns = new ArrayList<String>();
-
   private boolean deleteDirectories = true;
+
+  private List<String> filePatterns = new ArrayList<>();
 
   @PostConstruct
   public void deleteFiles() {
-    for (String filePattern : filePatterns) {
+    for (String filePattern : this.filePatterns) {
       if (!filePattern.startsWith("file:")) {
         filePattern = "file:" + filePattern;
       }
@@ -28,10 +28,9 @@ public class DeleteFiles {
         for (final Resource resource : RESOLVER.getResources(filePattern)) {
           final File file = resource.getFile();
           if (file.isDirectory()) {
-            if (deleteDirectories) {
+            if (this.deleteDirectories) {
               if (!FileUtil.deleteDirectory(file, true)) {
-                throw new RuntimeException("Unable to delete directory: "
-                  + file);
+                throw new RuntimeException("Unable to delete directory: " + file);
               }
             }
           } else if (file.exists()) {
@@ -47,11 +46,11 @@ public class DeleteFiles {
   }
 
   public List<String> getFilePatterns() {
-    return filePatterns;
+    return this.filePatterns;
   }
 
   public boolean isDeleteDirectories() {
-    return deleteDirectories;
+    return this.deleteDirectories;
   }
 
   public void setDeleteDirectories(final boolean deleteDirectories) {
@@ -63,6 +62,6 @@ public class DeleteFiles {
   }
 
   public void setFilePatterns(final List<String> filePatterns) {
-    this.filePatterns = new ArrayList<String>(filePatterns);
+    this.filePatterns = new ArrayList<>(filePatterns);
   }
 }

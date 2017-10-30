@@ -10,14 +10,14 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
-import java.sql.Date;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
-import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import javax.swing.ImageIcon;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
@@ -30,12 +30,13 @@ import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import javax.swing.text.JTextComponent;
 
 import org.jdesktop.swingx.VerticalLayout;
-import org.slf4j.LoggerFactory;
-import org.springframework.util.StringUtils;
 
 import com.akiban.sql.StandardException;
 import com.akiban.sql.parser.BetweenOperatorNode;
@@ -63,98 +64,74 @@ import com.akiban.sql.parser.UserTypeConstantNode;
 import com.akiban.sql.parser.ValueNode;
 import com.akiban.sql.parser.ValueNodeList;
 import com.revolsys.awt.WebColors;
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.famfamfam.silk.SilkIconLoader;
-import com.revolsys.gis.data.model.Attribute;
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.data.model.codes.CodeTable;
-import com.revolsys.gis.data.query.And;
-import com.revolsys.gis.data.query.Between;
-import com.revolsys.gis.data.query.Cast;
-import com.revolsys.gis.data.query.CollectionValue;
-import com.revolsys.gis.data.query.Column;
-import com.revolsys.gis.data.query.Condition;
-import com.revolsys.gis.data.query.ILike;
-import com.revolsys.gis.data.query.In;
-import com.revolsys.gis.data.query.IsNotNull;
-import com.revolsys.gis.data.query.IsNull;
-import com.revolsys.gis.data.query.Not;
-import com.revolsys.gis.data.query.Or;
-import com.revolsys.gis.data.query.Q;
-import com.revolsys.gis.data.query.QueryValue;
-import com.revolsys.gis.data.query.Value;
-import com.revolsys.gis.data.query.functions.Function;
-import com.revolsys.spring.SpelUtil;
-import com.revolsys.swing.SwingUtil;
-import com.revolsys.swing.action.InvokeMethodAction;
+import com.revolsys.datatype.DataType;
+import com.revolsys.datatype.DataTypes;
+import com.revolsys.identifier.Identifier;
+import com.revolsys.logging.Logs;
+import com.revolsys.record.code.CodeTable;
+import com.revolsys.record.query.And;
+import com.revolsys.record.query.Between;
+import com.revolsys.record.query.Cast;
+import com.revolsys.record.query.CollectionValue;
+import com.revolsys.record.query.Column;
+import com.revolsys.record.query.Condition;
+import com.revolsys.record.query.ILike;
+import com.revolsys.record.query.In;
+import com.revolsys.record.query.IsNotNull;
+import com.revolsys.record.query.IsNull;
+import com.revolsys.record.query.Not;
+import com.revolsys.record.query.Or;
+import com.revolsys.record.query.Q;
+import com.revolsys.record.query.QueryValue;
+import com.revolsys.record.query.Value;
+import com.revolsys.record.query.functions.Function;
+import com.revolsys.record.schema.FieldDefinition;
+import com.revolsys.record.schema.RecordDefinition;
+import com.revolsys.swing.Borders;
+import com.revolsys.swing.Icons;
+import com.revolsys.swing.action.enablecheck.EnableCheck;
+import com.revolsys.swing.action.enablecheck.ObjectPropertyEnableCheck;
 import com.revolsys.swing.component.BasePanel;
 import com.revolsys.swing.component.ValueField;
-import com.revolsys.swing.layout.GroupLayoutUtil;
-import com.revolsys.swing.map.layer.dataobject.AbstractDataObjectLayer;
-import com.revolsys.swing.map.layer.dataobject.component.AttributeTitleStringConveter;
+import com.revolsys.swing.layout.GroupLayouts;
+import com.revolsys.swing.map.layer.record.AbstractRecordLayer;
+import com.revolsys.swing.map.layer.record.component.RecordLayerFields;
 import com.revolsys.swing.toolbar.ToolBar;
-import com.revolsys.util.CollectionUtil;
+import com.revolsys.util.Property;
+import com.revolsys.util.Strings;
 
-public class QueryWhereConditionField extends ValueField implements
-  MouseListener, CaretListener, ItemListener {
+public class QueryWhereConditionField extends ValueField
+  implements MouseListener, CaretListener, ItemListener, PropertyChangeListener, DocumentListener {
 
-  private static final ImageIcon ICON = SilkIconLoader.getIcon("add");
+  private static final Icon ICON = Icons.getIcon("add");
 
   private static final long serialVersionUID = 1L;
 
-  public static JComponent createSearchField(final Attribute attribute,
-    final CodeTable codeTable) {
-    if (attribute == null) {
+  public static JComponent newSearchField(final AbstractRecordLayer layer,
+    final FieldDefinition fieldDefinition, final CodeTable codeTable) {
+    if (fieldDefinition == null) {
       return new TextField(20);
     } else {
-      final String name = attribute.getName();
-      final Class<?> typeClass = attribute.getTypeClass();
-      final String searchFieldFactory = attribute.getProperty("searchFieldFactory");
-      final DataObjectMetaData metaData = attribute.getMetaData();
-      if (metaData == null) {
-        return new TextField(20);
-      } else {
-        JComponent field;
-        if (attribute.equals(metaData.getIdAttribute())) {
-          field = new TextField(20);
-        } else if (StringUtils.hasText(searchFieldFactory)) {
-          final Map<String, Object> searchFieldFactoryParameters = attribute.getProperty("searchFieldFactoryParameters");
-          field = SpelUtil.getValue(searchFieldFactory, attribute,
-            searchFieldFactoryParameters);
-        } else {
-          if (codeTable == null) {
-            if (Number.class.isAssignableFrom(typeClass)
-              || String.class.isAssignableFrom(typeClass)) {
-              field = new TextField(20);
-            } else {
-              field = SwingUtil.createField(typeClass, name, null);
-            }
-          } else {
-            field = SwingUtil.createComboBox(codeTable, false, 30);
-          }
-        }
-        return field;
-      }
+      final String fieldName = fieldDefinition.getName();
+      return RecordLayerFields.newCompactField(layer, fieldName, true);
     }
   }
 
-  private JComponent binaryConditionField;
+  private JComponent searchField;
 
-  private final ComboBox binaryConditionOperator;
+  private final JPanel searchFieldPanel;
 
-  private final BasePanel binaryConditionPanel;
+  private CodeTable codeTable;
 
-  private final BasePanel inConditionPanel;
+  private final ComboBox<FieldDefinition> fieldNamesList;
 
-  private JComponent inConditionField;
-
-  private final ComboBox fieldNamesList;
+  private final AbstractRecordLayer layer;
 
   private final PropertyChangeListener listener;
 
-  private final DataObjectMetaData metaData;
+  private final Condition originalFilter;
 
-  private final ComboBox rightUnaryConditionOperator;
+  private final RecordDefinition recordDefinition;
 
   private final Color selectionColor;
 
@@ -168,138 +145,126 @@ public class QueryWhereConditionField extends ValueField implements
 
   private final TextPane whereTextField;
 
-  private CodeTable codeTable;
+  private boolean hasSearchText;
 
-  private final BasePanel likePanel;
+  private boolean fieldComparable;
 
-  private final TextField likeConditionField;
+  private boolean likeEnabled;
 
-  private final Condition originalFilter;
-
-  public QueryWhereConditionField(final AbstractDataObjectLayer layer,
+  public QueryWhereConditionField(final AbstractRecordLayer layer,
     final PropertyChangeListener listener, final Condition filter) {
     this(layer, listener, filter, null);
   }
 
-  public QueryWhereConditionField(final AbstractDataObjectLayer layer,
-    final PropertyChangeListener listener, final Condition filter,
-    final String query) {
+  public QueryWhereConditionField(final AbstractRecordLayer layer,
+    final PropertyChangeListener listener, final Condition filter, final String query) {
     super(new BorderLayout());
     setTitle("Advanced Search");
+    this.layer = layer;
     this.originalFilter = filter;
     this.listener = listener;
-    metaData = layer.getMetaData();
-    final List<Attribute> attributes = metaData.getAttributes();
+    this.recordDefinition = layer.getRecordDefinition();
+    final List<FieldDefinition> fieldDefinitions = this.recordDefinition.getFields();
 
-    fieldNamesList = new ComboBox(new AttributeTitleStringConveter(layer),
-      false, attributes);
-    fieldNamesList.addItemListener(this);
-    fieldNamesList.addMouseListener(this);
+    this.fieldNamesList = ComboBox.newComboBox("fieldNames", fieldDefinitions,
+      (final Object field) -> {
+        return ((FieldDefinition)field).getTitle();
+      });
+    this.fieldNamesList.setShowErrorIcon(false);
+    this.fieldNamesList.addItemListener(this);
+    this.fieldNamesList.addMouseListener(this);
 
-    final BasePanel fieldNamePanel = new BasePanel(fieldNamesList);
-    GroupLayoutUtil.makeColumns(fieldNamePanel, 1, false);
+    this.searchFieldPanel = new JPanel();
+    this.searchFieldPanel.setOpaque(false);
 
-    binaryConditionOperator = new ComboBox("=", "<>", "<", "<=", ">", ">=");
-    final JButton binaryConditionAddButton = InvokeMethodAction.createButton(
-      "", "Add Binary Condition", ICON, this, "actionAddBinaryCondition");
-    binaryConditionPanel = new BasePanel(binaryConditionOperator,
-      binaryConditionAddButton);
-    setBinaryConditionField(null);
+    final ObjectPropertyEnableCheck hasSearchText = new ObjectPropertyEnableCheck(this,
+      "hasSearchText", true);
+    final EnableCheck fieldCompareEnabled = hasSearchText
+      .and(new ObjectPropertyEnableCheck(this, "fieldComparable"));
 
-    rightUnaryConditionOperator = new ComboBox("IS NULL", "IS NOT NULL");
-    final JButton rightUnaryConditionAddButton = InvokeMethodAction.createButton(
-      "", "Add Unary Condition", ICON, this, "actionAddRightUnaryCondition");
-    final BasePanel rightUnaryConditionPanel = new BasePanel(
-      rightUnaryConditionOperator, rightUnaryConditionAddButton);
-    GroupLayoutUtil.makeColumns(rightUnaryConditionPanel, false);
+    final ToolBar operatorToolBar = new ToolBar();
+    operatorToolBar.setOpaque(false);
+    operatorToolBar.setBorderPainted(true);
+    for (final String binaryOperator : Arrays.asList("=", "<>")) {
+      final Runnable runnable = () -> actionAddBinaryCondition(binaryOperator);
+      operatorToolBar.addButton("binary", binaryOperator, hasSearchText, runnable)
+        .setBorderPainted(true);
+    }
+    for (final String binaryOperator : Arrays.asList("<", "<=", ">", ">=")) {
+      final Runnable runnable = () -> actionAddBinaryCondition(binaryOperator);
+      operatorToolBar.addButton("binary", binaryOperator, fieldCompareEnabled, runnable)
+        .setBorderPainted(true);
+    }
+    operatorToolBar.addButton("like", "LIKE", hasSearchText.and(this, "likeEnabled"),
+      this::actionAddLikeCondition).setBorderPainted(true);
 
-    final JButton likeConditionAddButton = InvokeMethodAction.createButton("",
-      "Add Unary Condition", ICON, this, "actionAddLikeCondition");
-    likeConditionField = new TextField(20);
-    likePanel = new BasePanel(SwingUtil.createLabel("LIKE"), new JLabel(" '%"),
-      likeConditionField, new JLabel("%' "), likeConditionAddButton);
-    GroupLayoutUtil.makeColumns(likePanel, false);
-
-    final JButton inConditionAddButton = InvokeMethodAction.createButton("",
-      "Add Unary Condition", ICON, this, "actionAddInCondition");
-    inConditionField = new TextField(20);
-    inConditionPanel = new BasePanel(SwingUtil.createLabel("IN"),
-      inConditionField, inConditionAddButton);
-    setInConditionField(null);
-
-    final BasePanel operatorPanel = new BasePanel(new VerticalLayout(),
-      binaryConditionPanel, rightUnaryConditionPanel, likePanel,
-      inConditionPanel);
-
-    final BasePanel fieldConditions = new BasePanel(fieldNamePanel,
-      operatorPanel);
-    GroupLayoutUtil.makeColumns(fieldConditions, 2, false);
-
-    final ToolBar buttonsPanel = new ToolBar();
-    buttonsPanel.setBorderPainted(true);
-    buttonsPanel.addButton("relational", "AND", this, "insertText", "AND")
-      .setBorderPainted(true);
-    buttonsPanel.addButton("relational", "OR", this, "insertText", "OR")
-      .setBorderPainted(true);
-    buttonsPanel.addButton("relational", "NOT", this, "insertText", "NOT")
-      .setBorderPainted(true);
-    buttonsPanel.addButton("grouping", "( )", this, "insertText", "( )")
-      .setBorderPainted(true);
-    buttonsPanel.addButton("math", "+", this, "insertText", "+")
-      .setBorderPainted(true);
-    buttonsPanel.addButton("math", "-", this, "insertText", "-")
-      .setBorderPainted(true);
-    buttonsPanel.addButton("math", "*", this, "insertText", "*")
-      .setBorderPainted(true);
-    buttonsPanel.addButton("math", "/", this, "insertText", "/")
+    for (final String rightUnaryOperator : Arrays.asList("IS NULL", "IS NOT NULL")) {
+      final Runnable runnable = () -> actionAddRightUnaryCondition(rightUnaryOperator);
+      operatorToolBar.addButton("rightUnary", rightUnaryOperator, runnable).setBorderPainted(true);
+    }
+    operatorToolBar.addButton("in", "IN", hasSearchText, this::actionAddInCondition)
       .setBorderPainted(true);
 
-    final BasePanel widgetPanel = new BasePanel(new VerticalLayout(5),
-      fieldConditions, buttonsPanel);
+    final ToolBar buttonsToolBar = new ToolBar();
+    buttonsToolBar.setOpaque(false);
+    buttonsToolBar.setBorderPainted(true);
+    buttonsToolBar.addButton("relational", "AND", () -> insertText("AND")).setBorderPainted(true);
+    buttonsToolBar.addButton("relational", "OR", () -> insertText("OR")).setBorderPainted(true);
+    buttonsToolBar.addButton("relational", "NOT", () -> insertText("NOT")).setBorderPainted(true);
+    buttonsToolBar.addButton("grouping", "( )", () -> insertText("( )")).setBorderPainted(true);
+    buttonsToolBar.addButton("math", "+", () -> insertText("+")).setBorderPainted(true);
+    buttonsToolBar.addButton("math", "-", () -> insertText("-")).setBorderPainted(true);
+    buttonsToolBar.addButton("math", "*", () -> insertText("*")).setBorderPainted(true);
+    buttonsToolBar.addButton("math", "/", () -> insertText("/")).setBorderPainted(true);
 
-    whereTextField = new TextPane(5, 20);
-    whereTextField.setFont(new Font("Monospaced", Font.PLAIN, 11));
-    selectionColor = whereTextField.getSelectionColor();
-    whereTextField.addCaretListener(this);
+    final BasePanel widgetPanel = new BasePanel(new VerticalLayout(5), //
+      GroupLayouts.panelColumns(this.fieldNamesList), //
+      operatorToolBar, //
+      this.searchFieldPanel, //
+      buttonsToolBar);
 
-    final JScrollPane whereScroll = new JScrollPane(whereTextField);
+    this.whereTextField = new TextPane(5, 20);
+    this.whereTextField.setFont(new Font("Monospaced", Font.PLAIN, 11));
+    this.selectionColor = this.whereTextField.getSelectionColor();
+    this.whereTextField.addCaretListener(this);
+
+    final JScrollPane whereScroll = new JScrollPane(this.whereTextField);
     // whereTextField.setContentType("text/sql"); // Requires the above scroll
     // pane
 
-    sqlPrefix = "SELECT * FROM "
-      + metaData.getPath().substring(1).replace('/', '.') + " WHERE";
+    this.sqlPrefix = "SELECT * FROM "
+      + this.recordDefinition.getPath().substring(1).replace('/', '.') + " WHERE";
 
     final JPanel filterTextPanel = new JPanel(new BorderLayout());
     filterTextPanel.setOpaque(false);
-    filterTextPanel.add(new JLabel(sqlPrefix), BorderLayout.NORTH);
+    filterTextPanel.add(new JLabel(this.sqlPrefix), BorderLayout.NORTH);
     filterTextPanel.add(whereScroll, BorderLayout.CENTER);
 
     final ToolBar statusToolBar = new ToolBar();
     statusToolBar.setOpaque(false);
     final JButton verifyButton = statusToolBar.addButton("default", "Verify",
-      this, "verifyCondition");
+      this::verifyCondition);
     verifyButton.setBorderPainted(true);
 
     final JPanel queryPanel = new JPanel(new BorderLayout());
-    SwingUtil.setTitledBorder(queryPanel, "Query");
+    Borders.titled(queryPanel, "Query");
     queryPanel.setOpaque(false);
     queryPanel.add(widgetPanel, BorderLayout.NORTH);
     queryPanel.add(filterTextPanel, BorderLayout.CENTER);
     queryPanel.add(statusToolBar, BorderLayout.SOUTH);
     queryPanel.setPreferredSize(new Dimension(500, 400));
 
-    statusLabel = new TextArea();
-    statusLabel.setEditable(false);
-    final JScrollPane statusPane = new JScrollPane(statusLabel);
+    this.statusLabel = new TextArea();
+    this.statusLabel.setEditable(false);
+    final JScrollPane statusPane = new JScrollPane(this.statusLabel);
     statusPane.setPreferredSize(new Dimension(500, 100));
 
     final JPanel statusPanel = new JPanel(new BorderLayout());
-    SwingUtil.setTitledBorder(statusPanel, "Messages");
+    Borders.titled(statusPanel, "Messages");
     statusPanel.setOpaque(false);
     statusPanel.add(statusPane, BorderLayout.CENTER);
 
-    final JSplitPane topBottom = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-      queryPanel, statusPanel);
+    final JSplitPane topBottom = new JSplitPane(JSplitPane.VERTICAL_SPLIT, queryPanel, statusPanel);
     topBottom.setResizeWeight(0.7);
 
     add(topBottom, BorderLayout.CENTER);
@@ -308,127 +273,124 @@ public class QueryWhereConditionField extends ValueField implements
 
     setFieldValue(filter);
     if (filter != null) {
-      whereTextField.setText(filter.toFormattedString());
+      this.whereTextField.setText(filter.toFormattedString());
     }
-    if (StringUtils.hasText(query)) {
-      whereTextField.setText(query);
+    if (Property.hasValue(query)) {
+      this.whereTextField.setText(query);
     }
     final String searchField = layer.getProperty("searchField");
-    final Attribute searchAttribute = metaData.getAttribute(searchField);
-    if (searchAttribute == null) {
-      fieldNamesList.setSelectedIndex(0);
-    } else {
-      fieldNamesList.setSelectedItem(searchAttribute);
+    FieldDefinition searchFieldDefinition = this.recordDefinition.getField(searchField);
+    if (searchFieldDefinition == null) {
+      searchFieldDefinition = fieldDefinitions.get(0);
     }
+    this.fieldNamesList.setSelectedItem(searchFieldDefinition);
+    setSearchField(searchFieldDefinition);
   }
 
-  public QueryWhereConditionField(final AbstractDataObjectLayer layer,
+  public QueryWhereConditionField(final AbstractRecordLayer layer,
     final PropertyChangeListener listener, final String query) {
     this(layer, listener, null, query);
   }
 
-  public void actionAddBinaryCondition() {
-    final Attribute attribute = (Attribute)fieldNamesList.getSelectedItem();
-    if (attribute != null) {
-      final String operator = (String)binaryConditionOperator.getSelectedItem();
-      if (StringUtils.hasText(operator)) {
-        Object fieldValue = ((Field)binaryConditionField).getFieldValue();
-        if (fieldValue != null) {
-          final int position = whereTextField.getCaretPosition();
-          Class<?> attributeClass = attribute.getTypeClass();
-          if (codeTable == null) {
-            try {
-              fieldValue = StringConverterRegistry.toObject(attributeClass,
-                fieldValue);
-            } catch (final Throwable e) {
-              setInvalidMessage(fieldValue + " is not a valid "
-                + attribute.getType());
-              return;
-            }
+  private void actionAddBinaryCondition(final String operator) {
+    final FieldDefinition fieldDefinition = this.fieldNamesList.getSelectedItem();
+    if (fieldDefinition != null) {
+      Object fieldValue = ((Field)this.searchField).getFieldValue();
+      if (fieldValue != null) {
+        final int position = this.whereTextField.getCaretPosition();
+        DataType fieldType = fieldDefinition.getDataType();
+        if (this.codeTable == null) {
+          try {
+            fieldValue = fieldDefinition.toFieldValue(fieldValue);
+          } catch (final Throwable e) {
+            setInvalidMessage("'" + fieldValue + "' is not a valid "
+              + fieldDefinition.getDataType().getValidationName());
+            return;
+          }
+        } else {
+          final List<Object> values = this.codeTable
+            .getValues(Identifier.newIdentifier(fieldValue));
+          if (values.size() == 1) {
+            fieldValue = values.get(0);
           } else {
-            final List<Object> values = codeTable.getValues(fieldValue);
-            if (values.size() == 1) {
-              fieldValue = values.get(0);
-            } else {
-              fieldValue = CollectionUtil.toString(":", values);
-            }
-            if (fieldValue != null) {
-              attributeClass = fieldValue.getClass();
-            }
+            fieldValue = Strings.toString(":", values);
           }
           if (fieldValue != null) {
+            fieldType = DataTypes.STRING;
+          }
+        }
+        if (fieldValue != null) {
 
-            final Document document = whereTextField.getDocument();
-            final StringBuffer text = new StringBuffer();
-            if (position > 0) {
-              text.append(" ");
-            }
-            text.append(attribute.getName());
+          final Document document = this.whereTextField.getDocument();
+          final StringBuilder text = new StringBuilder();
+          if (position > 0) {
             text.append(" ");
-            text.append(operator);
-            text.append(" ");
-            appendValue(text, attributeClass, fieldValue);
-            text.append(" ");
-            try {
-              document.insertString(position, text.toString(), null);
-            } catch (final BadLocationException e) {
-              LoggerFactory.getLogger(getClass()).error(
-                "Error inserting text: " + text, e);
-            }
+          }
+          text.append(fieldDefinition.getName());
+          text.append(" ");
+          text.append(operator);
+          text.append(" ");
+          appendValue(text, fieldType, fieldValue);
+          text.append(" ");
+          try {
+            document.insertString(position, text.toString(), null);
+          } catch (final BadLocationException e) {
+            Logs.error(this, "Error inserting text: " + text, e);
           }
         }
       }
     }
   }
 
-  public void actionAddInCondition() {
-    final Attribute attribute = (Attribute)fieldNamesList.getSelectedItem();
-    if (attribute != null) {
-      Object fieldValue = ((Field)inConditionField).getFieldValue();
-      if (fieldValue != null) {
-        int position = whereTextField.getCaretPosition();
-        Class<?> attributeClass = attribute.getTypeClass();
+  private void actionAddInCondition() {
+    final FieldDefinition fieldDefinition = this.fieldNamesList.getSelectedItem();
+    if (fieldDefinition != null) {
+      Object fieldValue = ((Field)this.searchField).getFieldValue();
+      if (Property.hasValue(fieldValue)) {
+        int position = this.whereTextField.getCaretPosition();
+        DataType fieldType = fieldDefinition.getDataType();
         if (fieldValue != null) {
-          if (codeTable == null) {
+          if (this.codeTable == null) {
             try {
-              fieldValue = StringConverterRegistry.toObject(attributeClass,
-                fieldValue);
+              fieldValue = fieldDefinition.toFieldValue(fieldValue);
             } catch (final Throwable e) {
-              setInvalidMessage(fieldValue + " is not a valid "
-                + attribute.getType());
+              setInvalidMessage(
+                "'" + fieldValue + "' is not a valid " + fieldType.getValidationName());
               return;
             }
           } else {
-            fieldValue = codeTable.getValue(fieldValue);
+            fieldValue = this.codeTable.getValue(fieldValue);
             if (fieldValue != null) {
-              attributeClass = fieldValue.getClass();
+              fieldType = DataTypes.STRING;
             }
           }
           if (fieldValue != null) {
-            final StringBuffer text = new StringBuffer();
+            final StringBuilder text = new StringBuilder();
             try {
-              final Document document = whereTextField.getDocument();
+              final Document document = this.whereTextField.getDocument();
               final String currentText = document.getText(0, position);
-              final String endText = attribute.getName() + " IN (.+) $";
-              if (currentText.matches(endText)) {
-                position -= 2;
-                text.append(", ");
-                appendValue(text, attributeClass, fieldValue);
-              } else {
+              final Matcher matcher = Pattern.compile("(?:.+ )?" + fieldDefinition.getName()
+                + " IN \\((?:.+,\\s*)*'?((?:[^']|'')*)'?\\) $").matcher(currentText);
+              if (matcher.matches()) {
+                final String previousValue = matcher.group(1).replace("''", "'");
 
+                if (!DataType.equal(fieldValue, previousValue)) {
+                  position -= 2;
+                  text.append(", ");
+                  appendValue(text, fieldType, fieldValue);
+                }
+              } else {
                 if (position > 0) {
                   text.append(" ");
                 }
-                text.append(attribute.getName());
+                text.append(fieldDefinition.getName());
                 text.append(" IN (");
-                appendValue(text, attributeClass, fieldValue);
+                appendValue(text, fieldType, fieldValue);
                 text.append(") ");
               }
               document.insertString(position, text.toString(), null);
             } catch (final BadLocationException e) {
-              LoggerFactory.getLogger(getClass()).error(
-                "Error inserting text: " + text, e);
-
+              Logs.error(this, "Error inserting text: " + text, e);
             }
           }
         }
@@ -436,32 +398,29 @@ public class QueryWhereConditionField extends ValueField implements
     }
   }
 
-  public void actionAddLikeCondition() {
-    final Attribute attribute = (Attribute)fieldNamesList.getSelectedItem();
-    if (attribute != null) {
-      final Object fieldValue = ((Field)likeConditionField).getFieldValue();
+  private void actionAddLikeCondition() {
+    final FieldDefinition fieldDefinition = this.fieldNamesList.getSelectedItem();
+    if (fieldDefinition != null) {
+      final Object fieldValue = ((Field)this.searchField).getFieldValue();
       if (fieldValue != null) {
-        if (codeTable == null) {
-          final int position = whereTextField.getCaretPosition();
-          final Class<?> attributeClass = attribute.getTypeClass();
+        if (this.codeTable == null) {
+          final int position = this.whereTextField.getCaretPosition();
           if (fieldValue != null) {
-            final String valueString = StringConverterRegistry.toString(
-              attributeClass, fieldValue);
+            final String valueString = fieldDefinition.toString(fieldValue);
 
-            final Document document = whereTextField.getDocument();
-            final StringBuffer text = new StringBuffer();
+            final Document document = this.whereTextField.getDocument();
+            final StringBuilder text = new StringBuilder();
             if (position > 0) {
               text.append(" ");
             }
-            text.append(attribute.getName());
+            text.append(fieldDefinition.getName());
             text.append(" LIKE '%");
             text.append(valueString.replaceAll("'", "''"));
             text.append("%' ");
             try {
               document.insertString(position, text.toString(), null);
             } catch (final BadLocationException e) {
-              LoggerFactory.getLogger(getClass()).error(
-                "Error inserting text: " + text, e);
+              Logs.error(this, "Error inserting text: " + text, e);
             }
           }
         }
@@ -469,45 +428,40 @@ public class QueryWhereConditionField extends ValueField implements
     }
   }
 
-  public void actionAddRightUnaryCondition() {
-    final Attribute attribute = (Attribute)fieldNamesList.getSelectedItem();
-    if (attribute != null) {
-      final String operator = (String)rightUnaryConditionOperator.getSelectedItem();
-      if (StringUtils.hasText(operator)) {
-        final int position = whereTextField.getCaretPosition();
+  private void actionAddRightUnaryCondition(final String operator) {
+    final FieldDefinition fieldDefinition = this.fieldNamesList.getSelectedItem();
+    if (fieldDefinition != null) {
+      final int position = this.whereTextField.getCaretPosition();
 
-        final Document document = whereTextField.getDocument();
-        final StringBuffer text = new StringBuffer();
-        if (position > 0) {
-          text.append(" ");
-        }
-        text.append(attribute.getName());
+      final Document document = this.whereTextField.getDocument();
+      final StringBuilder text = new StringBuilder();
+      if (position > 0) {
         text.append(" ");
-        text.append(operator);
-        text.append(" ");
+      }
+      text.append(fieldDefinition.getName());
+      text.append(" ");
+      text.append(operator);
+      text.append(" ");
 
-        try {
-          document.insertString(position, text.toString(), null);
-        } catch (final BadLocationException e) {
-          LoggerFactory.getLogger(getClass()).error(
-            "Error inserting text: " + text, e);
-        }
+      try {
+        document.insertString(position, text.toString(), null);
+      } catch (final BadLocationException e) {
+        Logs.error(this, "Error inserting text: " + text, e);
       }
     }
   }
 
-  public void appendValue(final StringBuffer text, final Class<?> type,
-    final Object value) {
-    final String valueString = StringConverterRegistry.toString(type, value);
-    if (Date.class.isAssignableFrom(type)) {
+  public void appendValue(final StringBuilder text, final DataType type, final Object value) {
+    final String valueString = type.toString(value);
+    if (DataTypes.SQL_DATE == type) {
       text.append("{d '" + valueString + "'}");
-    } else if (Time.class.isAssignableFrom(type)) {
+    } else if (DataTypes.TIME == type) {
       text.append("{t '" + valueString + "'}");
-    } else if (Timestamp.class.isAssignableFrom(type)) {
+    } else if (DataTypes.TIMESTAMP == type || DataTypes.DATE == type) {
       text.append("{ts '" + valueString + "'}");
-    } else if (java.util.Date.class.isAssignableFrom(type)) {
+    } else if (DataTypes.DATE_TIME == type) {
       text.append("{ts '" + valueString + "'}");
-    } else if (Number.class.isAssignableFrom(type)) {
+    } else if (Number.class.isAssignableFrom(type.getJavaClass())) {
       text.append(valueString);
     } else {
       text.append("'");
@@ -518,32 +472,36 @@ public class QueryWhereConditionField extends ValueField implements
 
   @Override
   public void caretUpdate(final CaretEvent e) {
-    if (!validating) {
-      whereTextField.setSelectionColor(selectionColor);
+    if (!this.validating) {
+      this.whereTextField.setSelectionColor(this.selectionColor);
       repaint();
     }
   }
 
+  @Override
+  public void changedUpdate(final DocumentEvent e) {
+    updateHasSearchText();
+  }
+
   public void insertText(final String operator) {
-    if (StringUtils.hasText(operator)) {
-      int position = whereTextField.getCaretPosition();
+    if (Property.hasValue(operator)) {
+      int position = this.whereTextField.getCaretPosition();
       String previousText;
       try {
-        previousText = whereTextField.getText(0, position);
+        previousText = this.whereTextField.getText(0, position);
       } catch (final BadLocationException e) {
         previousText = "";
       }
-      if (!StringUtils.hasText(previousText)
-        || !previousText.matches(".*"
-          + operator.replaceAll("\\(", "\\\\(")
-            .replaceAll("\\)", "\\\\)")
-            .replaceAll("\\*", "\\\\*")
-            .replaceAll("\\+", "\\\\+") + "\\s*$")) {
-        final Document document = whereTextField.getDocument();
+      if (!Property.hasValue(previousText) || !previousText.matches(".*"
+        + operator.replaceAll("\\(", "\\\\(")
+          .replaceAll("\\)", "\\\\)")
+          .replaceAll("\\*", "\\\\*")
+          .replaceAll("\\+", "\\\\+")
+        + "\\s*$")) {
+        final Document document = this.whereTextField.getDocument();
         try {
-          if (StringUtils.hasText(previousText)
-            && !previousText.substring(previousText.length() - 1).matches(
-              "\\s$")) {
+          if (Property.hasValue(previousText)
+            && !previousText.substring(previousText.length() - 1).matches("\\s$")) {
             document.insertString(position++, " ", null);
           }
           document.insertString(position, operator + " ", null);
@@ -551,64 +509,56 @@ public class QueryWhereConditionField extends ValueField implements
         }
       }
     }
-    whereTextField.requestFocusInWindow();
+    this.whereTextField.requestFocusInWindow();
+  }
+
+  @Override
+  public void insertUpdate(final DocumentEvent e) {
+    updateHasSearchText();
+  }
+
+  public boolean isFieldComparable() {
+    return this.fieldComparable;
+  }
+
+  public boolean isHasSearchText() {
+    return this.hasSearchText;
+  }
+
+  public boolean isLikeEnabled() {
+    return this.likeEnabled;
   }
 
   @Override
   public void itemStateChanged(final ItemEvent event) {
-    if (event.getSource() == fieldNamesList) {
+    if (event.getSource() == this.fieldNamesList) {
       if (event.getStateChange() == ItemEvent.SELECTED) {
-        final Attribute attribute = (Attribute)event.getItem();
-        final String name = attribute.getName();
-        codeTable = metaData.getCodeTableByColumn(name);
-        final JComponent binaryConditionField = createSearchField(attribute,
-          codeTable);
-        if (binaryConditionField instanceof DataStoreQueryTextField) {
-          final DataStoreQueryTextField queryField = (DataStoreQueryTextField)binaryConditionField;
-          queryField.setBelow(true);
-        }
-        final JComponent inConditionField = createSearchField(attribute,
-          codeTable);
-        if (inConditionField instanceof DataStoreQueryTextField) {
-          final DataStoreQueryTextField queryField = (DataStoreQueryTextField)inConditionField;
-          queryField.setBelow(true);
-        }
-
-        if (codeTable == null) {
-          if (binaryConditionField instanceof DateField) {
-            likePanel.setVisible(false);
-          } else {
-            likePanel.setVisible(true);
-          }
-        } else {
-          likePanel.setVisible(false);
-        }
-        setBinaryConditionField(binaryConditionField);
-        setInConditionField(inConditionField);
+        final FieldDefinition fieldDefinition = (FieldDefinition)event.getItem();
+        setSearchField(fieldDefinition);
       }
     }
   }
 
   @Override
   public void mouseClicked(final MouseEvent event) {
-    if (event.getSource() == fieldNamesList) {
+    if (event.getSource() == this.fieldNamesList) {
       if (SwingUtilities.isLeftMouseButton(event) && event.getClickCount() == 2) {
-        final String fieldName = (String)fieldNamesList.getSelectedItem();
-        if (StringUtils.hasText(fieldName)) {
-          int position = whereTextField.getCaretPosition();
+        final FieldDefinition fieldDefinition = this.fieldNamesList.getSelectedItem();
+        if (Property.hasValue(fieldDefinition)) {
+          final String fieldName = fieldDefinition.getName();
+          int position = this.whereTextField.getCaretPosition();
           String previousText;
           try {
-            previousText = whereTextField.getText(0, position);
+            previousText = this.whereTextField.getText(0, position);
           } catch (final BadLocationException e) {
             previousText = "";
           }
-          if (!StringUtils.hasText(previousText)
+          if (!Property.hasValue(previousText)
             || !previousText.matches(".*\"?" + fieldName + "\"?\\s*$")) {
-            final Document document = whereTextField.getDocument();
+            final Document document = this.whereTextField.getDocument();
             try {
-              if (StringUtils.hasText(previousText)
-                && !previousText.substring(previousText.length() - 1).matches(
-                  "\\s$")) {
+              if (Property.hasValue(previousText)
+                && !previousText.substring(previousText.length() - 1).matches("\\s$")) {
                 document.insertString(position++, " ", null);
               }
 
@@ -623,7 +573,7 @@ public class QueryWhereConditionField extends ValueField implements
           }
         }
       }
-      whereTextField.requestFocusInWindow();
+      this.whereTextField.requestFocusInWindow();
     }
   }
 
@@ -644,74 +594,109 @@ public class QueryWhereConditionField extends ValueField implements
   }
 
   @Override
+  public void propertyChange(final PropertyChangeEvent event) {
+    final Object source = event.getSource();
+    if (source == this.searchField) {
+      updateHasSearchText();
+    }
+  }
+
+  @Override
+  public void removeUpdate(final DocumentEvent e) {
+    updateHasSearchText();
+  }
+
+  @Override
   public void save() {
     super.save();
     final Condition condition = getFieldValue();
-    listener.propertyChange(new PropertyChangeEvent(this, "filter",
-      originalFilter, condition));
+    this.listener
+      .propertyChange(new PropertyChangeEvent(this, "filter", this.originalFilter, condition));
   }
 
   @Override
   public void save(final JDialog dialog) {
     verifyCondition();
-    if (valid) {
+    if (this.valid) {
       super.save(dialog);
     } else {
-      JOptionPane.showMessageDialog(
-        this,
+      JOptionPane.showMessageDialog(this,
         "<html><p>Cannot save the advanced query as the SQL is valid.<p></p>Fix the SQL or use the cancel button on the Advanced Search window to cancel the changes.<p></html>",
         "SQL Invalid", JOptionPane.ERROR_MESSAGE);
     }
   }
 
-  private void setBinaryConditionField(JComponent field) {
-    if (binaryConditionField != null) {
-      binaryConditionPanel.remove(1);
-    }
-    if (field == null) {
-      field = new TextField(20);
-    }
-    binaryConditionPanel.add(field, 1);
-    GroupLayoutUtil.makeColumns(binaryConditionPanel, false);
-    this.binaryConditionField = field;
-  }
-
   @Override
-  public void setFieldValue(final Object value) {
+  public boolean setFieldValue(final Object value) {
     if (value instanceof Condition) {
-      super.setFieldValue(value);
+      return super.setFieldValue(value);
+    } else if (Property.hasValue(value)) {
+      return false;
+    } else {
+      return super.setFieldValue(value);
     }
   }
 
-  private void setInConditionField(JComponent field) {
-    if (inConditionField != null) {
-      inConditionPanel.remove(1);
-    }
-    if (field == null) {
-      field = new TextField(20);
-    }
-
-    inConditionPanel.add(field, 1);
-    GroupLayoutUtil.makeColumns(inConditionPanel, false);
-    this.inConditionField = field;
+  public void setHasSearchText(final boolean hasSearchText) {
+    final boolean oldValue = this.hasSearchText;
+    this.hasSearchText = hasSearchText;
+    firePropertyChange("hasSearchText", oldValue, hasSearchText);
   }
 
   protected void setInvalidMessage(final int offset, final String message) {
     if (offset >= 0) {
-      whereTextField.setSelectionColor(WebColors.Pink);
-      whereTextField.setSelectionStart(offset);
-      final Document document = whereTextField.getDocument();
-      whereTextField.setSelectionEnd(document.getLength());
-      whereTextField.requestFocusInWindow();
+      this.whereTextField.setSelectionColor(WebColors.Pink);
+      this.whereTextField.setSelectionStart(offset);
+      final Document document = this.whereTextField.getDocument();
+      this.whereTextField.setSelectionEnd(document.getLength());
+      this.whereTextField.requestFocusInWindow();
     }
     setInvalidMessage(message);
   }
 
   protected void setInvalidMessage(final String message) {
-    statusLabel.setForeground(WebColors.Red);
-    statusLabel.append(message + "\n");
-    valid = false;
-    statusLabel.setCaretPosition(0);
+    this.statusLabel.setForeground(WebColors.Red);
+    this.statusLabel.append(message + "\n");
+    this.valid = false;
+    this.statusLabel.setCaretPosition(0);
+  }
+
+  private void setSearchField(final FieldDefinition fieldDefinition) {
+    if (this.searchField != null) {
+      Property.removeListener(this.searchField, this);
+      if (this.searchField instanceof JTextComponent) {
+        final JTextComponent textField = (JTextComponent)this.searchField;
+        textField.getDocument().removeDocumentListener(this);
+      }
+    }
+    this.searchFieldPanel.removeAll();
+    final String fieldName = fieldDefinition.getName();
+    this.codeTable = this.recordDefinition.getCodeTableByFieldName(fieldName);
+    this.searchField = newSearchField(this.layer, fieldDefinition, this.codeTable);
+
+    final boolean oldFieldComparable = this.fieldComparable;
+    this.fieldComparable = false;
+    final boolean oldLikeEnabled = this.likeEnabled;
+    this.likeEnabled = false;
+    if (this.codeTable == null) {
+      final Class<?> fieldClass = fieldDefinition.getTypeClass();
+      if (Number.class.isAssignableFrom(fieldClass) || Date.class.isAssignableFrom(fieldClass)) {
+        this.fieldComparable = true;
+      } else if (String.class.isAssignableFrom(fieldClass)) {
+        this.likeEnabled = true;
+      }
+    }
+    firePropertyChange("fieldComparable", oldFieldComparable, this.fieldComparable);
+    firePropertyChange("likeEnabled", oldLikeEnabled, this.likeEnabled);
+
+    this.searchFieldPanel.add(this.searchField);
+    setHasSearchText(((Field)this.searchField).isHasValidValue());
+    Property.addListener(this.searchField, this);
+    if (this.searchField instanceof JTextComponent) {
+      final JTextComponent textField = (JTextComponent)this.searchField;
+      textField.getDocument().addDocumentListener(this);
+    }
+    GroupLayouts.makeColumns(this.searchFieldPanel, false);
   }
 
   @SuppressWarnings("unchecked")
@@ -723,27 +708,24 @@ public class QueryWhereConditionField extends ValueField implements
       final ValueNode betweenExpressionStart = rightOperandList.get(0);
       final ValueNode betweenExpressionEnd = rightOperandList.get(1);
       if (!(leftValueNode instanceof ColumnReference)) {
-        setInvalidMessage("Between operator must use a column name not: "
-          + leftValueNode);
+        setInvalidMessage("Between operator must use a column name not: " + leftValueNode);
         return null;
       }
 
       if (!(betweenExpressionStart instanceof NumericConstantNode)) {
-        setInvalidMessage("Between min value must be a number not: "
-          + betweenExpressionStart);
+        setInvalidMessage("Between min value must be a number not: " + betweenExpressionStart);
         return null;
       }
       if (!(betweenExpressionEnd instanceof NumericConstantNode)) {
-        setInvalidMessage("Between max value must be a number not: "
-          + betweenExpressionEnd);
+        setInvalidMessage("Between max value must be a number not: " + betweenExpressionEnd);
         return null;
       }
       final Column column = toQueryValue(leftValueNode);
       final Value min = toQueryValue(betweenExpressionStart);
       final Value max = toQueryValue(betweenExpressionEnd);
-      final Attribute attribute = metaData.getAttribute(column.getName());
-      min.convert(attribute);
-      max.convert(attribute);
+      final FieldDefinition fieldDefinition = this.recordDefinition.getField(column.getName());
+      min.convert(fieldDefinition);
+      max.convert(fieldDefinition);
       return (V)new Between(column, min, max);
     } else if (expression instanceof BinaryLogicalOperatorNode) {
       final BinaryLogicalOperatorNode binaryOperatorNode = (BinaryLogicalOperatorNode)expression;
@@ -757,8 +739,7 @@ public class QueryWhereConditionField extends ValueField implements
       } else if ("OR".equals(operator)) {
         return (V)new Or(leftCondition, rightCondition);
       } else {
-        setInvalidMessage("Binary logical operator " + operator
-          + " not supported.");
+        setInvalidMessage("Binary logical operator " + operator + " not supported.");
         return null;
       }
     } else if (expression instanceof BinaryOperatorNode) {
@@ -774,30 +755,27 @@ public class QueryWhereConditionField extends ValueField implements
           if (rightCondition instanceof Value) {
             final Object value = ((Value)rightCondition).getValue();
             if (value == null) {
-              setInvalidMessage("Values can't be null for " + operator
-                + " use IS NULL or IS NOT NULL instead.");
+              setInvalidMessage(
+                "Values can't be null for " + operator + " use IS NULL or IS NOT NULL instead.");
             } else {
               final Column column = (Column)leftCondition;
 
               final String name = column.getName();
-              final Attribute attribute = metaData.getAttribute(name);
-              final CodeTable codeTable = metaData.getCodeTableByColumn(name);
-              if (codeTable == null || attribute == metaData.getIdAttribute()) {
-                final Class<?> typeClass = attribute.getTypeClass();
+              final FieldDefinition fieldDefinition = this.recordDefinition.getField(name);
+              final CodeTable codeTable = this.recordDefinition.getCodeTableByFieldName(name);
+              if (codeTable == null || fieldDefinition == this.recordDefinition.getIdField()) {
                 try {
-                  final Object convertedValue = StringConverterRegistry.toObject(
-                    typeClass, value);
-                  if (convertedValue == null
-                    || !typeClass.isAssignableFrom(typeClass)) {
-                    setInvalidMessage(name + " requires a "
-                      + attribute.getType() + " not the value " + value);
+                  final Object convertedValue = fieldDefinition.toFieldValueException(value);
+                  if (convertedValue == null) {
+                    setInvalidMessage("Values can't be null for " + operator
+                      + " use IS NULL or IS NOT NULL instead.");
                     return null;
                   } else {
-                    rightCondition = new Value(attribute, convertedValue);
+                    rightCondition = new Value(fieldDefinition, convertedValue);
                   }
                 } catch (final Throwable t) {
-                  setInvalidMessage(name + " requires a " + attribute.getType()
-                    + " not the value " + value);
+                  setInvalidMessage(name + "='" + value + "' is not a valid "
+                    + fieldDefinition.getDataType().getValidationName());
                 }
               } else {
                 Object id;
@@ -805,27 +783,26 @@ public class QueryWhereConditionField extends ValueField implements
                 if (value instanceof String) {
                   final String string = (String)value;
                   final String[] values = string.split(":");
-                  id = codeTable.getId((Object[])values);
+                  id = codeTable.getIdentifier((Object[])values);
                 } else {
-                  id = codeTable.getId(value);
+                  id = codeTable.getIdentifier(value);
                 }
                 if (id == null) {
-                  setInvalidMessage(name
-                    + " requires a valid code value that exists not " + value);
+                  setInvalidMessage(name + "='" + value + "' could not be found in the code table "
+                    + codeTable.getName());
                 } else {
-                  rightCondition = new Value(attribute, id);
+                  rightCondition = new Value(fieldDefinition, id);
                 }
               }
             }
           }
         }
         if (expression instanceof BinaryArithmeticOperatorNode) {
-          final QueryValue arithmaticCondition = Q.arithmatic(leftCondition,
-            operator, rightCondition);
+          final QueryValue arithmaticCondition = Q.arithmatic(leftCondition, operator,
+            rightCondition);
           return (V)arithmaticCondition;
         } else {
-          final Condition binaryCondition = Q.binary(leftCondition, operator,
-            rightCondition);
+          final Condition binaryCondition = Q.binary(leftCondition, operator, rightCondition);
           return (V)binaryCondition;
         }
 
@@ -836,11 +813,11 @@ public class QueryWhereConditionField extends ValueField implements
       final ColumnReference column = (ColumnReference)expression;
       String columnName = column.getColumnName();
       columnName = columnName.replaceAll("\"", "");
-      final Attribute attribute = metaData.getAttribute(columnName);
-      if (attribute == null) {
-        setInvalidMessage("Invalid column name " + columnName);
+      final FieldDefinition fieldDefinition = this.recordDefinition.getField(columnName);
+      if (fieldDefinition == null) {
+        setInvalidMessage("Invalid field name " + columnName);
       } else {
-        return (V)new Column(attribute);
+        return (V)new Column(fieldDefinition);
       }
     } else if (expression instanceof LikeEscapeOperatorNode) {
       final LikeEscapeOperatorNode likeEscapeOperatorNode = (LikeEscapeOperatorNode)expression;
@@ -859,7 +836,7 @@ public class QueryWhereConditionField extends ValueField implements
       final ValueNode leftOperand = inListOperatorNode.getLeftOperand();
       final QueryValue leftCondition = toQueryValue(leftOperand);
 
-      final List<QueryValue> conditions = new ArrayList<QueryValue>();
+      final List<QueryValue> conditions = new ArrayList<>();
       final RowConstructorNode itemsList = inListOperatorNode.getRightOperandList();
       for (final ValueNode itemValueNode : itemsList.getNodeList()) {
         final QueryValue itemCondition = toQueryValue(itemValueNode);
@@ -915,19 +892,23 @@ public class QueryWhereConditionField extends ValueField implements
     } else if (expression == null) {
       return null;
     } else {
-      setInvalidMessage("Unsupported expression" + expression.getClass() + " "
-        + expression);
+      setInvalidMessage("Unsupported expression" + expression.getClass() + " " + expression);
     }
     return null;
   }
 
+  protected void updateHasSearchText() {
+    final boolean fieldValid = ((Field)this.searchField).isHasValidValue();
+    setHasSearchText(fieldValid);
+  }
+
   public void verifyCondition() {
-    validating = true;
-    valid = true;
-    statusLabel.setText("");
+    this.validating = true;
+    this.valid = true;
+    this.statusLabel.setText("");
     try {
-      final String whereClause = whereTextField.getText();
-      if (StringUtils.hasText(whereClause)) {
+      final String whereClause = this.whereTextField.getText();
+      if (Property.hasValue(whereClause)) {
         final String sql = "SELECT * FROM X WHERE " + "\n" + whereClause;
         try {
           final StatementNode statement = new SQLParser().parseStatement(sql);
@@ -938,30 +919,30 @@ public class QueryWhereConditionField extends ValueField implements
               final SelectNode selectNode = (SelectNode)resultSetNode;
               final ValueNode where = selectNode.getWhereClause();
               final Condition condition = toQueryValue(where);
-              if (valid) {
+              if (this.valid) {
                 setFieldValue(condition);
-                statusLabel.setForeground(WebColors.DarkGreen);
-                statusLabel.setText("Valid");
+                this.statusLabel.setForeground(WebColors.DarkGreen);
+                this.statusLabel.setText("Valid");
               }
             }
           }
         } catch (final SQLParserException e) {
           final int offset = e.getErrorPosition();
-          setInvalidMessage(offset - sqlPrefix.length(), "Error parsing SQL: "
-            + e.getMessage());
+          setInvalidMessage(offset - this.sqlPrefix.length(),
+            "Error parsing SQL: " + e.getMessage());
         } catch (final StandardException e) {
-          LoggerFactory.getLogger(getClass()).error(
-            "Error parsing SQL: " + whereClause, e);
+          Logs.error(this, "Error parsing SQL: " + whereClause, e);
         }
       } else {
-        statusLabel.setForeground(WebColors.DarkGreen);
-        statusLabel.setText("Valid");
+        setFieldValue(Condition.ALL);
+        this.statusLabel.setForeground(WebColors.DarkGreen);
+        this.statusLabel.setText("Valid");
       }
     } finally {
-      if (!valid) {
+      if (!this.valid) {
         setFieldValue(null);
       }
-      validating = false;
+      this.validating = false;
     }
   }
 }

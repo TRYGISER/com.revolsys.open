@@ -1,0 +1,163 @@
+/*
+ * The JTS Topology Suite is a collection of Java classes that
+ * implement the fundamental operations required to validate a given
+ * geo-spatial data set to a known topological specification.
+ *
+ * Copyright (C) 2001 Vivid Solutions
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ * For more information, contact:
+ *
+ *     Vivid Solutions
+ *     Suite #1A
+ *     2328 Government Street
+ *     Victoria BC  V8T 5G5
+ *     Canada
+ *
+ *     (250)385-6040
+ *     www.vividsolutions.com
+ */
+package com.revolsys.geometry.model.impl;
+
+import com.revolsys.geometry.cs.projection.CoordinatesOperation;
+import com.revolsys.geometry.model.Geometry;
+import com.revolsys.geometry.model.GeometryFactory;
+import com.revolsys.geometry.model.LineString;
+import com.revolsys.util.Exceptions;
+
+/**
+ * Models an OGC-style <code>LineString</code>. A LineString consists of a
+ * sequence of two or more vertices, along with all points along the
+ * linearly-interpolated curves (line segments) between each pair of consecutive
+ * vertices. Consecutive vertices may be equal. The line segments in the line
+ * may intersect each other (in other words, the linestring may "curl back" in
+ * itself and self-intersect. Linestrings with exactly two identical points are
+ * invalid.
+ * <p>
+ * A linestring must have either 0 or 2 or more points. If these conditions are
+ * not met, the constructors throw an {@link IllegalArgumentException}
+ *
+ * @version 1.7
+ */
+public abstract class AbstractLineString implements LineString {
+  private static final long serialVersionUID = 3110669828065365560L;
+
+  /**
+   * Creates and returns a full copy of this {@link LineString} object.
+   * (including all coordinates contained by it).
+   *
+   * @return a clone of this instance
+   */
+  @Override
+  public LineString clone() {
+    try {
+      return (LineString)super.clone();
+    } catch (final CloneNotSupportedException e) {
+      throw Exceptions.wrap(e);
+    }
+  }
+
+  protected double[] convertCoordinates(GeometryFactory geometryFactory) {
+    final GeometryFactory sourceGeometryFactory = getGeometryFactory();
+    final double[] coordinates = getCoordinates();
+    if (isEmpty()) {
+      return coordinates;
+    } else {
+      geometryFactory = getNonZeroGeometryFactory(geometryFactory);
+      double[] targetCoordinates;
+      final CoordinatesOperation coordinatesOperation = sourceGeometryFactory
+        .getCoordinatesOperation(geometryFactory);
+      if (coordinatesOperation == null) {
+        return coordinates;
+      } else {
+        final int sourceAxisCount = getAxisCount();
+        targetCoordinates = new double[sourceAxisCount * getVertexCount()];
+        coordinatesOperation.perform(sourceAxisCount, coordinates, sourceAxisCount,
+          targetCoordinates);
+        return targetCoordinates;
+      }
+    }
+  }
+
+  /**
+   * Tests whether this geometry is structurally and numerically equal
+   * to a given <code>Object</code>.
+   * If the argument <code>Object</code> is not a <code>Geometry</code>,
+   * the result is <code>false</code>.
+   * Otherwise, the result is computed using
+   * {@link #equals(2,Geometry)}.
+   * <p>
+   * This method is provided to fulfill the Java contract
+   * for value-based object equality.
+   * In conjunction with {@link #hashCode()}
+   * it provides semantics which are most useful
+   * for using
+   * <code>Geometry</code>s as keys and values in Java collections.
+   * <p>
+   * Note that to produce the expected result the input geometries
+   * should be in normal form.  It is the caller's
+   * responsibility to perform this where required
+   * (using {@link Geometry#norm()
+   * or {@link #normalize()} as appropriate).
+   *
+   * @param other the Object to compare
+   * @return true if this geometry is exactly equal to the argument
+   *
+   * @see #equals(2,Geometry)
+   * @see #hashCode()
+   * @see #norm()
+   * @see #normalize()
+   */
+  @Override
+  public boolean equals(final Object other) {
+    if (other instanceof Geometry) {
+      final Geometry geometry = (Geometry)other;
+      return equals(2, geometry);
+    } else {
+      return false;
+    }
+  }
+
+  /**
+   * Gets a hash code for the Geometry.
+   *
+   * @return an integer value suitable for use as a hashcode
+   */
+
+  @Override
+  public int hashCode() {
+    return getBoundingBox().hashCode();
+  }
+
+  @Override
+  public LineString newGeometry(final GeometryFactory geometryFactory) {
+    if (geometryFactory == null) {
+      return this.clone();
+    } else if (isEmpty()) {
+      return newLineStringEmpty(geometryFactory);
+    } else {
+      final double[] coordinates = convertCoordinates(geometryFactory);
+      final int axisCount = getAxisCount();
+      final int vertexCount = getVertexCount();
+      return newLineString(geometryFactory, axisCount, vertexCount, coordinates);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return toEwkt();
+  }
+}

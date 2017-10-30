@@ -2,52 +2,50 @@ package com.revolsys.gis.parallel;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
-import com.revolsys.filter.AndFilter;
-import com.revolsys.filter.Factory;
-import com.revolsys.filter.Filter;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.filter.AttributesEqualFilter;
-import com.revolsys.gis.data.model.filter.AttributesEqualOrNullFilter;
+import com.revolsys.predicate.Predicates;
+import com.revolsys.record.Record;
+import com.revolsys.record.filter.AttributesEqualFilter;
+import com.revolsys.record.filter.AttributesEqualOrNullFilter;
 
-public class CompareFilterFactory implements
-  Factory<Filter<DataObject>, DataObject> {
-  private List<String> equalAttributeNames = new ArrayList<String>();
+public class CompareFilterFactory implements Function<Record, Predicate<Record>> {
+  private List<String> equalFieldNames = new ArrayList<>();
 
-  private List<String> equalOrNullAttributeNames = new ArrayList<String>();
+  private List<String> equalOrNullFieldNames = new ArrayList<>();
 
   @Override
-  public Filter<DataObject> create(final DataObject object) {
-    final AndFilter<DataObject> filters = new AndFilter<DataObject>();
-    if (!equalAttributeNames.isEmpty()) {
-      final Filter<DataObject> valuesFilter = new AttributesEqualFilter(object,
-        equalAttributeNames);
-      filters.addFilter(valuesFilter);
+  public Predicate<Record> apply(final Record object) {
+    Predicate<Record> predicate = Predicates.all();
+    if (!this.equalFieldNames.isEmpty()) {
+      final Predicate<Record> valuesFilter = new AttributesEqualFilter(object,
+        this.equalFieldNames);
+      predicate = valuesFilter;
     }
-    if (!equalOrNullAttributeNames.isEmpty()) {
-      final Filter<DataObject> valuesFilter = new AttributesEqualOrNullFilter(
-        object, equalOrNullAttributeNames);
-      filters.addFilter(valuesFilter);
+    if (!this.equalOrNullFieldNames.isEmpty()) {
+      final Predicate<Record> valuesFilter = new AttributesEqualOrNullFilter(object,
+        this.equalOrNullFieldNames);
+      predicate = predicate.and(valuesFilter);
     }
 
-    return filters;
+    return predicate;
   }
 
-  public List<String> getEqualAttributeNames() {
-    return equalAttributeNames;
+  public List<String> getEqualFieldNames() {
+    return this.equalFieldNames;
   }
 
-  public List<String> getEqualOrNullAttributeNames() {
-    return equalOrNullAttributeNames;
+  public List<String> getEqualOrNullFieldNames() {
+    return this.equalOrNullFieldNames;
   }
 
-  public void setEqualAttributeNames(final List<String> equalAttributeNames) {
-    this.equalAttributeNames = equalAttributeNames;
+  public void setEqualFieldNames(final List<String> equalFieldNames) {
+    this.equalFieldNames = equalFieldNames;
   }
 
-  public void setEqualOrNullAttributeNames(
-    final List<String> equalOrNullAttributeNames) {
-    this.equalOrNullAttributeNames = equalOrNullAttributeNames;
+  public void setEqualOrNullFieldNames(final List<String> equalOrNullFieldNames) {
+    this.equalOrNullFieldNames = equalOrNullFieldNames;
   }
 
 }

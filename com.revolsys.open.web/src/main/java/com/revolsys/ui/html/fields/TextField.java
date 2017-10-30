@@ -2,25 +2,27 @@ package com.revolsys.ui.html.fields;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.datatype.DataTypes;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.form.Form;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
+import com.revolsys.util.Property;
 
 public class TextField extends Field {
+  private String cssClass = "";
+
+  private String inputValue = "";
+
+  private int maxLength = Integer.MAX_VALUE;
+
+  private int minLength = 0;
+
   private int size = 25;
 
   private String style = null;
 
-  private int minLength = 0;
-
-  private int maxLength = Integer.MAX_VALUE;
-
-  private String inputValue = "";
-
-  private String cssClass;
+  private String type = "text";
 
   public TextField() {
   }
@@ -35,25 +37,24 @@ public class TextField extends Field {
     this.size = size;
   }
 
-  public TextField(final String name, final int size, final int maxLength,
-    final boolean required) {
+  public TextField(final String name, final int size, final int maxLength, final boolean required) {
     this(name, size, required);
     this.maxLength = maxLength;
   }
 
-  public TextField(final String name, final int size, final int minLength,
-    final int maxLength, final boolean required) {
+  public TextField(final String name, final int size, final int minLength, final int maxLength,
+    final boolean required) {
     this(name, size, required);
     this.minLength = minLength;
     this.maxLength = maxLength;
   }
 
-  public TextField(final String name, final int size, final int minLength,
-    final int maxLength, final String defaultValue, final boolean required) {
+  public TextField(final String name, final int size, final int minLength, final int maxLength,
+    final String defaultValue, final boolean required) {
     this(name, size, maxLength, defaultValue, required);
     if (minLength > maxLength) {
-      throw new IllegalArgumentException("minLength (" + minLength
-        + ") must be <= maxLength (" + minLength + ")");
+      throw new IllegalArgumentException(
+        "minLength (" + minLength + ") must be <= maxLength (" + minLength + ")");
     }
     this.minLength = minLength;
   }
@@ -70,8 +71,8 @@ public class TextField extends Field {
     this.maxLength = maxLength;
   }
 
-  public TextField(final String name, final int size,
-    final Object defaultValue, final boolean required) {
+  public TextField(final String name, final int size, final Object defaultValue,
+    final boolean required) {
     super(name, required);
     this.size = size;
     if (defaultValue != null) {
@@ -80,8 +81,8 @@ public class TextField extends Field {
     }
   }
 
-  public TextField(final String name, final int size,
-    final String defaultValue, final boolean required) {
+  public TextField(final String name, final int size, final String defaultValue,
+    final boolean required) {
     super(name, required);
     this.size = size;
     setValue(defaultValue);
@@ -89,29 +90,29 @@ public class TextField extends Field {
   }
 
   public String getCssClass() {
-    return cssClass;
+    return this.cssClass;
   }
 
   public String getInputValue() {
-    return inputValue;
+    return this.inputValue;
   }
 
   /**
    * @return Returns the maxLength.
    */
   public final int getMaxLength() {
-    return maxLength;
+    return this.maxLength;
   }
 
   public final int getMinLength() {
-    return minLength;
+    return this.minLength;
   }
 
   /**
    * @return Returns the size.
    */
   public final int getSize() {
-    return size;
+    return this.size;
   }
 
   public String getStringValue() {
@@ -119,21 +120,25 @@ public class TextField extends Field {
   }
 
   public String getStyle() {
-    return style;
+    return this.style;
+  }
+
+  public String getType() {
+    return this.type;
   }
 
   @Override
   public boolean hasValue() {
-    return inputValue != null && !inputValue.equals("");
+    return this.inputValue != null && !this.inputValue.equals("");
   }
 
   @Override
   public void initialize(final Form form, final HttpServletRequest request) {
-    inputValue = request.getParameter(getName());
-    if (inputValue == null) {
+    this.inputValue = request.getParameter(getName());
+    if (this.inputValue == null) {
       setValue(getInitialValue(request));
       if (getValue() != null) {
-        inputValue = getValue().toString();
+        this.inputValue = getValue().toString();
       }
     }
   }
@@ -144,19 +149,19 @@ public class TextField extends Field {
     if (!super.isValid()) {
       valid = false;
     } else if (hasValue()) {
-      final int length = inputValue.length();
-      if (length > maxLength) {
-        addValidationError("Cannot exceed " + maxLength + " characters");
+      final int length = this.inputValue.length();
+      if (length > this.maxLength) {
+        addValidationError("Cannot exceed " + this.maxLength + " characters");
         valid = false;
-      } else if (length < minLength) {
-        addValidationError("Must be at least " + minLength + " characters");
+      } else if (length < this.minLength) {
+        addValidationError("Must be at least " + this.minLength + " characters");
         valid = false;
       }
     }
     if (valid) {
       try {
-        if (inputValue != null && inputValue.length() > 0) {
-          setTextValue(inputValue);
+        if (this.inputValue != null && this.inputValue.length() > 0) {
+          setTextValue(this.inputValue);
         } else {
           setTextValue(null);
         }
@@ -168,38 +173,41 @@ public class TextField extends Field {
     return valid;
   }
 
+  protected void serializeAttributes(final XmlWriter out) {
+  }
+
   @Override
   public void serializeElement(final XmlWriter out) {
-    out.startTag(HtmlUtil.INPUT);
-    out.attribute(HtmlUtil.ATTR_NAME, getName());
-    out.attribute(HtmlUtil.ATTR_TYPE, "text");
-    if (size > 0) {
-      out.attribute(HtmlUtil.ATTR_SIZE, Integer.toString(size));
+    out.startTag(HtmlElem.INPUT);
+    out.attribute(HtmlAttr.NAME, getName());
+    out.attribute(HtmlAttr.TYPE, this.type);
+    if (this.size > 0) {
+      out.attribute(HtmlAttr.SIZE, Integer.toString(this.size));
     }
-    if (maxLength > 0 && maxLength < Integer.MAX_VALUE) {
-      out.attribute(HtmlUtil.ATTR_MAX_LENGTH, Integer.toString(maxLength));
+    if (this.maxLength > 0 && this.maxLength < Integer.MAX_VALUE) {
+      out.attribute(HtmlAttr.MAX_LENGTH, Integer.toString(this.maxLength));
     }
-    if (StringUtils.hasText(inputValue)) {
-      out.attribute(HtmlUtil.ATTR_VALUE, inputValue);
+    if (Property.hasValue(this.inputValue)) {
+      out.attribute(HtmlAttr.VALUE, this.inputValue);
     }
-    if (StringUtils.hasText(style)) {
-      out.attribute(HtmlUtil.ATTR_STYLE, style);
+    if (Property.hasValue(this.style)) {
+      out.attribute(HtmlAttr.STYLE, this.style);
     }
-    String cssClass = getCssClass();
+    final String cssClass = getCssClass();
+    out.attribute(HtmlAttr.CLASS, "form-control input-sm " + cssClass);
     if (isRequired()) {
-      if (StringUtils.hasText(cssClass)) {
-        cssClass += " required";
-      } else {
-        cssClass = "required";
-      }
+      out.attribute(HtmlAttr.REQUIRED, true);
     }
-    out.attribute(HtmlUtil.ATTR_CLASS, cssClass);
-
-    out.endTag(HtmlUtil.INPUT);
+    serializeAttributes(out);
+    out.endTag(HtmlElem.INPUT);
   }
 
   public void setCssClass(final String cssClass) {
-    this.cssClass = cssClass;
+    if (Property.hasValue(cssClass)) {
+      this.cssClass = cssClass;
+    } else {
+      this.cssClass = "";
+    }
   }
 
   protected void setInputValue(final String inputValue) {
@@ -225,19 +233,23 @@ public class TextField extends Field {
   public void setTextValue(final String value) {
     super.setValue(value);
     if (value != null) {
-      inputValue = value.toString();
+      this.inputValue = value.toString();
     } else {
-      inputValue = null;
+      this.inputValue = null;
     }
+  }
+
+  public void setType(final String type) {
+    this.type = type;
   }
 
   @Override
   public void setValue(final Object value) {
     super.setValue(value);
     if (value != null) {
-      inputValue = StringConverterRegistry.toString(value);
+      this.inputValue = DataTypes.toString(value);
     } else {
-      inputValue = null;
+      this.inputValue = null;
     }
   }
 

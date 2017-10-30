@@ -5,38 +5,38 @@ import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 
 import org.jdesktop.swingx.JXSearchField;
-import org.springframework.util.StringUtils;
 
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.gis.model.data.equals.EqualsRegistry;
-import com.revolsys.swing.undo.CascadingUndoManager;
-import com.revolsys.swing.undo.UndoManager;
+import com.revolsys.datatype.DataType;
+import com.revolsys.datatype.DataTypes;
+import com.revolsys.util.Exceptions;
+import com.revolsys.util.OS;
 
 public class SearchField extends JXSearchField implements FocusListener, Field {
   private static final long serialVersionUID = 1L;
 
-  private final String fieldName;
-
-  private String errorMessage;
-
-  private String fieldValue;
-
-  private String originalToolTip;
-
-  private final CascadingUndoManager undoManager = new CascadingUndoManager();
+  private final FieldSupport fieldSupport;
 
   public SearchField() {
     this("fieldValue");
   }
 
   public SearchField(final String fieldName) {
-    this.fieldName = fieldName;
-    this.undoManager.addKeyMap(this);
+    this.fieldSupport = new FieldSupport(this, fieldName, "", false);
+    setOpaque(true);
   }
 
   @Override
-  public void firePropertyChange(final String propertyName,
-    final Object oldValue, final Object newValue) {
+  public Field clone() {
+    try {
+      return (Field)super.clone();
+    } catch (final CloneNotSupportedException e) {
+      return Exceptions.throwUncheckedException(e);
+    }
+  }
+
+  @Override
+  public void firePropertyChange(final String propertyName, final Object oldValue,
+    final Object newValue) {
     super.firePropertyChange(propertyName, oldValue, newValue);
   }
 
@@ -51,13 +51,13 @@ public class SearchField extends JXSearchField implements FocusListener, Field {
   }
 
   @Override
-  public String getFieldName() {
-    return this.fieldName;
+  public Color getFieldSelectedTextColor() {
+    return getSelectedTextColor();
   }
 
   @Override
-  public String getFieldValidationMessage() {
-    return this.errorMessage;
+  public FieldSupport getFieldSupport() {
+    return this.fieldSupport;
   }
 
   @SuppressWarnings("unchecked")
@@ -67,75 +67,40 @@ public class SearchField extends JXSearchField implements FocusListener, Field {
   }
 
   @Override
-  public boolean isFieldValid() {
-    return true;
-  }
-
-  @Override
-  public void setFieldBackgroundColor(Color color) {
+  public void setFieldSelectedTextColor(Color color) {
     if (color == null) {
-      color = TextField.DEFAULT_BACKGROUND;
+      color = Field.DEFAULT_SELECTED_FOREGROUND;
     }
-    setBackground(color);
-  }
-
-  @Override
-  public void setFieldForegroundColor(Color color) {
-    if (color == null) {
-      color = TextField.DEFAULT_BACKGROUND;
-    }
-    setForeground(color);
-  }
-
-  @Override
-  public void setFieldInvalid(final String message, final Color foregroundColor, Color backgroundColor) {
-    setForeground(foregroundColor);
-    setSelectedTextColor(foregroundColor);
-    setBackground(backgroundColor);
-    this.errorMessage = message;
-    super.setToolTipText(this.errorMessage);
+    setSelectedTextColor(color);
   }
 
   @Override
   public void setFieldToolTip(final String toolTip) {
-    setToolTipText(toolTip);
+    super.setToolTipText(toolTip);
   }
 
   @Override
-  public void setFieldValid() {
-    setForeground(TextField.DEFAULT_FOREGROUND);
-    setSelectedTextColor(TextField.DEFAULT_SELECTED_FOREGROUND);
-    setBackground(TextField.DEFAULT_BACKGROUND);
-    this.errorMessage = null;
-    super.setToolTipText(this.originalToolTip);
-  }
-
-  @Override
-  public void setFieldValue(final Object value) {
-    final String newValue = StringConverterRegistry.toString(value);
-    final String oldValue = this.fieldValue;
-    if (!EqualsRegistry.equal(getText(), newValue)) {
+  public boolean setFieldValue(final Object value) {
+    final String newValue = DataTypes.toString(value);
+    if (!DataType.equal(getText(), newValue)) {
       setText(newValue);
     }
-    if (!EqualsRegistry.equal(oldValue, value)) {
-      this.fieldValue = (String)value;
-      firePropertyChange(this.fieldName, oldValue, value);
-      SetFieldValueUndoableEdit.create(this.undoManager.getParent(), this,
-        oldValue, value);
-    }
+    return this.fieldSupport.setValue(newValue);
   }
 
   @Override
   public void setToolTipText(final String text) {
-    this.originalToolTip = text;
-    if (!StringUtils.hasText(this.errorMessage)) {
+    if (this.fieldSupport == null || this.fieldSupport.setOriginalTooltipText(text)) {
       super.setToolTipText(text);
     }
   }
 
   @Override
-  public void setUndoManager(final UndoManager undoManager) {
-    this.undoManager.setParent(undoManager);
+  public void setUseNativeSearchFieldIfPossible(boolean useNativeSearchFieldIfPossible) {
+    if (OS.isMac()) {
+      useNativeSearchFieldIfPossible = false;
+    }
+    super.setUseNativeSearchFieldIfPossible(useNativeSearchFieldIfPossible);
   }
 
   @Override
@@ -147,5 +112,4 @@ public class SearchField extends JXSearchField implements FocusListener, Field {
   public void updateFieldValue() {
     setFieldValue(getText());
   }
-
 }

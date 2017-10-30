@@ -6,23 +6,23 @@ import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.model.Menu;
 import com.revolsys.ui.web.config.JexlHttpServletRequestContext;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
+import com.revolsys.util.Property;
 
 public class MenuElement extends Element {
   private String cssClass = "menu";
+
+  private JexlHttpServletRequestContext jexlContext;
 
   private Menu menu;
 
   private int numLevels = 1;
 
   private boolean showRoot = true;
-
-  private JexlHttpServletRequestContext jexlContext;
 
   public MenuElement() {
   }
@@ -36,21 +36,21 @@ public class MenuElement extends Element {
    * @return Returns the cssClass.
    */
   public String getCssClass() {
-    return cssClass;
+    return this.cssClass;
   }
 
   /**
    * @return Returns the menu.
    */
   public Menu getMenu() {
-    return menu;
+    return this.menu;
   }
 
   /**
    * @return Returns the numLevels.
    */
   public int getNumLevels() {
-    return numLevels;
+    return this.numLevels;
   }
 
   @Override
@@ -62,56 +62,53 @@ public class MenuElement extends Element {
    * @return Returns the showRoot.
    */
   public boolean isShowRoot() {
-    return showRoot;
+    return this.showRoot;
   }
 
-  private void menu(
-    final XmlWriter out,
-    final Collection<Menu> items,
-    final int level) {
+  private void menu(final XmlWriter out, final Collection<Menu> items, final int level) {
     if (items.size() > 0) {
-      out.startTag(HtmlUtil.UL);
+      out.startTag(HtmlElem.UL);
       for (final Menu menu : items) {
         if (menu.isVisible()) {
-          out.startTag(HtmlUtil.LI);
+          out.startTag(HtmlElem.LI);
 
           final String cssClass = menu.getCssClass();
           if (cssClass != null) {
-            out.attribute(HtmlUtil.ATTR_CLASS, cssClass);
+            out.attribute(HtmlAttr.CLASS, cssClass);
           }
           menuLink(out, menu);
-          if (level < numLevels) {
+          if (level < this.numLevels) {
             menu(out, menu.getMenus(), level + 1);
           }
-          out.endTag(HtmlUtil.LI);
+          out.endTag(HtmlElem.LI);
         }
       }
-      out.endTag(HtmlUtil.UL);
+      out.endTag(HtmlElem.UL);
     }
   }
 
   private void menuLink(final XmlWriter out, final Menu menu) {
-    String uri = menu.getLink(jexlContext);
+    String uri = menu.getLink(this.jexlContext);
     final String linkTitle = menu.getLinkTitle();
     final String onClick = menu.getOnClick();
     if (onClick != null && uri == null) {
       uri = "#";
     }
-    if (StringUtils.hasText(uri)) {
+    if (Property.hasValue(uri)) {
       if (uri.startsWith("javascript:")) {
-        out.startTag(HtmlUtil.BUTTON);
-        out.attribute(HtmlUtil.ATTR_ON_CLICK, uri.substring(11));
+        out.startTag(HtmlElem.BUTTON);
+        out.attribute(HtmlAttr.ON_CLICK, uri.substring(11));
         out.text(menu.getTitle());
-        out.endTag(HtmlUtil.BUTTON);
+        out.endTag(HtmlElem.BUTTON);
       } else {
-        out.startTag(HtmlUtil.A);
-        out.attribute(HtmlUtil.ATTR_HREF, uri);
-        out.attribute(HtmlUtil.ATTR_TITLE, linkTitle);
-        out.attribute(HtmlUtil.ATTR_ON_CLICK, onClick);
-        out.attribute(HtmlUtil.ATTR_TARGET, menu.getTarget());
+        out.startTag(HtmlElem.A);
+        out.attribute(HtmlAttr.HREF, uri);
+        out.attribute(HtmlAttr.TITLE, linkTitle);
+        out.attribute(HtmlAttr.ON_CLICK, onClick);
+        out.attribute(HtmlAttr.TARGET, menu.getTarget());
 
         out.text(linkTitle);
-        out.endTag(HtmlUtil.A);
+        out.endTag(HtmlElem.A);
       }
     } else {
       out.text(linkTitle);
@@ -120,26 +117,26 @@ public class MenuElement extends Element {
 
   @Override
   public void serializeElement(final XmlWriter out) {
-    if (menu != null) {
-      final List<Menu> menus = new ArrayList<Menu>();
-      for (final Menu menuItem : menu.getMenus()) {
+    if (this.menu != null) {
+      final List<Menu> menus = new ArrayList<>();
+      for (final Menu menuItem : this.menu.getMenus()) {
         if (menuItem.isVisible()) {
           menus.add(menuItem);
         }
       }
-      if (showRoot || !menus.isEmpty()) {
-        out.startTag(HtmlUtil.DIV);
-        out.attribute(HtmlUtil.ATTR_CLASS, cssClass);
+      if (this.showRoot || !menus.isEmpty()) {
+        out.startTag(HtmlElem.DIV);
+        out.attribute(HtmlAttr.CLASS, this.cssClass);
 
-        if (showRoot && menu.getTitle() != null) {
-          out.startTag(HtmlUtil.DIV);
-          out.attribute(HtmlUtil.ATTR_CLASS, "title");
-          menuLink(out, menu);
-          out.endTag(HtmlUtil.DIV);
+        if (this.showRoot && this.menu.getTitle() != null) {
+          out.startTag(HtmlElem.DIV);
+          out.attribute(HtmlAttr.CLASS, "title");
+          menuLink(out, this.menu);
+          out.endTag(HtmlElem.DIV);
 
         }
         menu(out, menus, 1);
-        out.endTag(HtmlUtil.DIV);
+        out.endTag(HtmlElem.DIV);
       }
     }
   }

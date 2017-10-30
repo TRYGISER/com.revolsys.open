@@ -6,58 +6,62 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dialog.ModalityType;
 import java.awt.FlowLayout;
+import java.awt.Image;
 import java.awt.LayoutManager;
 import java.awt.Window;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 
+import javax.swing.ActionMap;
+import javax.swing.InputMap;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JPanel;
+import javax.swing.JRootPane;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 
-import org.springframework.util.StringUtils;
+import org.jdesktop.swingx.VerticalLayout;
 
+import com.revolsys.swing.Icons;
 import com.revolsys.swing.SwingUtil;
-import com.revolsys.swing.action.InvokeMethodAction;
+import com.revolsys.swing.action.RunnableAction;
 import com.revolsys.swing.field.Field;
+import com.revolsys.swing.field.FieldSupport;
 import com.revolsys.swing.undo.UndoManager;
 import com.revolsys.util.CaseConverter;
+import com.revolsys.util.Exceptions;
 
 public class ValueField extends JPanel implements Field {
   private static final long serialVersionUID = 1L;
 
-  private final Color defaultBackground = getBackground();
+  private boolean saved = false;
 
-  private final Color defaultForeground = getBackground();
-
-  private String errorMessage;
-
-  private String fieldName;
-
-  private Object fieldValue;
+  private final FieldSupport fieldSupport;
 
   private String title;
 
-  private String originalToolTip;
+  private Runnable saveAction = null;
 
-  private boolean saved = false;
+  private Runnable cancelAction = null;
+
+  private Image iconImage;
 
   public ValueField() {
     this("fieldValue", null);
   }
 
-  public ValueField(final boolean isDoubleBuffered) {
-    super(isDoubleBuffered);
-    setOpaque(false);
-  }
-
   public ValueField(final LayoutManager layout) {
-    super(layout);
+    this(layout, null, null);
     setOpaque(false);
   }
 
-  public ValueField(final LayoutManager layout, final boolean isDoubleBuffered) {
-    super(layout, isDoubleBuffered);
+  public ValueField(final LayoutManager layout, final String fieldName, final Object fieldValue) {
+    super(layout, true);
     setOpaque(false);
+    this.fieldSupport = new FieldSupport(this, fieldName, fieldValue, true);
+    setTitle(CaseConverter.toCapitalizedWords(fieldName));
   }
 
   public ValueField(final Object fieldValue) {
@@ -65,13 +69,11 @@ public class ValueField extends JPanel implements Field {
   }
 
   public ValueField(final String fieldName, final Object fieldValue) {
-    setFieldName(fieldName);
-    setFieldValue(fieldValue);
-    setTitle(CaseConverter.toCapitalizedWords(fieldName));
-    setOpaque(false);
+    this(new VerticalLayout(), fieldName, fieldValue);
   }
 
-  public void cancel() {
+  public final void cancel() {
+    cancelDo();
     this.saved = false;
   }
 
@@ -80,35 +82,34 @@ public class ValueField extends JPanel implements Field {
     SwingUtil.setVisible(dialog, false);
   }
 
+  protected void cancelDo() {
+    if (this.cancelAction != null) {
+      this.cancelAction.run();
+    }
+  }
+
   @Override
-  public void firePropertyChange(final String propertyName,
-    final Object oldValue, final Object newValue) {
+  public Field clone() {
+    try {
+      return (Field)super.clone();
+    } catch (final CloneNotSupportedException e) {
+      return Exceptions.throwUncheckedException(e);
+    }
+  }
+
+  @Override
+  public void firePropertyChange(final String propertyName, final Object oldValue,
+    final Object newValue) {
     super.firePropertyChange(propertyName, oldValue, newValue);
   }
 
   @Override
-  public String getFieldName() {
-    return this.fieldName;
-  }
-
-  @Override
-  public String getFieldValidationMessage() {
-    return this.errorMessage;
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public <T> T getFieldValue() {
-    return (T)this.fieldValue;
+  public FieldSupport getFieldSupport() {
+    return this.fieldSupport;
   }
 
   public String getTitle() {
     return this.title;
-  }
-
-  @Override
-  public boolean isFieldValid() {
-    return true;
   }
 
   public boolean isSaved() {
@@ -117,6 +118,7 @@ public class ValueField extends JPanel implements Field {
 
   public void save() {
     save(this);
+    saveDo();
   }
 
   private void save(final Container container) {
@@ -125,6 +127,9 @@ public class ValueField extends JPanel implements Field {
       if (component instanceof ValueField) {
         final ValueField valuePanel = (ValueField)component;
         valuePanel.save();
+      } else if (component instanceof Field) {
+        final Field field = (Field)component;
+        field.updateFieldValue();
       } else if (component instanceof Container) {
         final Container childContainer = (Container)component;
         save(childContainer);
@@ -139,33 +144,24 @@ public class ValueField extends JPanel implements Field {
     dialog.setVisible(false);
   }
 
-  @Override
-  public void setFieldBackgroundColor(Color color) {
-    if (color == null) {
-      color = this.defaultBackground;
+  protected void saveDo() {
+    if (this.saveAction != null) {
+      this.saveAction.run();
     }
-    setBackground(color);
   }
 
-  @Override
-  public void setFieldForegroundColor(Color color) {
-    if (color == null) {
-      color = this.defaultForeground;
-    }
-    setForeground(color);
+  public void setCancelAction(final Runnable cancelAction) {
+    this.cancelAction = cancelAction;
   }
 
-  @Override
-  public void setFieldInvalid(final String message,
-    final Color foregroundColor, final Color backgroundColor) {
+  protected void setColor(final Color foregroundColor, final Color backgroundColor) {
     setForeground(foregroundColor);
     setBackground(backgroundColor);
-    this.errorMessage = message;
-    super.setToolTipText(this.errorMessage);
   }
 
-  public void setFieldName(final String fieldName) {
-    this.fieldName = fieldName;
+  @Override
+  public void setEditable(final boolean editable) {
+    setEnabled(editable);
   }
 
   @Override
@@ -173,21 +169,16 @@ public class ValueField extends JPanel implements Field {
     setToolTipText(toolTip);
   }
 
-  @Override
-  public void setFieldValid() {
-    setForeground(this.defaultForeground);
-    setBackground(this.defaultBackground);
-    super.setToolTipText(this.originalToolTip);
+  public void setIconImage(final Image icon) {
+    this.iconImage = icon;
   }
 
-  @Override
-  public void setFieldValue(final Object value) {
-    final Object oldValue = this.fieldValue;
-    this.fieldValue = value;
-    firePropertyChange("fieldValue", oldValue, value);
-    if (StringUtils.hasText(this.fieldName)) {
-      firePropertyChange(this.fieldName, oldValue, value);
-    }
+  public void setIconImage(final String iconName) {
+    this.iconImage = Icons.getImage(iconName);
+  }
+
+  public void setSaveAction(final Runnable saveAction) {
+    this.saveAction = saveAction;
   }
 
   public void setTitle(final String title) {
@@ -196,8 +187,7 @@ public class ValueField extends JPanel implements Field {
 
   @Override
   public void setToolTipText(final String text) {
-    this.originalToolTip = text;
-    if (!StringUtils.hasText(this.errorMessage)) {
+    if (this.fieldSupport == null || this.fieldSupport.setOriginalTooltipText(text)) {
       super.setToolTipText(text);
     }
   }
@@ -212,35 +202,66 @@ public class ValueField extends JPanel implements Field {
   }
 
   @SuppressWarnings("unchecked")
-  public <V> V showDialog(final Component component) {
+  public <V> V showDialog(final Component parent) {
     Window window;
-    if (component == null) {
+    if (parent == null) {
       window = SwingUtil.getActiveWindow();
-    } else if (component instanceof Window) {
-      window = (Window)component;
+    } else if (parent instanceof Window) {
+      window = (Window)parent;
     } else {
-      window = SwingUtilities.windowForComponent(component);
+      window = SwingUtilities.windowForComponent(parent);
     }
-    final JDialog dialog = new JDialog(window, this.title,
-      ModalityType.APPLICATION_MODAL);
-    dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+    final JDialog dialog = new JDialog(window, this.title, ModalityType.APPLICATION_MODAL);
+    if (this.iconImage != null) {
+      dialog.setIconImage(this.iconImage);
+    }
+    dialog.setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE);
     dialog.setLayout(new BorderLayout());
+    dialog.addKeyListener(new KeyListener() {
+      @Override
+      public void keyPressed(final KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+          cancel(dialog);
+        } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+          save(dialog);
+        }
+      }
 
+      @Override
+      public void keyReleased(final KeyEvent e) {
+      }
+
+      @Override
+      public void keyTyped(final KeyEvent e) {
+      }
+    });
     dialog.add(this, BorderLayout.CENTER);
 
+    final JRootPane rootPane = dialog.getRootPane();
+    final InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+    final ActionMap actionMap = rootPane.getActionMap();
+
     final JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-    buttons.add(InvokeMethodAction.createButton("Cancel", this, "cancel",
-      dialog));
-    buttons.add(InvokeMethodAction.createButton("OK", this, "save", dialog));
+
+    final Runnable cancelRunnable = () -> cancel(dialog);
+    buttons.add(RunnableAction.newButton("Cancel", cancelRunnable));
+    final KeyStroke escapeStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
+    inputMap.put(escapeStroke, "cancel");
+    actionMap.put("cancel", new RunnableAction(cancelRunnable));
+
+    final Runnable saveRunnable = () -> save(dialog);
+    buttons.add(RunnableAction.newButton("OK", saveRunnable));
     dialog.add(buttons, BorderLayout.SOUTH);
+    final KeyStroke enterStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
+    inputMap.put(enterStroke, "save");
+    actionMap.put("save", new RunnableAction(saveRunnable));
 
     dialog.pack();
     SwingUtil.autoAdjustPosition(dialog);
     this.saved = false;
     dialog.setVisible(true);
-
     final V value = (V)getFieldValue();
-    dialog.dispose();
+    SwingUtil.dispose(dialog);
     return value;
   }
 
@@ -252,4 +273,5 @@ public class ValueField extends JPanel implements Field {
   @Override
   public void updateFieldValue() {
   }
+
 }

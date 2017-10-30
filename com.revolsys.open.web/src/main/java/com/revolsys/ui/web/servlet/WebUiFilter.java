@@ -32,39 +32,37 @@ import com.revolsys.ui.web.exception.PageNotFoundException;
 public class WebUiFilter implements Filter {
   private static final Logger LOG = Logger.getLogger(WebUiFilter.class);
 
-  private Config rsWebUiConfig;
+  private ApplicationContext applicationContext;
 
-  private Site site;
+  private Config rsWebUiConfig;
 
   private ServletContext servletContext;
 
-  private ApplicationContext applicationContext;
+  private Site site;
 
+  @Override
   public void destroy() {
-    site = null;
-    rsWebUiConfig = null;
+    this.site = null;
+    this.rsWebUiConfig = null;
     WebUiContext.setServletContext(null);
   }
 
-  public void doFilter(
-    final HttpServletRequest request,
-    final HttpServletResponse response,
+  public void doFilter(final HttpServletRequest request, final HttpServletResponse response,
     final FilterChain chain) throws IOException, ServletException {
-    if (rsWebUiConfig != null) {
+    if (this.rsWebUiConfig != null) {
       try {
         final HttpServletRequest httpRequest = request;
         final HttpServletResponse httpResponse = response;
         final String contextPath = httpRequest.getContextPath();
         Page page;
         try {
-          page = rsWebUiConfig.getPage(request.getServletPath()
-            + request.getPathInfo());
+          page = this.rsWebUiConfig.getPage(request.getServletPath() + request.getPathInfo());
         } catch (final PageNotFoundException e) {
           page = new Page(null, null, "/", false);
         }
-        WebUiContext.set(new WebUiContext(rsWebUiConfig, contextPath, page,
-          httpRequest, httpResponse));
-        request.setAttribute("rsWebUiConfig", rsWebUiConfig);
+        WebUiContext
+          .set(new WebUiContext(this.rsWebUiConfig, contextPath, page, httpRequest, httpResponse));
+        request.setAttribute("rsWebUiConfig", this.rsWebUiConfig);
         chain.doFilter(request, response);
       } finally {
         WebUiContext.set(null);
@@ -74,21 +72,21 @@ public class WebUiFilter implements Filter {
         final String path = request.getServletPath();
         final String serverName = request.getServerName();
 
-        if (applicationContext.containsBean(serverName)) {
-          site = (Site)applicationContext.getBean(serverName);
+        if (this.applicationContext.containsBean(serverName)) {
+          this.site = (Site)this.applicationContext.getBean(serverName);
         } else {
           LOG.info("using default site");
 
-          site = (Site)applicationContext.getBean("default");
+          this.site = (Site)this.applicationContext.getBean("default");
         }
-        if (site != null) {
-          final SiteNodeController controller = site.getController(path);
+        if (this.site != null) {
+          final SiteNodeController controller = this.site.getController(path);
           LOG.debug(path + "=" + controller);
-          request.setAttribute("site", site);
+          request.setAttribute("site", this.site);
           request.setAttribute("rsWebController", controller);
 
           if (controller != null) {
-            controller.process(servletContext, request, response);
+            controller.process(this.servletContext, request, response);
             return;
           }
         }
@@ -105,14 +103,14 @@ public class WebUiFilter implements Filter {
 
   }
 
-  public void doFilter(
-    final ServletRequest request,
-    final ServletResponse response,
+  @Override
+  public void doFilter(final ServletRequest request, final ServletResponse response,
     final FilterChain chain) throws IOException, ServletException {
     doFilter((HttpServletRequest)request, (HttpServletResponse)response, chain);
 
   }
 
+  @Override
   public void init(final FilterConfig filterConfig) throws ServletException {
     String config = filterConfig.getInitParameter("config");
     if (config == null) {
@@ -123,9 +121,9 @@ public class WebUiFilter implements Filter {
     } else {
       try {
         LOG.debug("Loading config");
-        servletContext = filterConfig.getServletContext();
-        applicationContext = new ResourceXmlApplicationContext(
-          new ServletContextResource(servletContext, "/WEB-INF/web-config.xml"));
+        this.servletContext = filterConfig.getServletContext();
+        this.applicationContext = new ResourceXmlApplicationContext(
+          new ServletContextResource(this.servletContext, "/WEB-INF/web-config.xml"));
         LOG.debug("Config loaded");
 
       } catch (final Throwable e) {
@@ -134,29 +132,26 @@ public class WebUiFilter implements Filter {
     }
   }
 
-  private void loadIafConfig(
-    final String config,
-    final FilterConfig filterConfig) throws UnavailableException {
+  private void loadIafConfig(final String config, final FilterConfig filterConfig)
+    throws UnavailableException {
     final ServletContext servletContext = filterConfig.getServletContext();
     WebUiContext.setServletContext(servletContext);
-    applicationContext = WebApplicationContextUtils.getRequiredWebApplicationContext(servletContext);
+    this.applicationContext = WebApplicationContextUtils
+      .getRequiredWebApplicationContext(servletContext);
 
     try {
       final URL configResource = servletContext.getResource(config);
-      final XmlConfigLoader configLoader = new XmlConfigLoader(configResource,
-        servletContext);
-      rsWebUiConfig = configLoader.loadConfig();
-      servletContext.setAttribute("rsWebUiConfig", rsWebUiConfig);
+      final XmlConfigLoader configLoader = new XmlConfigLoader(configResource, servletContext);
+      this.rsWebUiConfig = configLoader.loadConfig();
+      servletContext.setAttribute("rsWebUiConfig", this.rsWebUiConfig);
     } catch (final InvalidConfigException e) {
       LOG.error(e.getErrors(), e);
       throw new UnavailableException(
-        "Cannot load a rsWebUiConfig resource from '" + config + "' due to "
-          + e.getErrors());
+        "Cannot load a rsWebUiConfig resource from '" + config + "' due to " + e.getErrors());
     } catch (final Exception e) {
       LOG.error(e.getMessage(), e);
       throw new UnavailableException(
-        "Cannot load a rsWebUiConfig resource from '" + config + "' due to "
-          + e.getMessage());
+        "Cannot load a rsWebUiConfig resource from '" + config + "' due to " + e.getMessage());
     }
   }
 }

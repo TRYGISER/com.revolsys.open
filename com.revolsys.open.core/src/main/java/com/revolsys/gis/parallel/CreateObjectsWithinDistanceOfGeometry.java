@@ -11,33 +11,30 @@ import org.apache.commons.jexl.Expression;
 import org.apache.commons.jexl.JexlContext;
 import org.apache.commons.jexl.context.HashMapContext;
 
-import com.revolsys.gis.data.model.ArrayDataObject;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectMap;
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.data.model.DataObjectMetaDataImpl;
-import com.revolsys.jts.geom.Geometry;
-import com.revolsys.jts.geom.prep.PreparedGeometry;
-import com.revolsys.jts.geom.prep.PreparedGeometryFactory;
-import com.revolsys.jts.operation.buffer.Buffer;
-import com.revolsys.jts.operation.buffer.BufferParameters;
-import com.revolsys.jts.simplify.DouglasPeuckerSimplifier;
+import com.revolsys.geometry.model.Geometry;
+import com.revolsys.geometry.model.LineCap;
+import com.revolsys.geometry.model.LineJoin;
+import com.revolsys.geometry.simplify.DouglasPeuckerSimplifier;
+import com.revolsys.io.PathName;
 import com.revolsys.parallel.channel.Channel;
 import com.revolsys.parallel.process.BaseInOutProcess;
+import com.revolsys.record.ArrayRecord;
+import com.revolsys.record.Record;
+import com.revolsys.record.schema.RecordDefinition;
+import com.revolsys.record.schema.RecordDefinitionImpl;
 import com.revolsys.util.JexlUtil;
 
-public class CreateObjectsWithinDistanceOfGeometry extends
-  BaseInOutProcess<DataObject, DataObject> {
+public class CreateObjectsWithinDistanceOfGeometry extends BaseInOutProcess<Record, Record> {
 
-  private Map<String, Object> attributes = new HashMap<String, Object>();
+  private Map<String, Object> attributes = new HashMap<>();
 
   private double distance;
 
-  private Channel<DataObject> geometryIn;
+  private Channel<Record> geometryIn;
 
-  private List<DataObject> geometryObjects = new ArrayList<DataObject>();
+  private List<Record> geometryObjects = new ArrayList<>();
 
-  private Map<DataObjectMetaData, Map<DataObjectMetaData, PreparedGeometry>> metaDataGeometryMap = new HashMap<DataObjectMetaData, Map<DataObjectMetaData, PreparedGeometry>>();
+  private Map<RecordDefinition, Map<RecordDefinition, Geometry>> recordDefinitionGeometryMap = new HashMap<>();
 
   private String typePathTemplate;
 
@@ -48,108 +45,105 @@ public class CreateObjectsWithinDistanceOfGeometry extends
   @Override
   protected void destroy() {
     super.destroy();
-    if (geometryIn != null) {
-      geometryIn.readDisconnect();
-      geometryIn = null;
+    if (this.geometryIn != null) {
+      this.geometryIn.readDisconnect();
+      this.geometryIn = null;
     }
-    attributes = null;
-    geometryObjects = null;
-    metaDataGeometryMap = null;
-  }
-
-  public Map<String, Object> getAttributes() {
-    return attributes;
+    this.attributes = null;
+    this.geometryObjects = null;
+    this.recordDefinitionGeometryMap = null;
   }
 
   public double getDistance() {
-    return distance;
+    return this.distance;
   }
 
-  public Channel<DataObject> getGeometryIn() {
-    if (geometryIn == null) {
-      setGeometryIn(new Channel<DataObject>());
+  public Map<String, Object> getFields() {
+    return this.attributes;
+  }
+
+  public Channel<Record> getGeometryIn() {
+    if (this.geometryIn == null) {
+      setGeometryIn(new Channel<Record>());
     }
-    return geometryIn;
+    return this.geometryIn;
   }
 
-  public List<DataObject> getGeometryObjects() {
-    return geometryObjects;
+  public List<Record> getGeometryObjects() {
+    return this.geometryObjects;
   }
 
-  private final Map<DataObjectMetaData, PreparedGeometry> getMetaDataGeometries(
-    final DataObjectMetaData metaData) {
-    Map<DataObjectMetaData, PreparedGeometry> metaDataGeometries = metaDataGeometryMap.get(metaData);
-    if (metaDataGeometries == null) {
-      final PreparedGeometryFactory preparedGeometryFactory = new PreparedGeometryFactory();
-      metaDataGeometries = new LinkedHashMap<DataObjectMetaData, PreparedGeometry>();
-      DataObjectMetaData newMetaData;
-      PreparedGeometry preparedGeometry;
-      for (final DataObject object : geometryObjects) {
-        Geometry geometry = object.getGeometryValue();
+  private final Map<RecordDefinition, Geometry> getRecordDefinitionGeometries(
+    final RecordDefinition recordDefinition) {
+    Map<RecordDefinition, Geometry> recordDefinitionGeometries = this.recordDefinitionGeometryMap
+      .get(recordDefinition);
+    if (recordDefinitionGeometries == null) {
+      recordDefinitionGeometries = new LinkedHashMap<>();
+      RecordDefinition newRecordDefinition;
+      Geometry preparedGeometry;
+      for (final Record record : this.geometryObjects) {
+        Geometry geometry = record.getGeometry();
         if (geometry != null) {
           final JexlContext context = new HashMapContext();
-          final Map<String, Object> vars = new HashMap<String, Object>(
-            attributes);
-          vars.putAll(new DataObjectMap(object));
-          vars.put("typePath", metaData.getPath());
+          final Map<String, Object> vars = new HashMap<>(this.attributes);
+          vars.putAll(record);
+          vars.put("typePath", recordDefinition.getPath());
           context.setVars(vars);
           final String typePath = (String)JexlUtil.evaluateExpression(context,
-            typePathTemplateExpression);
-          newMetaData = new DataObjectMetaDataImpl(typePath,
-            metaData.getAttributes());
-          if (distance > 0) {
-            final BufferParameters parameters = new BufferParameters(1, 3, 2,
-              1.0D);
-            geometry = Buffer.buffer(geometry, distance, parameters);
+            this.typePathTemplateExpression);
+          newRecordDefinition = new RecordDefinitionImpl(PathName.newPathName(typePath),
+            recordDefinition.getFields());
+          if (this.distance > 0) {
+            geometry = geometry.buffer(this.distance, 1, LineCap.SQUARE, LineJoin.MITER, 1.0D);
           }
           geometry = DouglasPeuckerSimplifier.simplify(geometry, 2D);
-          preparedGeometry = preparedGeometryFactory.create(geometry);
-          metaDataGeometries.put(newMetaData, preparedGeometry);
+          preparedGeometry = geometry.prepare();
+          recordDefinitionGeometries.put(newRecordDefinition, preparedGeometry);
         }
       }
 
-      metaDataGeometryMap.put(metaData, metaDataGeometries);
+      this.recordDefinitionGeometryMap.put(recordDefinition, recordDefinitionGeometries);
     }
-    return metaDataGeometries;
+    return recordDefinitionGeometries;
   }
 
   public String getTypeNameTemplate() {
-    return typePathTemplate;
+    return this.typePathTemplate;
   }
 
-  private void initializeGeometries(final Channel<DataObject> geometryIn) {
+  private void initializeGeometries(final Channel<Record> geometryIn) {
     if (geometryIn != null) {
-      for (final DataObject object : geometryIn) {
-        geometryObjects.add(object);
+      for (final Record object : geometryIn) {
+        this.geometryObjects.add(object);
       }
     }
   }
 
   public boolean isWriteOriginal() {
-    return writeOriginal;
+    return this.writeOriginal;
   }
 
   @Override
-  protected void preRun(final Channel<DataObject> in,
-    final Channel<DataObject> out) {
-    initializeGeometries(geometryIn);
+  protected void preRun(final Channel<Record> in, final Channel<Record> out) {
+    initializeGeometries(this.geometryIn);
   }
 
   @Override
-  protected void process(final Channel<DataObject> in,
-    final Channel<DataObject> out, final DataObject object) {
-    if (writeOriginal) {
+  protected void process(final Channel<Record> in, final Channel<Record> out, final Record object) {
+    if (this.writeOriginal) {
       out.write(object);
     }
-    final DataObjectMetaData metaData = object.getMetaData();
-    final Geometry geometryValue = object.getGeometryValue();
-    final Map<DataObjectMetaData, PreparedGeometry> metaDataGeometries = getMetaDataGeometries(metaData);
-    for (final Entry<DataObjectMetaData, PreparedGeometry> metaDataGeometry : metaDataGeometries.entrySet()) {
-      final DataObjectMetaData newMetaData = metaDataGeometry.getKey();
-      final PreparedGeometry intersectsGeometry = metaDataGeometry.getValue();
+    final RecordDefinition recordDefinition = object.getRecordDefinition();
+    final Geometry geometryValue = object.getGeometry();
+    final Map<RecordDefinition, Geometry> recordDefinitionGeometries = getRecordDefinitionGeometries(
+      recordDefinition);
+    for (final Entry<RecordDefinition, Geometry> recordDefinitionGeometry : recordDefinitionGeometries
+      .entrySet()) {
+      final RecordDefinition newRecordDefinition = recordDefinitionGeometry.getKey();
+      final Geometry intersectsGeometry = recordDefinitionGeometry.getValue();
       if (intersectsGeometry.intersects(geometryValue)) {
-        final DataObject newObject = new ArrayDataObject(newMetaData, object);
-        out.write(newObject);
+        final Record newRecord = new ArrayRecord(newRecordDefinition, object);
+        out.write(newRecord);
       }
     }
   }
@@ -162,23 +156,22 @@ public class CreateObjectsWithinDistanceOfGeometry extends
     this.distance = distance;
   }
 
-  public void setGeometryIn(final Channel<DataObject> geometryIn) {
+  public void setGeometryIn(final Channel<Record> geometryIn) {
     this.geometryIn = geometryIn;
     geometryIn.readConnect();
   }
 
-  public void setGeometryObjects(final List<DataObject> geometryObjects) {
+  public void setGeometryObjects(final List<Record> geometryObjects) {
     this.geometryObjects = geometryObjects;
   }
 
   public void setTypeNameTemplate(final String typePathTemplate) {
     this.typePathTemplate = typePathTemplate;
     try {
-      typePathTemplateExpression = JexlUtil.createExpression(typePathTemplate,
+      this.typePathTemplateExpression = JexlUtil.newExpression(typePathTemplate,
         "%\\{([^\\}]+)\\}");
     } catch (final Exception e) {
-      throw new IllegalArgumentException((new StringBuilder()).append(
-        "Invalid type name template: ")
+      throw new IllegalArgumentException(new StringBuilder().append("Invalid type name template: ")
         .append(typePathTemplate)
         .toString(), e);
     }

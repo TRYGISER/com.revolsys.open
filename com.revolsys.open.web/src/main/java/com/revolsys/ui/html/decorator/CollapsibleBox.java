@@ -1,16 +1,18 @@
 package com.revolsys.ui.html.decorator;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.view.Element;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
+import com.revolsys.util.HtmlUtil;
 
 public class CollapsibleBox implements Decorator {
-
-  private String title;
 
   private boolean open;
 
   private String style;
+
+  private String title;
 
   public CollapsibleBox() {
   }
@@ -24,39 +26,39 @@ public class CollapsibleBox implements Decorator {
     this.open = open;
   }
 
-  public CollapsibleBox(final String title, final String style,
-    final boolean open) {
+  public CollapsibleBox(final String title, final String style, final boolean open) {
     this.title = title;
     this.style = style;
     this.open = open;
   }
 
   public String getTitle() {
-    return title;
+    return this.title;
   }
 
   public boolean isOpen() {
-    return open;
+    return this.open;
   }
 
+  @Override
   public void serialize(final XmlWriter out, final Element element) {
-    out.startTag(HtmlUtil.DIV);
+    out.startTag(HtmlElem.DIV);
     String cssClass = "collapsibleBox";
-    if (!open) {
+    if (!this.open) {
       cssClass += " closed";
     }
-    out.attribute(HtmlUtil.ATTR_CLASS, cssClass);
-    out.attribute(HtmlUtil.ATTR_STYLE, style);
+    out.attribute(HtmlAttr.CLASS, cssClass);
+    out.attribute(HtmlAttr.STYLE, this.style);
 
-    out.startTag(HtmlUtil.H3);
-    HtmlUtil.serializeA(out, null, "#", title);
-    out.endTag(HtmlUtil.H3);
+    out.startTag(HtmlElem.H3);
+    HtmlUtil.serializeA(out, null, "#", this.title);
+    out.endTag(HtmlElem.H3);
 
-    out.startTag(HtmlUtil.DIV);
+    out.startTag(HtmlElem.DIV);
     element.serializeElement(out);
-    out.endTag(HtmlUtil.DIV);
+    out.endTag(HtmlElem.DIV);
 
-    out.endTag(HtmlUtil.DIV);
+    out.endTag(HtmlElem.DIV);
   }
 
   public void setOpen(final boolean open) {

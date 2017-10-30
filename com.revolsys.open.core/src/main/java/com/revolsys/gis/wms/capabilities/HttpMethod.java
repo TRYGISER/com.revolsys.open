@@ -1,30 +1,32 @@
 package com.revolsys.gis.wms.capabilities;
 
-import java.net.URL;
+import org.w3c.dom.Element;
+
+import com.revolsys.record.io.format.xml.XmlUtil;
+import com.revolsys.spring.resource.UrlResource;
 
 public class HttpMethod {
-  private String name;
+  private final String name;
 
-  private URL onlineResource;
+  private final UrlResource onlineResource;
+
+  public HttpMethod(final Element httpMethodElement) {
+    this.name = httpMethodElement.getTagName();
+    final String onlineResourceText = XmlUtil.getFirstElementAttribute(httpMethodElement,
+      "OnlineResource", "http://www.w3.org/1999/xlink", "href");
+    this.onlineResource = new UrlResource(onlineResourceText);
+  }
 
   public String getName() {
-    return name;
+    return this.name;
   }
 
-  public URL getOnlineResource() {
-    return onlineResource;
-  }
-
-  public void setName(final String name) {
-    this.name = name;
-  }
-
-  public void setOnlineResource(final URL onlineResource) {
-    this.onlineResource = onlineResource;
+  public UrlResource getOnlineResource() {
+    return this.onlineResource;
   }
 
   @Override
   public String toString() {
-    return name + " " + onlineResource;
+    return this.name + " " + this.onlineResource;
   }
 }

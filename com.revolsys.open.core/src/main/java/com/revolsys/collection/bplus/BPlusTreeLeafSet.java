@@ -5,9 +5,9 @@ import java.util.Iterator;
 
 class BPlusTreeLeafSet<T> extends AbstractSet<T> {
 
-  private final BPlusTreeMap<?, ?> map;
-
   private final boolean key;
+
+  private final BPlusTreeMap<?, ?> map;
 
   public BPlusTreeLeafSet(final BPlusTreeMap<?, ?> map, final boolean key) {
     this.map = map;
@@ -16,12 +16,12 @@ class BPlusTreeLeafSet<T> extends AbstractSet<T> {
 
   @Override
   public Iterator<T> iterator() {
-    return new BPlusTreeLeafIterator<T>(map, key);
+    return new BPlusTreeLeafIterator<>(this.map, this.key);
   }
 
   @Override
   public int size() {
-    return map.size();
+    return this.map.size();
   }
 
 }

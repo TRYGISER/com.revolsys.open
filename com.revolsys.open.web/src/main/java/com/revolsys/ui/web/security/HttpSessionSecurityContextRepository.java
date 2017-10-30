@@ -20,13 +20,8 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.util.Assert;
 import org.springframework.util.ReflectionUtils;
 
-public class HttpSessionSecurityContextRepository implements
-  SecurityContextRepository {
+public class HttpSessionSecurityContextRepository implements SecurityContextRepository {
   final class SaveToSessionResponseWrapper extends HttpServletResponseWrapper {
-
-    private final HttpServletRequest request;
-
-    private final boolean httpSessionExistedAtStartOfRequest;
 
     private final int contextHashBeforeChainExecution;
 
@@ -34,9 +29,12 @@ public class HttpSessionSecurityContextRepository implements
 
     private final boolean disableUrlRewriting;
 
+    private final boolean httpSessionExistedAtStartOfRequest;
+
+    private final HttpServletRequest request;
+
     SaveToSessionResponseWrapper(final HttpServletResponse response,
-      final HttpServletRequest request,
-      final boolean httpSessionExistedAtStartOfRequest,
+      final HttpServletRequest request, final boolean httpSessionExistedAtStartOfRequest,
       final int contextHashBeforeChainExecution) {
       super(response);
       this.disableUrlRewriting = isDisableUrlRewriting();
@@ -46,26 +44,27 @@ public class HttpSessionSecurityContextRepository implements
     }
 
     private HttpSession createNewSessionIfAllowed(final SecurityContext context) {
-      if (httpSessionExistedAtStartOfRequest) {
+      if (this.httpSessionExistedAtStartOfRequest) {
 
         return null;
       }
 
-      if (!allowSessionCreation) {
+      if (!HttpSessionSecurityContextRepository.this.allowSessionCreation) {
 
         return null;
       }
 
-      if (contextObject.equals(context)) {
+      if (HttpSessionSecurityContextRepository.this.contextObject.equals(context)) {
 
         return null;
       }
 
       try {
-        return request.getSession(true);
+        return this.request.getSession(true);
       } catch (final IllegalStateException e) {
-        logger.warn("Failed to create a session, as response has been committed. Unable to store"
-          + " SecurityContext.");
+        HttpSessionSecurityContextRepository.this.logger
+          .warn("Failed to Construct a new session, as response has been committed. Unable to store"
+            + " SecurityContext.");
       }
 
       return null;
@@ -73,12 +72,12 @@ public class HttpSessionSecurityContextRepository implements
 
     private void doSaveContext() {
       saveContext(SecurityContextHolder.getContext());
-      contextSaved = true;
+      this.contextSaved = true;
     }
 
     @Override
     public final String encodeRedirectUrl(final String url) {
-      if (disableUrlRewriting) {
+      if (this.disableUrlRewriting) {
         return url;
       }
       return super.encodeRedirectUrl(url);
@@ -86,7 +85,7 @@ public class HttpSessionSecurityContextRepository implements
 
     @Override
     public final String encodeRedirectURL(final String url) {
-      if (disableUrlRewriting) {
+      if (this.disableUrlRewriting) {
         return url;
       }
       return super.encodeRedirectURL(url);
@@ -94,7 +93,7 @@ public class HttpSessionSecurityContextRepository implements
 
     @Override
     public final String encodeUrl(final String url) {
-      if (disableUrlRewriting) {
+      if (this.disableUrlRewriting) {
         return url;
       }
       return super.encodeUrl(url);
@@ -102,25 +101,27 @@ public class HttpSessionSecurityContextRepository implements
 
     @Override
     public final String encodeURL(final String url) {
-      if (disableUrlRewriting) {
+      if (this.disableUrlRewriting) {
         return url;
       }
       return super.encodeURL(url);
     }
 
     public final boolean isContextSaved() {
-      return contextSaved;
+      return this.contextSaved;
     }
 
     protected void saveContext(final SecurityContext context) {
       final Authentication authentication = context.getAuthentication();
-      HttpSession httpSession = request.getSession(false);
+      HttpSession httpSession = this.request.getSession(false);
 
       if (authentication == null
-        || authenticationTrustResolver.isAnonymous(authentication)) {
+        || HttpSessionSecurityContextRepository.this.authenticationTrustResolver
+          .isAnonymous(authentication)) {
 
         if (httpSession != null) {
-          httpSession.removeAttribute(springSecurityContextKey);
+          httpSession
+            .removeAttribute(HttpSessionSecurityContextRepository.this.springSecurityContextKey);
         }
         return;
       }
@@ -130,8 +131,10 @@ public class HttpSessionSecurityContextRepository implements
       }
 
       if (httpSession != null
-        && (context.hashCode() != contextHashBeforeChainExecution || httpSession.getAttribute(springSecurityContextKey) == null)) {
-        httpSession.setAttribute(springSecurityContextKey, context);
+        && (context.hashCode() != this.contextHashBeforeChainExecution || httpSession.getAttribute(
+          HttpSessionSecurityContextRepository.this.springSecurityContextKey) == null)) {
+        httpSession.setAttribute(HttpSessionSecurityContextRepository.this.springSecurityContextKey,
+          context);
 
       }
     }
@@ -143,8 +146,7 @@ public class HttpSessionSecurityContextRepository implements
     }
 
     @Override
-    public final void sendError(final int sc, final String msg)
-      throws IOException {
+    public final void sendError(final int sc, final String msg) throws IOException {
       doSaveContext();
       super.sendError(sc, msg);
     }
@@ -156,21 +158,21 @@ public class HttpSessionSecurityContextRepository implements
     }
   }
 
-  public String springSecurityContextKey = "SPRING_SECURITY_CONTEXT";
+  private boolean allowSessionCreation = true;
+
+  private final AuthenticationTrustResolver authenticationTrustResolver = new AuthenticationTrustResolverImpl();
+
+  private final boolean cloneFromHttpSession = false;
+
+  private final Object contextObject = SecurityContextHolder.createEmptyContext();
+
+  private boolean disableUrlRewriting = false;
 
   protected final Log logger = LogFactory.getLog(this.getClass());
 
   private final Class<? extends SecurityContext> securityContextClass = null;
 
-  private final Object contextObject = SecurityContextHolder.createEmptyContext();
-
-  private final boolean cloneFromHttpSession = false;
-
-  private boolean allowSessionCreation = true;
-
-  private boolean disableUrlRewriting = false;
-
-  private final AuthenticationTrustResolver authenticationTrustResolver = new AuthenticationTrustResolverImpl();
+  public String springSecurityContextKey = "SPRING_SECURITY_CONTEXT";
 
   private Object cloneContext(final Object context) {
     Object clonedContext = null;
@@ -189,6 +191,7 @@ public class HttpSessionSecurityContextRepository implements
     return clonedContext;
   }
 
+  @Override
   public boolean containsContext(final HttpServletRequest request) {
     final HttpSession session = request.getSession(false);
 
@@ -196,20 +199,20 @@ public class HttpSessionSecurityContextRepository implements
       return false;
     }
 
-    return session.getAttribute(springSecurityContextKey) != null;
+    return session.getAttribute(this.springSecurityContextKey) != null;
   }
 
   SecurityContext generateNewContext() {
     SecurityContext context = null;
 
-    if (securityContextClass == null) {
+    if (this.securityContextClass == null) {
       context = SecurityContextHolder.createEmptyContext();
 
       return context;
     }
 
     try {
-      context = securityContextClass.newInstance();
+      context = this.securityContextClass.newInstance();
     } catch (final Exception e) {
       ReflectionUtils.handleReflectionException(e);
     }
@@ -217,15 +220,15 @@ public class HttpSessionSecurityContextRepository implements
   }
 
   public String getSpringSecurityContextKey() {
-    return springSecurityContextKey;
+    return this.springSecurityContextKey;
   }
 
   public boolean isDisableUrlRewriting() {
-    return disableUrlRewriting;
+    return this.disableUrlRewriting;
   }
 
-  public SecurityContext loadContext(
-    final HttpRequestResponseHolder requestResponseHolder) {
+  @Override
+  public SecurityContext loadContext(final HttpRequestResponseHolder requestResponseHolder) {
     final HttpServletRequest request = requestResponseHolder.getRequest();
     final HttpServletResponse response = requestResponseHolder.getResponse();
     final HttpSession httpSession = request.getSession(false);
@@ -237,53 +240,51 @@ public class HttpSessionSecurityContextRepository implements
 
     }
 
-    requestResponseHolder.setResponse(new SaveToSessionResponseWrapper(
-      response, request, httpSession != null, context.hashCode()));
+    requestResponseHolder.setResponse(
+      new SaveToSessionResponseWrapper(response, request, httpSession != null, context.hashCode()));
 
     return context;
   }
 
-  private SecurityContext readSecurityContextFromSession(
-    final HttpSession httpSession) {
-    final boolean debug = logger.isDebugEnabled();
+  private SecurityContext readSecurityContextFromSession(final HttpSession httpSession) {
+    final boolean debug = this.logger.isDebugEnabled();
 
     if (httpSession == null) {
       return null;
     }
 
-    Object contextFromSession = httpSession.getAttribute(springSecurityContextKey);
+    Object contextFromSession = httpSession.getAttribute(this.springSecurityContextKey);
 
     if (contextFromSession == null) {
       return null;
     }
 
     if (!(contextFromSession instanceof SecurityContext)) {
-      if (logger.isWarnEnabled()) {
-        logger.warn("SPRING_SECURITY_CONTEXT did not contain a SecurityContext but contained: '"
-          + contextFromSession
-          + "'; are you improperly modifying the HttpSession directly "
-          + "(you should always use SecurityContextHolder) or using the HttpSession attribute "
-          + "reserved for this class?");
+      if (this.logger.isWarnEnabled()) {
+        this.logger
+          .warn("SPRING_SECURITY_CONTEXT did not contain a SecurityContext but contained: '"
+            + contextFromSession + "'; are you improperly modifying the HttpSession directly "
+            + "(you should always use SecurityContextHolder) or using the HttpSession attribute "
+            + "reserved for this class?");
       }
 
       return null;
     }
 
-    if (cloneFromHttpSession) {
+    if (this.cloneFromHttpSession) {
       contextFromSession = cloneContext(contextFromSession);
     }
 
     if (debug) {
-      logger.debug("Obtained a valid SecurityContext from SPRING_SECURITY_CONTEXT: '"
+      this.logger.debug("Obtained a valid SecurityContext from SPRING_SECURITY_CONTEXT: '"
         + contextFromSession + "'");
     }
 
     return (SecurityContext)contextFromSession;
   }
 
-  public void saveContext(
-    final SecurityContext context,
-    final HttpServletRequest request,
+  @Override
+  public void saveContext(final SecurityContext context, final HttpServletRequest request,
     final HttpServletResponse response) {
     final SaveToSessionResponseWrapper responseWrapper = (SaveToSessionResponseWrapper)response;
     if (!responseWrapper.isContextSaved()) {

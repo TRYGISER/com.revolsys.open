@@ -5,23 +5,32 @@ import org.springframework.transaction.support.ResourceHolderSupport;
 public class JdbcWriterResourceHolder extends ResourceHolderSupport {
   private JdbcWriterImpl writer;
 
-  public JdbcWriterResourceHolder(final JdbcWriterImpl writer) {
-    this.writer = writer;
+  public JdbcWriterResourceHolder() {
   }
 
   protected void close() {
-    if (writer != null) {
-      writer.close();
-      writer = null;
+    if (this.writer != null) {
+      this.writer.close();
+      this.writer = null;
     }
   }
 
   public JdbcWriterImpl getWriter() {
-    return writer;
+    return this.writer;
+  }
+
+  public JdbcWriterWrapper getWriterWrapper(final AbstractJdbcRecordStore recordStore,
+    final boolean throwExceptions) {
+    requested();
+    if (this.writer == null) {
+      this.writer = recordStore.newRecordWriter(1);
+      this.writer.setThrowExceptions(throwExceptions);
+    }
+    return new JdbcWriterWrapper(this.writer);
   }
 
   public boolean hasWriter() {
-    return writer != null;
+    return this.writer != null;
   }
 
   @Override

@@ -4,14 +4,14 @@ import java.awt.Graphics2D;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.revolsys.jts.geom.BoundingBox;
-import com.revolsys.jts.geom.Envelope;
-import com.revolsys.jts.geom.GeometryFactory;
+import com.revolsys.collection.map.MapEx;
+import com.revolsys.geometry.model.BoundingBox;
+import com.revolsys.geometry.model.GeometryFactory;
+import com.revolsys.raster.GeoreferencedImage;
 import com.revolsys.swing.map.Viewport2D;
 import com.revolsys.swing.map.layer.AbstractLayerRenderer;
 import com.revolsys.swing.map.layer.AbstractTiledImageLayer;
@@ -19,20 +19,21 @@ import com.revolsys.swing.map.layer.MapTile;
 import com.revolsys.swing.parallel.RunnableSwingWorkerManager;
 import com.revolsys.util.Property;
 
-public class TiledImageLayerRenderer extends
-  AbstractLayerRenderer<AbstractTiledImageLayer> implements
-  PropertyChangeListener {
+public class TiledImageLayerRenderer extends AbstractLayerRenderer<AbstractTiledImageLayer>
+  implements PropertyChangeListener {
 
-  private final Map<MapTile, MapTile> cachedTiles = new HashMap<MapTile, MapTile>();
+  public static final String TILES_LOADED = "loading";
 
   private static RunnableSwingWorkerManager tileLoaderManager = new RunnableSwingWorkerManager(
     "Load Map Tiles");
 
-  private com.revolsys.jts.geom.GeometryFactory geometryFactory;
+  private final Map<MapTile, MapTile> cachedTiles = new HashMap<>();
+
+  private GeometryFactory geometryFactory;
+
+  private final List<Runnable> loadingTasks = new ArrayList<>();
 
   private double resolution;
-
-  private final List<Runnable> loadingTasks = new ArrayList<Runnable>();
 
   public TiledImageLayerRenderer(final AbstractTiledImageLayer layer) {
     super("tiledImage", layer);
@@ -42,11 +43,10 @@ public class TiledImageLayerRenderer extends
   @Override
   public void propertyChange(final PropertyChangeEvent event) {
     final Object newValue = event.getNewValue();
-    if (newValue instanceof Envelope) {
+    if (newValue instanceof BoundingBox) {
       final BoundingBox newBoundingBox = (BoundingBox)newValue;
       synchronized (this.cachedTiles) {
-        final List<MapTile> mapTiles = new ArrayList<MapTile>(
-          this.cachedTiles.keySet());
+        final List<MapTile> mapTiles = new ArrayList<>(this.cachedTiles.keySet());
         final GeometryFactory newGeometryFactory = newBoundingBox.getGeometryFactory();
         for (final MapTile mapTile : mapTiles) {
           final BoundingBox boundingBox = mapTile.getBoundingBox();
@@ -57,7 +57,7 @@ public class TiledImageLayerRenderer extends
           }
         }
       }
-    } else if (!"loading".equals(event.getPropertyName())) {
+    } else if (!TILES_LOADED.equals(event.getPropertyName())) {
       synchronized (this.cachedTiles) {
         this.cachedTiles.clear();
         // if (this.tileLoaderProcess != null) {
@@ -68,21 +68,19 @@ public class TiledImageLayerRenderer extends
   }
 
   @Override
-  public void render(final Viewport2D viewport, final Graphics2D graphics,
-    final AbstractTiledImageLayer layer) {
-    final com.revolsys.jts.geom.GeometryFactory geometryFactory = viewport.getGeometryFactory();
+  public void render(final Viewport2D viewport, final AbstractTiledImageLayer layer) {
+    final GeometryFactory geometryFactory = viewport.getGeometryFactory();
     final double resolution = layer.getResolution(viewport);
     synchronized (this.cachedTiles) {
-      if (resolution != this.resolution
-        || geometryFactory != this.geometryFactory) {
+      if (resolution != this.resolution || geometryFactory != this.geometryFactory) {
         this.resolution = resolution;
         this.geometryFactory = geometryFactory;
         this.cachedTiles.clear();
-        tileLoaderManager.removeTasks(loadingTasks);
-        loadingTasks.clear();
+        tileLoaderManager.removeTasks(this.loadingTasks);
+        this.loadingTasks.clear();
       }
     }
-    final List<Runnable> tasks = new ArrayList<Runnable>();
+    final List<Runnable> tasks = new ArrayList<>();
     final List<MapTile> mapTiles = layer.getOverlappingMapTiles(viewport);
     for (final MapTile mapTile : mapTiles) {
       if (mapTile != null) {
@@ -92,28 +90,33 @@ public class TiledImageLayerRenderer extends
           if (cachedTile == null) {
             cachedTile = mapTile;
             this.cachedTiles.put(cachedTile, cachedTile);
-            final Runnable task = new TileLoadTask(this, geometryFactory,
-              cachedTile);
+            final Runnable task = new TileLoadTask(this, geometryFactory, cachedTile);
             tasks.add(task);
           }
         }
-        final GeoReferencedImage image = cachedTile.getImage(geometryFactory);
-        GeoReferencedImageLayerRenderer.render(viewport, graphics, image);
+        final GeoreferencedImage image = cachedTile.getImage(geometryFactory);
+        final Graphics2D graphics = viewport.getGraphics();
+        if (graphics != null) {
+          GeoreferencedImageLayerRenderer.render(viewport, graphics, image, false);
+        }
       }
     }
-    synchronized (loadingTasks) {
-      loadingTasks.addAll(tasks);
+    synchronized (this.loadingTasks) {
+      this.loadingTasks.addAll(tasks);
       tileLoaderManager.addTasks(tasks);
     }
   }
 
   public void setLoaded(final TileLoadTask tileLoadTask) {
-    loadingTasks.remove(tileLoadTask);
-    getLayer().firePropertyChange("loading", false, true);
+    this.loadingTasks.remove(tileLoadTask);
+    final AbstractTiledImageLayer layer = getLayer();
+    if (layer != null) {
+      layer.firePropertyChange(TILES_LOADED, false, true);
+    }
   }
 
   @Override
-  public Map<String, Object> toMap() {
-    return Collections.emptyMap();
+  public MapEx toMap() {
+    return MapEx.EMPTY;
   }
 }

@@ -1,37 +1,33 @@
 package com.revolsys.visitor;
 
 import java.util.Comparator;
-
-import com.revolsys.filter.Filter;
+import java.util.function.Predicate;
 
 public class BaseVisitor<T> extends AbstractVisitor<T> {
 
   public BaseVisitor() {
   }
 
-  public BaseVisitor(Comparator<T> comparator) {
+  public BaseVisitor(final Comparator<T> comparator) {
     super(comparator);
   }
 
-  public BaseVisitor(Filter<T> filter, Comparator<T> comparator) {
-    super(filter, comparator);
-  }
-
-  public BaseVisitor(Filter<T> filter) {
+  public BaseVisitor(final Predicate<T> filter) {
     super(filter);
   }
 
+  public BaseVisitor(final Predicate<T> filter, final Comparator<T> comparator) {
+    super(filter, comparator);
+  }
+
   @Override
-  public boolean visit(T object) {
-    Filter<T> filter = getFilter();
-    if (filter == null || filter.accept(object)) {
-      return doVisit(object);
-    } else {
-      return true;
+  public void accept(final T object) {
+    final Predicate<T> predicate = getPredicate();
+    if (predicate.test(object)) {
+      acceptDo(object);
     }
   }
 
-  protected boolean doVisit(T object) {
-    return true;
+  protected void acceptDo(final T object) {
   }
 }

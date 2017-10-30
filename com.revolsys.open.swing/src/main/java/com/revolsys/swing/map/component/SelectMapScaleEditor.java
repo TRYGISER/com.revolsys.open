@@ -5,20 +5,21 @@ import java.awt.event.ActionListener;
 
 import javax.swing.ComboBoxEditor;
 import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 
 import org.jdesktop.swingx.autocomplete.ObjectToStringConverter;
 
-import com.revolsys.converter.string.StringConverterRegistry;
+import com.revolsys.datatype.DataTypes;
 
 public class SelectMapScaleEditor implements ComboBoxEditor {
-  final ComboBoxEditor wrapped;
-
   final ObjectToStringConverter stringConverter;
+
+  final ComboBoxEditor wrapped;
 
   public SelectMapScaleEditor(final ComboBoxEditor editor,
     final ObjectToStringConverter stringConverter) {
     this.wrapped = editor;
-    ((JTextField)editor.getEditorComponent()).setHorizontalAlignment(JTextField.RIGHT);
+    ((JTextField)editor.getEditorComponent()).setHorizontalAlignment(SwingConstants.RIGHT);
     this.stringConverter = stringConverter;
   }
 
@@ -34,11 +35,15 @@ public class SelectMapScaleEditor implements ComboBoxEditor {
 
   @Override
   public Object getItem() {
-    final Object item = this.wrapped.getItem();
-    String string = StringConverterRegistry.toString(item);
-    string = string.replaceAll("((^1:)|([^0-9\\.])+)", "");
-    final double scale = Double.parseDouble(string);
-    return this.stringConverter.getPreferredStringForItem(scale);
+    try {
+      final Object item = this.wrapped.getItem();
+      String string = DataTypes.toString(item);
+      string = string.replaceAll("((^1:)|([^0-9\\.])+)", "");
+      final double scale = Double.parseDouble(string);
+      return this.stringConverter.getPreferredStringForItem(scale);
+    } catch (final NumberFormatException e) {
+      return "";
+    }
   }
 
   @Override

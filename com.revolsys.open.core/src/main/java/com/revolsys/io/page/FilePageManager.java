@@ -10,83 +10,52 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import com.revolsys.collection.WeakCache;
+import com.revolsys.collection.map.WeakKeyValueMap;
 import com.revolsys.io.FileUtil;
 
 public class FilePageManager implements PageManager {
+  private final Set<Integer> freePageIndexes = new TreeSet<>();
+
+  // TODO
+  private final Map<Integer, Page> pages = new WeakKeyValueMap<>();
+
+  private final Set<Page> pagesInUse = new HashSet<>();
+
   int pageSize = 64;
 
   private RandomAccessFile randomAccessFile;
 
-  // TODO
-  private final Map<Integer, Page> pages = new WeakCache<Integer, Page>();
-
-  private final Set<Integer> freePageIndexes = new TreeSet<Integer>();
-
-  private final Set<Page> pagesInUse = new HashSet<Page>();
-
   public FilePageManager() {
-    this(FileUtil.createTempFile("pages", ".pf"));
+    this(FileUtil.newTempFile("pages", ".pf"));
   }
 
   public FilePageManager(final File file) {
     try {
       this.randomAccessFile = new RandomAccessFile(file, "rw");
     } catch (final FileNotFoundException e) {
-      throw new IllegalArgumentException("Unable to open file "
-        + file.getAbsolutePath(), e);
+      throw new IllegalArgumentException("Unable to open file " + file.getAbsolutePath(), e);
     }
-  }
-
-  @Override
-  public synchronized Page createPage() {
-    synchronized (pages) {
-      Page page;
-      if (freePageIndexes.isEmpty()) {
-        try {
-          final int index = (int)(randomAccessFile.length() / pageSize);
-          page = new ByteArrayPage(this, index, pageSize);
-          pages.put(page.getIndex(), page);
-          write(page);
-        } catch (final IOException e) {
-          throw new RuntimeException(e);
-        }
-      } else {
-        final Iterator<Integer> iterator = freePageIndexes.iterator();
-        final Integer pageIndex = iterator.next();
-        iterator.remove();
-        page = loadPage(pageIndex);
-      }
-      pagesInUse.add(page);
-      return page;
-    }
-  }
-
-  @Override
-  public Page createTempPage() {
-    return new ByteArrayPage(this, -1, pageSize);
   }
 
   @Override
   public int getNumPages() {
-    return pages.size();
+    return this.pages.size();
   }
 
   @Override
   public synchronized Page getPage(final int index) {
-    synchronized (pages) {
-      if (freePageIndexes.contains(index)) {
+    synchronized (this.pages) {
+      if (this.freePageIndexes.contains(index)) {
         throw new IllegalArgumentException("Page does not exist " + index);
       } else {
-        Page page = pages.get(index);
+        Page page = this.pages.get(index);
         if (page == null) {
           page = loadPage(index);
         }
-        if (pagesInUse.contains(page)) {
-          throw new IllegalArgumentException("Page is currently being used "
-            + index);
+        if (this.pagesInUse.contains(page)) {
+          throw new IllegalArgumentException("Page is currently being used " + index);
         } else {
-          pagesInUse.add(page);
+          this.pagesInUse.add(page);
           page.setOffset(0);
           return page;
         }
@@ -96,16 +65,16 @@ public class FilePageManager implements PageManager {
 
   @Override
   public int getPageSize() {
-    return pageSize;
+    return this.pageSize;
   }
 
   private Page loadPage(final int index) {
     try {
-      final Page page = new ByteArrayPage(this, index, pageSize);
-      randomAccessFile.seek((long)index * pageSize);
+      final Page page = new ByteArrayPage(this, index, this.pageSize);
+      this.randomAccessFile.seek((long)index * this.pageSize);
       final byte[] content = page.getContent();
-      randomAccessFile.read(content);
-      pages.put(index, page);
+      this.randomAccessFile.read(content);
+      this.pages.put(index, page);
       return page;
     } catch (final IOException e) {
       throw new RuntimeException(e);
@@ -113,30 +82,59 @@ public class FilePageManager implements PageManager {
   }
 
   @Override
+  public synchronized Page newPage() {
+    synchronized (this.pages) {
+      Page page;
+      if (this.freePageIndexes.isEmpty()) {
+        try {
+          final int index = (int)(this.randomAccessFile.length() / this.pageSize);
+          page = new ByteArrayPage(this, index, this.pageSize);
+          this.pages.put(page.getIndex(), page);
+          write(page);
+        } catch (final IOException e) {
+          throw new RuntimeException(e);
+        }
+      } else {
+        final Iterator<Integer> iterator = this.freePageIndexes.iterator();
+        final Integer pageIndex = iterator.next();
+        iterator.remove();
+        page = loadPage(pageIndex);
+      }
+      this.pagesInUse.add(page);
+      return page;
+    }
+  }
+
+  @Override
+  public Page newTempPage() {
+    return new ByteArrayPage(this, -1, this.pageSize);
+  }
+
+  @Override
   public synchronized void releasePage(final Page page) {
     write(page);
-    pagesInUse.remove(page);
+    this.pagesInUse.remove(page);
   }
 
   @Override
   public synchronized void removePage(final Page page) {
-    synchronized (pages) {
+    synchronized (this.pages) {
       page.clear();
       write(page);
-      freePageIndexes.add(page.getIndex());
+      this.freePageIndexes.add(page.getIndex());
     }
   }
 
   @Override
   public synchronized void write(final Page page) {
     if (page.getPageManager() == this) {
-      synchronized (randomAccessFile) {
+      synchronized (this.randomAccessFile) {
         try {
           final long index = page.getIndex();
           if (index >= 0) {
-            randomAccessFile.seek(index * pageSize);
+            this.randomAccessFile.seek(index * this.pageSize);
             final byte[] content = page.getContent();
-            randomAccessFile.write(content);
+            this.randomAccessFile.write(content);
           }
         } catch (final IOException e) {
           throw new RuntimeException(e);

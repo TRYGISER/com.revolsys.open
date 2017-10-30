@@ -2,17 +2,16 @@ package com.revolsys.gis.parallel;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
-import com.revolsys.filter.Filter;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.io.Statistics;
 import com.revolsys.parallel.channel.Channel;
 import com.revolsys.parallel.process.MultipleFilterProcess;
+import com.revolsys.record.Record;
+import com.revolsys.util.count.LabelCountMap;
 
-public class StatisticsMultipleFilterProcess extends
-  MultipleFilterProcess<DataObject> {
+public class StatisticsMultipleFilterProcess extends MultipleFilterProcess<Record> {
 
-  private final Map<Filter<DataObject>, Statistics> statisticsMap = new HashMap<Filter<DataObject>, Statistics>();
+  private final Map<Predicate<Record>, LabelCountMap> statisticsMap = new HashMap<>();
 
   private String statisticsName;
 
@@ -21,7 +20,7 @@ public class StatisticsMultipleFilterProcess extends
   @Override
   protected void destroy() {
     super.destroy();
-    for (final Statistics stats : statisticsMap.values()) {
+    for (final LabelCountMap stats : this.statisticsMap.values()) {
       stats.disconnect();
     }
   }
@@ -30,34 +29,34 @@ public class StatisticsMultipleFilterProcess extends
    * @return the statisticsName
    */
   public String getStatisticsName() {
-    return statisticsName;
+    return this.statisticsName;
   }
 
   /**
    * @return the useStatistics
    */
   public boolean isUseStatistics() {
-    return useStatistics;
+    return this.useStatistics;
   }
 
   @Override
-  protected boolean processFilter(final DataObject object,
-    final Filter<DataObject> filter, final Channel<DataObject> filterOut) {
-    if (super.processFilter(object, filter, filterOut)) {
-      if (useStatistics) {
-        Statistics stats = statisticsMap.get(filter);
+  protected boolean processPredicate(final Record object, final Predicate<Record> filter,
+    final Channel<Record> filterOut) {
+    if (super.processPredicate(object, filter, filterOut)) {
+      if (this.useStatistics) {
+        LabelCountMap stats = this.statisticsMap.get(filter);
         String name;
         if (stats == null) {
-          if (statisticsName != null) {
-            name = statisticsName + " " + filter.toString();
+          if (this.statisticsName != null) {
+            name = this.statisticsName + " " + filter.toString();
           } else {
             name = filter.toString();
           }
-          stats = new Statistics(name);
+          stats = new LabelCountMap(name);
           stats.connect();
-          statisticsMap.put(filter, stats);
+          this.statisticsMap.put(filter, stats);
         }
-        stats.add(object);
+        stats.addCount(object);
       }
       return true;
     } else {

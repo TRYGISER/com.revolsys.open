@@ -2,17 +2,17 @@ package com.revolsys.ui.html.fields;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.form.Form;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
+import com.revolsys.util.Property;
 
 public class FileField extends Field {
 
-  private String style = null;
-
   private String inputValue = "";
+
+  private String style = null;
 
   public FileField() {
   }
@@ -22,7 +22,7 @@ public class FileField extends Field {
   }
 
   public String getInputValue() {
-    return inputValue;
+    return this.inputValue;
   }
 
   public String getStringValue() {
@@ -30,21 +30,21 @@ public class FileField extends Field {
   }
 
   public String getStyle() {
-    return style;
+    return this.style;
   }
 
   @Override
   public boolean hasValue() {
-    return inputValue != null && !inputValue.equals("");
+    return this.inputValue != null && !this.inputValue.equals("");
   }
 
   @Override
   public void initialize(final Form form, final HttpServletRequest request) {
-    inputValue = request.getParameter(getName());
-    if (inputValue == null) {
+    this.inputValue = request.getParameter(getName());
+    if (this.inputValue == null) {
       setValue(getInitialValue(request));
       if (getValue() != null) {
-        inputValue = getValue().toString();
+        this.inputValue = getValue().toString();
       }
     }
   }
@@ -59,8 +59,8 @@ public class FileField extends Field {
     }
     if (valid) {
       try {
-        if (inputValue != null && inputValue.length() > 0) {
-          setTextValue(inputValue);
+        if (this.inputValue != null && this.inputValue.length() > 0) {
+          setTextValue(this.inputValue);
         } else {
           setTextValue(null);
         }
@@ -74,16 +74,17 @@ public class FileField extends Field {
 
   @Override
   public void serializeElement(final XmlWriter out) {
-    out.startTag(HtmlUtil.INPUT);
-    out.attribute(HtmlUtil.ATTR_NAME, getName());
-    out.attribute(HtmlUtil.ATTR_TYPE, "file");
-    if (StringUtils.hasText(style)) {
-      out.attribute(HtmlUtil.ATTR_STYLE, style);
+    out.startTag(HtmlElem.INPUT);
+    out.attribute(HtmlAttr.NAME, getName());
+    out.attribute(HtmlAttr.TYPE, "file");
+    out.attribute(HtmlAttr.CLASS, "form-control input-sm");
+    if (Property.hasValue(this.style)) {
+      out.attribute(HtmlAttr.STYLE, this.style);
     }
     if (isRequired()) {
-      out.attribute(HtmlUtil.ATTR_CLASS, "required");
+      out.attribute(HtmlAttr.REQUIRED, true);
     }
-    out.endTag(HtmlUtil.INPUT);
+    out.endTag(HtmlElem.INPUT);
   }
 
   protected void setInputValue(final String inputValue) {
@@ -97,9 +98,9 @@ public class FileField extends Field {
   public void setTextValue(final String value) {
     super.setValue(value);
     if (value != null) {
-      inputValue = value.toString();
+      this.inputValue = value.toString();
     } else {
-      inputValue = null;
+      this.inputValue = null;
     }
   }
 
@@ -107,9 +108,9 @@ public class FileField extends Field {
   public void setValue(final Object value) {
     super.setValue(value);
     if (value != null) {
-      inputValue = value.toString();
+      this.inputValue = value.toString();
     } else {
-      inputValue = null;
+      this.inputValue = null;
     }
   }
 

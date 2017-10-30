@@ -1,19 +1,20 @@
 package com.revolsys.io;
 
 import java.util.Iterator;
+import java.util.function.Predicate;
 
 import javax.annotation.PreDestroy;
 
-import com.revolsys.collection.FilterIterator;
-import com.revolsys.filter.Filter;
+import com.revolsys.collection.iterator.FilterIterator;
+import com.revolsys.collection.map.MapEx;
 
 public class FilterReader<T> extends AbstractReader<T> {
 
-  private Filter<T> filter;
+  private Predicate<T> filter;
 
   private Reader<T> reader;
 
-  public FilterReader(final Filter<T> filter, final Reader<T> reader) {
+  public FilterReader(final Predicate<T> filter, final Reader<T> reader) {
     this.filter = filter;
     this.reader = reader;
   }
@@ -22,30 +23,35 @@ public class FilterReader<T> extends AbstractReader<T> {
   @PreDestroy
   public void close() {
     super.close();
-    if (reader != null) {
-      reader.close();
+    if (this.reader != null) {
+      this.reader.close();
     }
-    filter = null;
-    reader = null;
+    this.filter = null;
+    this.reader = null;
   }
 
-  protected Filter<T> getFilter() {
-    return filter;
+  protected Predicate<T> getFilter() {
+    return this.filter;
+  }
+
+  @Override
+  public MapEx getProperties() {
+    return this.reader.getProperties();
   }
 
   protected Reader<T> getReader() {
-    return reader;
+    return this.reader;
   }
 
   @Override
   public Iterator<T> iterator() {
-    final Iterator<T> iterator = reader.iterator();
-    return new FilterIterator<T>(filter, iterator);
+    final Iterator<T> iterator = this.reader.iterator();
+    return new FilterIterator<>(this.filter, iterator);
   }
 
   @Override
   public void open() {
-    reader.open();
+    this.reader.open();
   }
 
 }

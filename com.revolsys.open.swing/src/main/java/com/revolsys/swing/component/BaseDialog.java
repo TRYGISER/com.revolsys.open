@@ -7,10 +7,11 @@ import java.awt.Window;
 
 import javax.swing.JDialog;
 
+import com.revolsys.logging.Logs;
 import com.revolsys.swing.WindowManager;
 
-@SuppressWarnings("serial")
 public class BaseDialog extends JDialog {
+  private static final long serialVersionUID = 1L;
 
   public BaseDialog() {
     super();
@@ -32,8 +33,8 @@ public class BaseDialog extends JDialog {
     super(owner, title, modal);
   }
 
-  public BaseDialog(final Dialog owner, final String title,
-    final boolean modal, final GraphicsConfiguration gc) {
+  public BaseDialog(final Dialog owner, final String title, final boolean modal,
+    final GraphicsConfiguration gc) {
     super(owner, title, modal, gc);
   }
 
@@ -70,20 +71,29 @@ public class BaseDialog extends JDialog {
     super(owner, title);
   }
 
-  public BaseDialog(final Window owner, final String title,
-    final ModalityType modalityType) {
+  public BaseDialog(final Window owner, final String title, final ModalityType modalityType) {
     super(owner, title, modalityType);
   }
 
-  public BaseDialog(final Window owner, final String title,
-    final ModalityType modalityType, final GraphicsConfiguration gc) {
+  public BaseDialog(final Window owner, final String title, final ModalityType modalityType,
+    final GraphicsConfiguration gc) {
     super(owner, title, modalityType, gc);
   }
 
   @Override
   public void dispose() {
     WindowManager.removeWindow(this);
-    super.dispose();
+    try {
+      super.dispose();
+    } catch (final Throwable e) {
+      Logs.debug(this, e);
+    }
+  }
+
+  @Override
+  public void setTitle(final String title) {
+    super.setTitle(title);
+    WindowManager.updateWindowTitle(this);
   }
 
   @Override

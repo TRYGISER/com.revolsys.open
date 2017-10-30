@@ -1,9 +1,12 @@
 package com.revolsys.swing.map;
 
+import java.awt.Cursor;
+import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.geom.AffineTransform;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 
@@ -13,23 +16,32 @@ import javax.measure.quantity.Quantity;
 import javax.measure.unit.Unit;
 import javax.swing.JComponent;
 
-import com.revolsys.gis.cs.CoordinateSystem;
-import com.revolsys.jts.geom.BoundingBox;
-import com.revolsys.jts.geom.Envelope;
-import com.revolsys.jts.geom.GeometryFactory;
+import com.revolsys.awt.CloseableAffineTransform;
+import com.revolsys.geometry.cs.CoordinateSystem;
+import com.revolsys.geometry.model.BoundingBox;
+import com.revolsys.geometry.model.GeometryFactory;
+import com.revolsys.io.BaseCloseable;
 import com.revolsys.swing.map.layer.LayerGroup;
 import com.revolsys.swing.map.layer.Project;
 import com.revolsys.swing.parallel.Invoke;
 import com.revolsys.util.Property;
+import com.revolsys.value.GlobalBooleanValue;
 
-public class ComponentViewport2D extends Viewport2D implements
-  PropertyChangeListener {
+public class ComponentViewport2D extends Viewport2D implements PropertyChangeListener {
 
   private final JComponent component;
 
+  private int maxDecimalDigits;
+
   private int maxIntegerDigits;
 
-  private int maxDecimalDigits;
+  private final ThreadLocal<Graphics2D> graphics = new ThreadLocal<>();
+
+  private final ThreadLocal<AffineTransform> graphicsTransform = new ThreadLocal<>();
+
+  private final ThreadLocal<AffineTransform> graphicsModelTransform = new ThreadLocal<>();
+
+  private final GlobalBooleanValue componentResizing = new GlobalBooleanValue(false);
 
   public ComponentViewport2D(final Project project, final JComponent component) {
     super(project);
@@ -40,7 +52,11 @@ public class ComponentViewport2D extends Viewport2D implements
       @Override
       public void componentResized(final ComponentEvent e) {
         if (isInitialized()) {
-          updateCachedFields();
+          try (
+            BaseCloseable componentResizing = ComponentViewport2D.this.componentResizing
+              .closeable(true)) {
+            updateCachedFields();
+          }
         }
       }
     });
@@ -49,14 +65,13 @@ public class ComponentViewport2D extends Viewport2D implements
   /**
    * Get the bounding box for the dimensions of the viewport at the specified
    * scale, centred at the x, y model coordinates.
-   * 
+   *
    * @param x The model x coordinate.
    * @param y The model y coordinate.
    * @param scale The scale.
    * @return The bounding box.
    */
-  public BoundingBox getBoundingBox(final double x, final double y,
-    final double scale) {
+  public BoundingBox getBoundingBox(final double x, final double y, final double scale) {
     final double width = getModelWidth(scale);
     final double height = getModelHeight(scale);
 
@@ -64,27 +79,25 @@ public class ComponentViewport2D extends Viewport2D implements
     final double y1 = y - height / 2;
     final double x2 = x1 + width;
     final double y2 = y1 + height;
-    final BoundingBox boundingBox = new Envelope(getGeometryFactory(), 2, x1,
-      y1, x2, y2);
+    final BoundingBox boundingBox = getGeometryFactory().newBoundingBox(x1, y1, x2, y2);
     return boundingBox;
   }
 
   /**
    * Get the bounding box in model units for the pair of coordinates in view
    * units. The bounding box will be clipped to the model's bounding box.
-   * 
+   *
    * @param x1 The first x value.
    * @param y1 The first y value.
    * @param x2 The second x value.
    * @param y2 The second y value.
    * @return The bounding box.
    */
-  public BoundingBox getBoundingBox(final double x1, final double y1,
-    final double x2, final double y2) {
+  public BoundingBox getBoundingBox(final double x1, final double y1, final double x2,
+    final double y2) {
     final double[] c1 = toModelCoordinates(x1, y1);
     final double[] c2 = toModelCoordinates(x2, y2);
-    final BoundingBox boundingBox = new Envelope(getGeometryFactory(), 2,
-      c1[0], c1[1], c2[0], c2[1]);
+    final BoundingBox boundingBox = getGeometryFactory().newBoundingBox(c1[0], c1[1], c2[0], c2[1]);
 
     // Clip the bounding box with the map's visible area
     BoundingBox intersection = boundingBox.intersection(boundingBox);
@@ -98,7 +111,7 @@ public class ComponentViewport2D extends Viewport2D implements
   /**
    * Get the bounding box for the dimensions of the viewport at the specified
    * scale, centred at the x, y view coordinates.
-   * 
+   *
    * @param x The view x coordinate.
    * @param y The view y coordinate.
    * @param scale The scale.
@@ -109,6 +122,19 @@ public class ComponentViewport2D extends Viewport2D implements
     final double mapX = ordinates[0];
     final double mapY = ordinates[1];
     return getBoundingBox(mapX, mapY, scale);
+  }
+
+  public Cursor getCursor() {
+    if (this.component == null) {
+      return null;
+    } else {
+      return this.component.getCursor();
+    }
+  }
+
+  @Override
+  public Graphics2D getGraphics() {
+    return this.graphics.get();
   }
 
   public double getMaxScale() {
@@ -134,8 +160,7 @@ public class ComponentViewport2D extends Viewport2D implements
     return height;
   }
 
-  public <Q extends Quantity> Unit<Q> getModelToScreenUnit(
-    final Unit<Q> modelUnit) {
+  public <Q extends Quantity> Unit<Q> getModelToScreenUnit(final Unit<Q> modelUnit) {
     final double viewWidth = getViewWidthPixels();
     final double modelWidth = getModelWidth();
     return modelUnit.times(viewWidth).divide(modelWidth);
@@ -152,15 +177,14 @@ public class ComponentViewport2D extends Viewport2D implements
   /**
    * Get the rectangle in view units for the pair of coordinates in view units.
    * The bounding box will be clipped to the view's dimensions.
-   * 
+   *
    * @param x1 The first x value.
    * @param y1 The first y value.
    * @param x2 The second x value.
    * @param y2 The second y value.
    * @return The rectangle.
    */
-  public Rectangle getRectangle(final int x1, final int y1, final int x2,
-    final int y2) {
+  public Rectangle getRectangle(final int x1, final int y1, final int x2, final int y2) {
     final int x3 = Math.min(getViewWidthPixels() - 1, Math.max(0, x2));
     final int y3 = Math.min(getViewHeightPixels() - 1, Math.max(0, y2));
 
@@ -172,14 +196,12 @@ public class ComponentViewport2D extends Viewport2D implements
   }
 
   public Unit<Length> getScaleUnit(final double scale) {
-    final Unit<Length> lengthUnit = getGeometryFactory().getCoordinateSystem()
-      .getLengthUnit();
+    final Unit<Length> lengthUnit = getGeometryFactory().getCoordinateSystem().getLengthUnit();
     final Unit<Length> scaleUnit = lengthUnit.divide(scale);
     return scaleUnit;
   }
 
-  public <Q extends Quantity> Unit<Q> getScreenToModelUnit(
-    final Unit<Q> modelUnit) {
+  public <Q extends Quantity> Unit<Q> getScreenToModelUnit(final Unit<Q> modelUnit) {
     final double viewWidth = getViewWidthPixels();
     final double modelWidth = getModelWidth();
     return modelUnit.times(modelWidth).divide(viewWidth);
@@ -192,12 +214,11 @@ public class ComponentViewport2D extends Viewport2D implements
     double modelHeight = validBoundingBox.getHeight();
 
     /*
-     * If the new bounding box has a zero width and height, expand it by 50 view
-     * units.
+     * If the new bounding box has a zero width and height, expand it by 50 view units.
      */
     if (modelWidth == 0 && modelHeight == 0) {
-      validBoundingBox = validBoundingBox.expand(
-        getModelUnitsPerViewUnit() * 50, getModelUnitsPerViewUnit() * 50);
+      validBoundingBox = validBoundingBox.expand(getModelUnitsPerViewUnit() * 50,
+        getModelUnitsPerViewUnit() * 50);
       modelWidth = validBoundingBox.getWidth();
       modelHeight = validBoundingBox.getHeight();
     }
@@ -212,26 +233,30 @@ public class ComponentViewport2D extends Viewport2D implements
     if (logUnits < 0 && Math.abs(Math.floor(logUnits)) > this.maxDecimalDigits) {
       modelUnitsPerViewUnit = 2 * Math.pow(10, -this.maxDecimalDigits);
       final double minModelWidth = getViewWidthPixels() * modelUnitsPerViewUnit;
-      final double minModelHeight = getViewHeightPixels()
-        * modelUnitsPerViewUnit;
-      validBoundingBox = validBoundingBox.expand(
-        (minModelWidth - modelWidth) / 2, (minModelHeight - modelHeight) / 2);
+      final double minModelHeight = getViewHeightPixels() * modelUnitsPerViewUnit;
+      validBoundingBox = validBoundingBox.expand((minModelWidth - modelWidth) / 2,
+        (minModelHeight - modelHeight) / 2);
     }
     return validBoundingBox;
+  }
+
+  public boolean isComponentResizing() {
+    return this.componentResizing.isTrue();
   }
 
   @Override
   public void propertyChange(final PropertyChangeEvent event) {
     if (isInitialized() && event.getSource() == getProject()) {
       if (event.getPropertyName().equals("viewBoundingBox")) {
-        // final BoundingBox boundingBox = (BoundingBox)event.getNewValue();
+        // final BoundingBox boundingBox =
+        // (BoundingBox)event.getNewValue();
         // if (isInitialized()) {
         // updateCachedFields();
         // } else {
         // setBoundingBoxInternal(boundingBox);
         // }
       } else {
-        Invoke.later(this, "updateCachedFields");
+        Invoke.later(this::updateCachedFields);
       }
     }
   }
@@ -242,41 +267,53 @@ public class ComponentViewport2D extends Viewport2D implements
 
   /**
    * Set the coordinate system the map is displayed in.
-   * 
+   *
    * @param coordinateSystem The coordinate system the map is displayed in.
    */
   @Override
   public void setGeometryFactory(final GeometryFactory geometryFactory) {
-    if (geometryFactory != getGeometryFactory()) {
-      final GeometryFactory oldGeometryFactory = getGeometryFactory();
+    final GeometryFactory oldGeometryFactory = getGeometryFactory();
+    if (geometryFactory != oldGeometryFactory) {
       super.setGeometryFactory(geometryFactory);
       final CoordinateSystem coordinateSystem = geometryFactory.getCoordinateSystem();
-      final BoundingBox areaBoundingBox = coordinateSystem.getAreaBoundingBox();
-      final double minX = areaBoundingBox.getMinX();
-      final double maxX = areaBoundingBox.getMaxX();
-      final double minY = areaBoundingBox.getMinY();
-      final double maxY = areaBoundingBox.getMaxY();
-      final double logMinX = Math.log10(Math.abs(minX));
-      final double logMinY = Math.log10(Math.abs(minY));
-      final double logMaxX = Math.log10(Math.abs(maxX));
-      final double logMaxY = Math.log10(Math.abs(maxY));
-      final double maxLog = Math.abs(Math.max(Math.max(logMinX, logMinY),
-        Math.max(logMaxX, logMaxY)));
-      this.maxIntegerDigits = (int)Math.floor(maxLog + 1);
-      this.maxDecimalDigits = 15 - this.maxIntegerDigits;
-      getPropertyChangeSupport().firePropertyChange("geometryFactory",
-        oldGeometryFactory, geometryFactory);
-      final BoundingBox boundingBox = getBoundingBox();
-      if (boundingBox != null) {
-        final BoundingBox newBoundingBox = boundingBox.convert(geometryFactory);
-        final BoundingBox intersection = newBoundingBox.intersection(areaBoundingBox);
-        if (intersection.isEmpty()) {
-          setBoundingBox(areaBoundingBox);
-        } else {
-          setBoundingBox(intersection);
+      if (coordinateSystem != null) {
+        final BoundingBox areaBoundingBox = coordinateSystem.getAreaBoundingBox();
+        final double minX = areaBoundingBox.getMinX();
+        final double maxX = areaBoundingBox.getMaxX();
+        final double minY = areaBoundingBox.getMinY();
+        final double maxY = areaBoundingBox.getMaxY();
+        final double logMinX = Math.log10(Math.abs(minX));
+        final double logMinY = Math.log10(Math.abs(minY));
+        final double logMaxX = Math.log10(Math.abs(maxX));
+        final double logMaxY = Math.log10(Math.abs(maxY));
+        final double maxLog = Math
+          .abs(Math.max(Math.max(logMinX, logMinY), Math.max(logMaxX, logMaxY)));
+        this.maxIntegerDigits = (int)Math.floor(maxLog + 1);
+        this.maxDecimalDigits = 15 - this.maxIntegerDigits;
+        getPropertyChangeSupport().firePropertyChange("geometryFactory", oldGeometryFactory,
+          geometryFactory);
+        final BoundingBox boundingBox = getBoundingBox();
+        if (boundingBox != null) {
+          final BoundingBox newBoundingBox = boundingBox.convert(geometryFactory);
+          final BoundingBox intersection = newBoundingBox.intersection(areaBoundingBox);
+          if (intersection.isEmpty()) {
+            setBoundingBox(areaBoundingBox);
+          } else {
+            setBoundingBox(intersection);
+          }
         }
       }
     }
+  }
+
+  public void setGraphics(final Graphics2D graphics) {
+    if (graphics == null) {
+      this.graphics.remove();
+    } else {
+      this.graphics.set(graphics);
+      this.graphicsTransform.set(graphics.getTransform());
+    }
+    updateGraphicsTransform();
   }
 
   @Override
@@ -287,12 +324,43 @@ public class ComponentViewport2D extends Viewport2D implements
     super.setInitialized(initialized);
   }
 
+  @Override
+  protected void setModelToScreenTransform(final AffineTransform modelToScreenTransform) {
+    super.setModelToScreenTransform(modelToScreenTransform);
+    updateGraphicsTransform();
+  }
+
+  @Override
+  public BaseCloseable setUseModelCoordinates(final boolean useModelCoordinates) {
+    final Graphics2D graphics = getGraphics();
+    return setUseModelCoordinates(graphics, useModelCoordinates);
+  }
+
+  @Override
+  public BaseCloseable setUseModelCoordinates(final Graphics2D graphics,
+    final boolean useModelCoordinates) {
+    if (graphics == null) {
+      return null;
+    } else {
+      AffineTransform newTransform;
+      if (useModelCoordinates) {
+        newTransform = this.graphicsModelTransform.get();
+      } else {
+        newTransform = this.graphicsTransform.get();
+      }
+      if (newTransform == null) {
+        return new CloseableAffineTransform(graphics);
+      } else {
+        return new CloseableAffineTransform(graphics, newTransform);
+      }
+    }
+  }
+
   public void translate(final double dx, final double dy) {
     final BoundingBox boundingBox = getBoundingBox();
-    final BoundingBox newBoundingBox = new Envelope(
-      boundingBox.getGeometryFactory(), 2,
-      boundingBox.getMinX() + dx, boundingBox.getMinY() + dy,
-      boundingBox.getMaxX() + dx, boundingBox.getMaxY() + dy);
+    final BoundingBox newBoundingBox = boundingBox.getGeometryFactory().newBoundingBox(
+      boundingBox.getMinX() + dx, boundingBox.getMinY() + dy, boundingBox.getMaxX() + dx,
+      boundingBox.getMaxY() + dy);
     setBoundingBox(newBoundingBox);
 
   }
@@ -302,7 +370,7 @@ public class ComponentViewport2D extends Viewport2D implements
     repaint();
   }
 
-  public void updateCachedFields() {
+  private void updateCachedFields() {
     final LayerGroup project = getProject();
     final GeometryFactory geometryFactory = project.getGeometryFactory();
     if (geometryFactory != null) {
@@ -311,16 +379,28 @@ public class ComponentViewport2D extends Viewport2D implements
       }
       final Insets insets = this.component.getInsets();
 
-      final int viewWidth = this.component.getWidth() - insets.left
-        - insets.right;
-      final int viewHeight = this.component.getHeight() - insets.top
-        - insets.bottom;
+      final int viewWidth = this.component.getWidth() - insets.left - insets.right;
+      final int viewHeight = this.component.getHeight() - insets.top - insets.bottom;
 
       setViewWidth(viewWidth);
       setViewHeight(viewHeight);
       setBoundingBox(getBoundingBox());
 
       this.component.repaint();
+    }
+  }
+
+  private void updateGraphicsTransform() {
+    if (this.graphicsTransform != null) {
+      final AffineTransform modelToScreenTransform = getModelToScreenTransform();
+      final AffineTransform graphicsTransform = this.graphicsTransform.get();
+      if (modelToScreenTransform == null || graphicsTransform == null) {
+        this.graphicsModelTransform.remove();
+      } else {
+        final AffineTransform transform = (AffineTransform)graphicsTransform.clone();
+        transform.concatenate(modelToScreenTransform);
+        this.graphicsModelTransform.set(transform);
+      }
     }
   }
 }

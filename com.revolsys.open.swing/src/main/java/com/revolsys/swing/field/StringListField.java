@@ -19,39 +19,37 @@ import org.jdesktop.swingx.HorizontalLayout;
 import org.jdesktop.swingx.JXList;
 import org.jdesktop.swingx.VerticalLayout;
 import org.jdesktop.swingx.decorator.HighlighterFactory;
-import org.springframework.util.StringUtils;
 
-import com.revolsys.gis.model.data.equals.EqualsRegistry;
+import com.revolsys.datatype.DataType;
+import com.revolsys.swing.EventQueue;
 import com.revolsys.swing.component.ValueField;
-import com.revolsys.swing.list.BaseListModel;
-import com.revolsys.swing.listener.InvokeMethodListener;
+import com.revolsys.swing.list.ArrayListModel;
+import com.revolsys.swing.listener.EventQueueRunnableListener;
 import com.revolsys.swing.toolbar.ToolBar;
-import com.revolsys.util.CollectionUtil;
+import com.revolsys.util.Property;
+import com.revolsys.util.Strings;
 
 public class StringListField extends ValueField {
   public static final String SELECTED = "selected";
 
   private static final long serialVersionUID = 1L;
 
-  private final JTextField valueEntry = new JTextField();
-
-  private final BaseListModel<String> values = new BaseListModel<String>();
-
   private final JButton addButton;
 
   private final Comparator<String> comparator;
 
-  private final JXList valuesField;
-
   private final ToolBar toolBar = new ToolBar();
 
-  public StringListField(final Comparator<String> comparator,
-    final String fieldName) {
-    super(fieldName, "");
+  private final JTextField valueEntry = new JTextField();
+
+  private final ArrayListModel<String> values = new ArrayListModel<>();
+
+  private final JXList valuesField;
+
+  public StringListField(final Comparator<String> comparator, final String fieldName) {
+    super(new HorizontalLayout(2), fieldName, "");
     setOpaque(false);
     this.comparator = comparator;
-
-    setLayout(new HorizontalLayout(2));
 
     final JPanel fieldPanel = new JPanel(new VerticalLayout(2));
     fieldPanel.setOpaque(false);
@@ -64,13 +62,12 @@ public class StringListField extends ValueField {
     this.valueEntry.setPreferredSize(new Dimension(600, 25));
     fieldPanel.add(this.valueEntry);
 
-    this.addButton = this.toolBar.addButtonTitleIcon("add", "Add", "add", this,
-      "addValue");
+    this.addButton = this.toolBar.addButtonTitleIcon("add", "Add", "add", this::addValue);
 
     this.valueEntry.addActionListener(this.addButton.getAction());
 
     this.toolBar.addButtonTitleIcon(SELECTED, "Remove Selected", "delete",
-      this, "removeSelectedValues");
+      this::removeSelectedValues);
 
     this.valuesField = new JXList(this.values);
     this.valuesField.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -81,11 +78,10 @@ public class StringListField extends ValueField {
     fieldPanel.add(namesPane);
     updateFields();
 
-    this.valueEntry.getDocument().addDocumentListener(
-      new InvokeMethodListener(this, "updateFields"));
+    final EventQueueRunnableListener updateFieldListener = EventQueue.addDocument(this.valueEntry,
+      () -> updateFields());
 
-    this.valuesField.addListSelectionListener(new InvokeMethodListener(this,
-      "updateFields"));
+    this.valuesField.addListSelectionListener(updateFieldListener);
 
   }
 
@@ -101,7 +97,7 @@ public class StringListField extends ValueField {
   }
 
   public boolean addValue(final String value) {
-    if (StringUtils.hasText(value)) {
+    if (Property.hasValue(value)) {
       if (!this.values.contains(value)) {
 
         if (this.comparator == null || this.values.isEmpty()) {
@@ -123,6 +119,7 @@ public class StringListField extends ValueField {
           }
         }
         updateFields();
+        setFieldValue(Strings.toString(this.values));
         return true;
       }
     }
@@ -150,29 +147,30 @@ public class StringListField extends ValueField {
         selectionModel.setSelectionInterval(index, index);
       }
     }
+    setFieldValue(Strings.toString(this.values));
     updateFields();
     this.valueEntry.requestFocusInWindow();
   }
 
   @Override
-  public void setFieldValue(final Object value) {
-    if (!EqualsRegistry.equal(value, getFieldValue())) {
+  public boolean setFieldValue(final Object value) {
+    if (!DataType.equal(value, getFieldValue())) {
       if (this.values != null) {
         if (value == null) {
           this.values.clear();
         } else {
           final String string = value.toString();
-          if (StringUtils.hasText(string)) {
-            final List<String> newValues = new ArrayList<String>();
+          if (Property.hasValue(string)) {
+            final List<String> newValues = new ArrayList<>();
             for (final String item : string.replaceAll("\\s+", "").split(",+")) {
-              if (StringUtils.hasText(item)) {
+              if (Property.hasValue(item)) {
                 newValues.add(item);
               }
             }
             if (this.comparator != null) {
               Collections.sort(newValues, this.comparator);
             }
-            if (!EqualsRegistry.equal(this.values, newValues)) {
+            if (!DataType.equal(this.values, newValues)) {
               this.values.clear();
               this.values.addAll(newValues);
               if (!newValues.isEmpty()) {
@@ -181,20 +179,23 @@ public class StringListField extends ValueField {
             }
           }
         }
-        super.setFieldValue(CollectionUtil.toString(this.values));
+        return super.setFieldValue(Strings.toString(this.values));
       }
     }
+    return false;
   }
 
-  private void setSelectedButtonsEnabled(final boolean enabled) {
+  private void setSelectedButtonsEnabled(final boolean editable) {
     for (final Component component : this.toolBar.getGroup(SELECTED)) {
-      component.setEnabled(enabled);
+      component.setEnabled(editable);
+      // this.valueEntry.setEditable(editable);
     }
   }
 
   public void updateFields() {
     this.valueEntry.setEnabled(true);
-    if (StringUtils.hasText(this.valueEntry.getText())) {
+    final String text = this.valueEntry.getText();
+    if (Property.hasValue(text) && !this.values.contains(text)) {
       this.addButton.setEnabled(true);
     } else {
       this.addButton.setEnabled(false);

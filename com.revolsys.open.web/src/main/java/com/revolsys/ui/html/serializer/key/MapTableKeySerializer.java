@@ -1,16 +1,16 @@
 package com.revolsys.ui.html.serializer.key;
 
-import java.util.Iterator;
+import java.io.Reader;
+import java.sql.Clob;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.io.json.JsonMapIoFactory;
-import com.revolsys.io.json.JsonParser;
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
-import com.revolsys.util.JavaBeanUtil;
+import com.revolsys.logging.Logs;
+import com.revolsys.record.io.format.json.Json;
+import com.revolsys.record.io.format.xml.XmlWriter;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
+import com.revolsys.util.Property;
 
 public class MapTableKeySerializer extends AbstractKeySerializer {
 
@@ -23,107 +23,105 @@ public class MapTableKeySerializer extends AbstractKeySerializer {
     setProperty("searchable", false);
   }
 
+  public MapTableKeySerializer(final String name, final String label) {
+    super(name, label);
+    setProperty("sortable", false);
+    setProperty("searchable", false);
+  }
+
   /**
    * Serialize the value to the XML writer.
-   * 
+   *
    * @param out The XML writer to serialize to.
    * @param object The object to get the value from.
    */
+  @Override
   public void serialize(final XmlWriter out, final Object object) {
-     Object value = JavaBeanUtil.getProperty(object, getKey());
+    Object value = Property.get(object, getKey());
     if (value == null) {
       out.text("-");
     } else {
-      if (value instanceof String) {
-        String string = (String)value;
-        if (StringUtils.hasText(string)) {
-          value = JsonMapIoFactory.toMap(string);
+      if (value instanceof Clob) {
+        final Clob clob = (Clob)value;
+        try (
+          Reader reader = clob.getCharacterStream()) {
+          value = Json.toMap(reader);
+        } catch (final Throwable e) {
+          Logs.error(this, "Unable to read from clob", e);
+        }
+      } else if (value instanceof String) {
+        final String string = (String)value;
+        if (Property.hasValue(string)) {
+          try {
+            value = Json.toMap(string);
+          } catch (final Throwable e) {
+          }
         } else {
           out.text("-");
           return;
         }
       }
       if (value instanceof Map) {
+        @SuppressWarnings({
+          "unchecked", "rawtypes"
+        })
         final Map<Object, Object> map = (Map)value;
         if (map.isEmpty()) {
           out.text("-");
         } else {
-          out.startTag(HtmlUtil.DIV);
-          out.attribute(HtmlUtil.ATTR_CLASS, "objectList");
+          out.startTag(HtmlElem.DIV);
+          out.attribute(HtmlAttr.CLASS, "panel panel-default table-responsive batchJob");
 
-          out.startTag(HtmlUtil.TABLE);
-          out.attribute(HtmlUtil.ATTR_CELL_SPACING, "0");
-          out.attribute(HtmlUtil.ATTR_CELL_PADDING, "0");
-          out.attribute(HtmlUtil.ATTR_CLASS, "data");
-          out.startTag(HtmlUtil.THEAD);
-          out.startTag(HtmlUtil.TR);
+          out.startTag(HtmlElem.TABLE);
+          out.attribute(HtmlAttr.CELL_SPACING, "0");
+          out.attribute(HtmlAttr.CELL_PADDING, "0");
+          out.attribute(HtmlAttr.CLASS, "table table-striped table-condensed");
+          out.startTag(HtmlElem.THEAD);
+          out.startTag(HtmlElem.TR);
 
-          out.startTag(HtmlUtil.TH);
-          out.attribute(HtmlUtil.ATTR_CLASS, "firstCol");
-          out.text(keyLabel);
-          out.endTag(HtmlUtil.TH);
+          out.startTag(HtmlElem.TH);
+          out.text(this.keyLabel);
+          out.endTag(HtmlElem.TH);
 
-          out.startTag(HtmlUtil.TH);
-          out.attribute(HtmlUtil.ATTR_CLASS, "lastCol");
-          out.text(valueLabel);
-          out.endTag(HtmlUtil.TH);
+          out.startTag(HtmlElem.TH);
+          out.text(this.valueLabel);
+          out.endTag(HtmlElem.TH);
 
-          out.endTag(HtmlUtil.TR);
-          out.endTag(HtmlUtil.THEAD);
+          out.endTag(HtmlElem.TR);
+          out.endTag(HtmlElem.THEAD);
 
-          out.startTag(HtmlUtil.TBODY);
-          boolean odd = true;
-          boolean first = true;
-          for (final Iterator<Entry<Object, Object>> entries = map.entrySet()
-            .iterator(); entries.hasNext();) {
-            final Entry<Object, Object> entry = entries.next();
-            out.startTag(HtmlUtil.TR);
-            String cssClass = "";
-            if (first) {
-              cssClass = "firstRow ";
-              first = false;
-            }
-            if (!entries.hasNext()) {
-              cssClass = "lastRow ";
-            }
-            if (odd) {
-              cssClass += "odd";
-            } else {
-              cssClass += "even";
-            }
-            out.attribute(HtmlUtil.ATTR_CLASS, cssClass);
-            odd = !odd;
+          out.startTag(HtmlElem.TBODY);
+          for (final Entry<Object, Object> entry : map.entrySet()) {
+            out.startTag(HtmlElem.TR);
             final Object key = entry.getKey();
             String keyText = "-";
             if (key != null) {
               keyText = key.toString();
-              if (!StringUtils.hasText(keyText)) {
+              if (!Property.hasValue(keyText)) {
                 keyText = "-";
               }
             }
-            out.startTag(HtmlUtil.TD);
-            out.attribute(HtmlUtil.ATTR_CLASS, "firstCol");
+            out.startTag(HtmlElem.TD);
             out.text(keyText);
-            out.endTag(HtmlUtil.TD);
+            out.endTag(HtmlElem.TD);
 
             final Object entryValue = entry.getValue();
             String valueText = "-";
             if (entryValue != null) {
               valueText = entryValue.toString();
-              if (!StringUtils.hasText(valueText)) {
+              if (!Property.hasValue(valueText)) {
                 valueText = "-";
               }
             }
-            out.startTag(HtmlUtil.TD);
-            out.attribute(HtmlUtil.ATTR_CLASS, "lastCol");
+            out.startTag(HtmlElem.TD);
             out.text(valueText);
-            out.endTag(HtmlUtil.TD);
+            out.endTag(HtmlElem.TD);
 
-            out.endTag(HtmlUtil.TR);
+            out.endTag(HtmlElem.TR);
           }
-          out.endTag(HtmlUtil.TBODY);
-          out.endTag(HtmlUtil.TABLE);
-          out.endTag(HtmlUtil.DIV);
+          out.endTag(HtmlElem.TBODY);
+          out.endTag(HtmlElem.TABLE);
+          out.endTag(HtmlElem.DIV);
         }
       } else {
         out.text(value.toString());
@@ -131,11 +129,13 @@ public class MapTableKeySerializer extends AbstractKeySerializer {
     }
   }
 
-  public void setKeyLabel(final String keyLabel) {
+  public MapTableKeySerializer setKeyLabel(final String keyLabel) {
     this.keyLabel = keyLabel;
+    return this;
   }
 
-  public void setValueLabel(final String valueLabel) {
+  public MapTableKeySerializer setValueLabel(final String valueLabel) {
     this.valueLabel = valueLabel;
+    return this;
   }
 }

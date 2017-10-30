@@ -4,13 +4,13 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.border.EmptyBorder;
 
-import com.revolsys.converter.string.StringConverterRegistry;
+import com.revolsys.datatype.DataTypes;
 import com.revolsys.swing.SwingUtil;
 
 public class DefaultValueUiBuilder implements ValueUiBuilder {
-  private final JLabel defaultRenderer;
-
   private JComponent component;
+
+  private final JLabel defaultRenderer;
 
   public DefaultValueUiBuilder() {
     this.defaultRenderer = new JLabel();
@@ -36,7 +36,7 @@ public class DefaultValueUiBuilder implements ValueUiBuilder {
   }
 
   public String getText(final Object value) {
-    return StringConverterRegistry.toString(value);
+    return DataTypes.toString(value);
   }
 
 }

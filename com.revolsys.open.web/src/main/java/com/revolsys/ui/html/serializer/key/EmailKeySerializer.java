@@ -1,12 +1,13 @@
 package com.revolsys.ui.html.serializer.key;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
-import com.revolsys.util.JavaBeanUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
+import com.revolsys.util.Property;
 
 /**
  * Serialize an email address as a mailto:link.
- * 
+ *
  * @author Paul Austin
  */
 public class EmailKeySerializer extends AbstractKeySerializer {
@@ -19,17 +20,18 @@ public class EmailKeySerializer extends AbstractKeySerializer {
 
   /**
    * Serialize the value to the XML writer.
-   * 
+   *
    * @param out The XML writer to serialize to.
    * @param object The object to get the value from.
    */
+  @Override
   public void serialize(final XmlWriter out, final Object object) {
-    final Object email = JavaBeanUtil.getProperty(object, getName());
+    final Object email = Property.get(object, getName());
     if (email != null) {
-      out.startTag(HtmlUtil.A);
-      out.attribute(HtmlUtil.ATTR_HREF, "mailto:" + email);
+      out.startTag(HtmlElem.A);
+      out.attribute(HtmlAttr.HREF, "mailto:" + email);
       out.text(email);
-      out.endTag(HtmlUtil.A);
+      out.endTag(HtmlElem.A);
     } else {
       out.text("-");
     }

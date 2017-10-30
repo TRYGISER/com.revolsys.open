@@ -12,19 +12,17 @@ import javax.swing.ListModel;
 import javax.swing.ListSelectionModel;
 import javax.swing.TransferHandler;
 
-import org.slf4j.LoggerFactory;
-
+import com.revolsys.logging.Logs;
 import com.revolsys.util.Reorderable;
 
 public class ListReorderableTransferHandler extends TransferHandler {
   private static final long serialVersionUID = 1L;
 
-  private final DataFlavor localObjectFlavor = new DataFlavor(int[].class,
-    "Integer[]");
+  private final JList list;
+
+  private final DataFlavor localObjectFlavor = new DataFlavor(int[].class, "Integer[]");
 
   private final String mimeType = this.localObjectFlavor.getMimeType();
-
-  private final JList list;
 
   public ListReorderableTransferHandler(final JList list) {
     this.list = list;
@@ -56,8 +54,7 @@ public class ListReorderableTransferHandler extends TransferHandler {
   }
 
   @Override
-  protected void exportDone(final JComponent c, final Transferable t,
-    final int action) {
+  protected void exportDone(final JComponent c, final Transferable t, final int action) {
     if (action == TransferHandler.MOVE) {
       this.list.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
     }
@@ -104,12 +101,11 @@ public class ListReorderableTransferHandler extends TransferHandler {
         }
         final ListSelectionModel selectionModel = target.getSelectionModel();
         selectionModel.clearSelection();
-        selectionModel.addSelectionInterval(currentIndex - indices.length,
-          currentIndex - 1);
+        selectionModel.addSelectionInterval(currentIndex - indices.length, currentIndex - 1);
         return true;
       }
     } catch (final Throwable e) {
-      LoggerFactory.getLogger(getClass()).error("Unexpected error", e);
+      Logs.error(this, "Unexpected error", e);
     }
     return false;
   }

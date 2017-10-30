@@ -9,25 +9,22 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 
-import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.multipart.support.DefaultMultipartHttpServletRequest;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.Controller;
-import org.springframework.web.servlet.mvc.multiaction.NoSuchRequestHandlingMethodException;
 import org.springframework.web.util.WebUtils;
 
+import com.revolsys.ui.web.exception.PageNotFoundException;
 import com.revolsys.ui.web.utils.HttpServletUtils;
+import com.revolsys.util.Property;
 
 public class PathAliasController implements Controller {
-  public static final String PATH_PREFIX = PathAliasController.class.getName()
-    + ".originalPrefix";
+  public static final String PATH_PREFIX = PathAliasController.class.getName() + ".originalPrefix";
 
-  public static boolean forward(
-    final HttpServletRequest request,
-    final HttpServletResponse response,
-    final String path) throws IOException, ServletException {
+  public static boolean forward(final HttpServletRequest request,
+    final HttpServletResponse response, final String path) throws IOException, ServletException {
     final RequestDispatcher requestDispatcher = request.getRequestDispatcher(path);
     if (requestDispatcher == null) {
       return false;
@@ -35,9 +32,9 @@ public class PathAliasController implements Controller {
       final HttpServletRequest wrappedRequest;
       if (request instanceof DefaultMultipartHttpServletRequest) {
         final DefaultMultipartHttpServletRequest multiPartRequest = (DefaultMultipartHttpServletRequest)request;
-        wrappedRequest = new DefaultMultipartHttpServletRequest(
-          multiPartRequest, multiPartRequest.getMultiFileMap(),
-          new HashMap<String, String[]>()) {
+        wrappedRequest = new DefaultMultipartHttpServletRequest(multiPartRequest,
+          multiPartRequest.getMultiFileMap(), new HashMap<String, String[]>(),
+          new HashMap<String, String>()) {
           @Override
           public String getPathInfo() {
             return path;
@@ -54,13 +51,11 @@ public class PathAliasController implements Controller {
       final Object forwardPath = request.getAttribute(WebUtils.FORWARD_REQUEST_URI_ATTRIBUTE);
       if (forwardPath == null) {
         final String originalUri = request.getRequestURI();
-        wrappedRequest.setAttribute(WebUtils.FORWARD_REQUEST_URI_ATTRIBUTE,
-          originalUri);
+        wrappedRequest.setAttribute(WebUtils.FORWARD_REQUEST_URI_ATTRIBUTE, originalUri);
       }
 
       requestDispatcher.forward(wrappedRequest, response);
-      wrappedRequest.setAttribute(WebUtils.FORWARD_REQUEST_URI_ATTRIBUTE,
-        forwardPath);
+      wrappedRequest.setAttribute(WebUtils.FORWARD_REQUEST_URI_ATTRIBUTE, forwardPath);
     }
     return true;
   }
@@ -73,7 +68,7 @@ public class PathAliasController implements Controller {
     final RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
     final String prefix = (String)requestAttributes.getAttribute(PATH_PREFIX,
       RequestAttributes.SCOPE_REQUEST);
-    if (StringUtils.hasText(prefix)) {
+    if (Property.hasValue(prefix)) {
       return prefix;
     } else {
       return "";
@@ -81,7 +76,9 @@ public class PathAliasController implements Controller {
   }
 
   public static String getPath(final String path) {
-    if (path.startsWith("/")) {
+    if (path == null) {
+      return path;
+    } else if (path.startsWith("/")) {
       final String prefix = getOriginalPrefix();
       if (prefix.length() > 0) {
         return prefix + path;
@@ -93,31 +90,31 @@ public class PathAliasController implements Controller {
     }
   }
 
-  private String prefix;
-
   private String aliasPrefix;
 
+  private String prefix;
+
   public String getAliasPrefix() {
-    return aliasPrefix;
+    return this.aliasPrefix;
   }
 
   public String getPrefix() {
-    return prefix;
+    return this.prefix;
   }
 
-  public ModelAndView handleRequest(
-    final HttpServletRequest request,
+  @Override
+  public ModelAndView handleRequest(final HttpServletRequest request,
     final HttpServletResponse response) throws Exception {
     String path = request.getServletPath() + request.getPathInfo();
-    if (path.startsWith(prefix)) {
+    if (path.startsWith(this.prefix)) {
       if (getOriginalPrefix().length() == 0) {
         final RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
-        requestAttributes.setAttribute(PATH_PREFIX, prefix.replaceAll(aliasPrefix +"$", ""),
-          RequestAttributes.SCOPE_REQUEST);
+        requestAttributes.setAttribute(PATH_PREFIX,
+          this.prefix.replaceAll(this.aliasPrefix + "$", ""), RequestAttributes.SCOPE_REQUEST);
       }
-      path = path.replaceFirst(prefix, aliasPrefix);
+      path = path.replaceFirst(this.prefix, this.aliasPrefix);
       if (!forward(request, response, path)) {
-        throw new NoSuchRequestHandlingMethodException(request);
+        throw new PageNotFoundException();
       }
     }
     return null;

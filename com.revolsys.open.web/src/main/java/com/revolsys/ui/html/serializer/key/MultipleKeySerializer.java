@@ -4,13 +4,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import com.revolsys.io.xml.XmlWriter;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.builder.HtmlUiBuilder;
 import com.revolsys.ui.html.builder.HtmlUiBuilderAware;
 
-public class MultipleKeySerializer extends AbstractKeySerializer implements
-  HtmlUiBuilderAware<HtmlUiBuilder<?>> {
-  private List<KeySerializer> serializers = new ArrayList<KeySerializer>();
+public class MultipleKeySerializer extends AbstractKeySerializer
+  implements HtmlUiBuilderAware<HtmlUiBuilder<?>> {
+  private List<KeySerializer> serializers = new ArrayList<>();
 
   private HtmlUiBuilder<?> uiBuilder;
 
@@ -28,18 +28,36 @@ public class MultipleKeySerializer extends AbstractKeySerializer implements
     setProperties(null);
   }
 
-  public List<KeySerializer> getSerializers() {
-    return serializers;
+  public MultipleKeySerializer addSerializer(final KeySerializer serializer) {
+    this.serializers.add(serializer);
+    return this;
   }
 
+  public List<KeySerializer> getSerializers() {
+    return this.serializers;
+  }
+
+  @Override
   public void serialize(final XmlWriter out, final Object object) {
-    for (final KeySerializer serializer : serializers) {
+    for (final KeySerializer serializer : this.serializers) {
       serializer.serialize(out, object);
     }
   }
 
   @Override
-  public void setProperties(Map<String, ? extends Object> properties) {
+  @SuppressWarnings("unchecked")
+  public void setHtmlUiBuilder(final HtmlUiBuilder<?> uiBuilder) {
+    this.uiBuilder = uiBuilder;
+    for (final KeySerializer serializer : this.serializers) {
+      if (serializer instanceof HtmlUiBuilderAware) {
+        final HtmlUiBuilderAware<HtmlUiBuilder<?>> builderAware = (HtmlUiBuilderAware<HtmlUiBuilder<?>>)serializer;
+        builderAware.setHtmlUiBuilder(uiBuilder);
+      }
+    }
+  }
+
+  @Override
+  public void setProperties(final Map<String, ? extends Object> properties) {
     getProperties().clear();
     if (properties != null) {
       getProperties().putAll(properties);
@@ -48,19 +66,8 @@ public class MultipleKeySerializer extends AbstractKeySerializer implements
     setProperty("searchable", false);
   }
 
-  @SuppressWarnings("unchecked")
-  public void setHtmlUiBuilder(final HtmlUiBuilder<?> uiBuilder) {
-    this.uiBuilder = uiBuilder;
-    for (final KeySerializer serializer : serializers) {
-      if (serializer instanceof HtmlUiBuilderAware) {
-        final HtmlUiBuilderAware<HtmlUiBuilder<?>> builderAware = (HtmlUiBuilderAware<HtmlUiBuilder<?>>)serializer;
-        builderAware.setHtmlUiBuilder(uiBuilder);
-      }
-    }
-  }
-
   public void setSerializers(final List<KeySerializer> serializers) {
     this.serializers = serializers;
-    setHtmlUiBuilder(uiBuilder);
+    setHtmlUiBuilder(this.uiBuilder);
   }
 }

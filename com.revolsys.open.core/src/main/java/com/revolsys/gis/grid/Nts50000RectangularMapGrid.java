@@ -4,8 +4,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Nts50000RectangularMapGrid extends Nts250000RectangularMapGrid {
-  private static final Pattern NAME_PATTERN = Pattern.compile("^"
-    + NtsConstants.REGEX_50000 + ".*");
+  private static final Pattern NAME_PATTERN = Pattern
+    .compile("^" + NtsConstants.REGEX_50000 + ".*");
 
   public Nts50000RectangularMapGrid() {
     this(NtsConstants.WIDTH_50000, NtsConstants.HEIGHT_50000);
@@ -38,13 +38,12 @@ public class Nts50000RectangularMapGrid extends Nts250000RectangularMapGrid {
 
       return latitude;
     } else {
-      throw new IllegalArgumentException(mapTileName
-        + " does not start with a valid NTS 1:50,000 tile name");
+      throw new IllegalArgumentException(
+        mapTileName + " does not start with a valid NTS 1:50,000 tile name");
     }
   }
 
-  private double getLatitude(final String blockName, final String letter,
-    final String number50k) {
+  private double getLatitude(final String blockName, final String letter, final String number50k) {
     double latitude = getLatitude(blockName, letter);
 
     final int number = Integer.parseInt(number50k);
@@ -66,13 +65,12 @@ public class Nts50000RectangularMapGrid extends Nts250000RectangularMapGrid {
 
       return longitude;
     } else {
-      throw new IllegalArgumentException(mapTileName
-        + " does not start with a valid NTS 1:50,000 tile name");
+      throw new IllegalArgumentException(
+        mapTileName + " does not start with a valid NTS 1:50,000 tile name");
     }
   }
 
-  private double getLongitude(final String blockName, final String letter,
-    final String number50k) {
+  private double getLongitude(final String blockName, final String letter, final String number50k) {
     double longitude = getLongitude(blockName, letter);
 
     final int number = Integer.parseInt(number50k);
@@ -88,8 +86,8 @@ public class Nts50000RectangularMapGrid extends Nts250000RectangularMapGrid {
     final double yInSheet = Math.abs(92 + y) % NtsConstants.HEIGHT_250000;
     final int row = (int)Math.floor(yInSheet / NtsConstants.HEIGHT_50000) % 4;
 
-    final double xInSheet = NtsConstants.WIDTH_250000 - Math.abs(184 + x)
-      % NtsConstants.WIDTH_250000;
+    final double xInSheet = NtsConstants.WIDTH_250000
+      - Math.abs(184 + x) % NtsConstants.WIDTH_250000;
     final int col = (int)Math.floor(xInSheet / NtsConstants.WIDTH_50000) % 4;
     return letterBlock + "/" + GridUtil.getNumber16(row, col);
 

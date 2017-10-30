@@ -1,13 +1,13 @@
 package com.revolsys.jdbc.io;
 
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.io.DelegatingObjectWithProperties;
+import com.revolsys.properties.DelegatingObjectWithProperties;
+import com.revolsys.record.Record;
+import com.revolsys.record.io.RecordWriter;
 
-public class JdbcWriterWrapper extends DelegatingObjectWithProperties implements
-  JdbcWriter {
-  private JdbcWriter writer;
+public class JdbcWriterWrapper extends DelegatingObjectWithProperties implements RecordWriter {
+  private RecordWriter writer;
 
-  public JdbcWriterWrapper(final JdbcWriter writer) {
+  public JdbcWriterWrapper(final RecordWriter writer) {
     super(writer);
     this.writer = writer;
   }
@@ -16,14 +16,29 @@ public class JdbcWriterWrapper extends DelegatingObjectWithProperties implements
   public void close() throws RuntimeException {
     flush();
     setObject(null);
-    writer = null;
+    this.writer = null;
   }
 
   @Override
   public void flush() {
-    if (writer != null) {
-      writer.flush();
+    if (this.writer != null) {
+      this.writer.flush();
     }
+  }
+
+  @Override
+  public boolean isIndent() {
+    return this.writer.isIndent();
+  }
+
+  @Override
+  public boolean isWriteCodeValues() {
+    return this.writer.isWriteCodeValues();
+  }
+
+  @Override
+  public boolean isWriteNulls() {
+    return this.writer.isWriteNulls();
   }
 
   @Override
@@ -32,9 +47,24 @@ public class JdbcWriterWrapper extends DelegatingObjectWithProperties implements
   }
 
   @Override
-  public void write(final DataObject record) {
-    if (writer != null) {
-      writer.write(record);
+  public void setIndent(final boolean indent) {
+    this.writer.setIndent(indent);
+  }
+
+  @Override
+  public void setWriteCodeValues(final boolean writeCodeValues) {
+    this.writer.setWriteCodeValues(writeCodeValues);
+  }
+
+  @Override
+  public void setWriteNulls(final boolean writeNulls) {
+    this.writer.setWriteNulls(writeNulls);
+  }
+
+  @Override
+  public void write(final Record record) {
+    if (this.writer != null) {
+      this.writer.write(record);
     }
   }
 }

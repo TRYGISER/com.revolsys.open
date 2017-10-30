@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,13 +27,15 @@ import java.util.Set;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.springframework.util.StringUtils;
 import org.springframework.web.util.UrlPathHelper;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.fields.Field;
 import com.revolsys.ui.html.view.ElementContainer;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
+import com.revolsys.util.HtmlUtil;
+import com.revolsys.util.Property;
 import com.revolsys.util.UrlUtil;
 
 public class Form extends ElementContainer {
@@ -41,7 +43,13 @@ public class Form extends ElementContainer {
 
   public static final String GET_METHOD = "get";
 
+  public static final String MULTIPART_FORM_DATA = "multipart/form-data";
+
   public static final String POST_METHOD = "post";
+
+  private static final UrlPathHelper URL_HELPER = new UrlPathHelper();
+
+  private String acceptCharset = "UTF-8";
 
   private String action = "";
 
@@ -49,29 +57,23 @@ public class Form extends ElementContainer {
 
   private String defaultFormTask;
 
+  private String encType = "application/x-www-form-urlencoded";
+
   private String formTask;
 
   private String method = POST_METHOD;
 
   private String name;
 
-  private final List<String> onSubmit = new ArrayList<String>();
+  private final List<String> onSubmit = new ArrayList<>();
 
   private boolean posted = false;
 
-  private final Map<String, Object> savedParameters = new HashMap<String, Object>();
+  private final Map<String, Object> savedParameters = new HashMap<>();
 
   private String title;
 
-  private static final UrlPathHelper URL_HELPER = new UrlPathHelper();
-
-  private String encType = "application/x-www-form-urlencoded";
-
-  public static final String MULTIPART_FORM_DATA = "multipart/form-data";
-
   private boolean valid = true;
-
-  private String acceptCharset = "UTF-8";
 
   public Form() {
   }
@@ -93,7 +95,7 @@ public class Form extends ElementContainer {
       this.action = action;
     }
     this.title = title;
-    defaultFormTask = name;
+    this.defaultFormTask = name;
     addCssClass(name);
   }
 
@@ -102,7 +104,7 @@ public class Form extends ElementContainer {
   }
 
   public void addOnSubmit(final String script) {
-    onSubmit.add(script);
+    this.onSubmit.add(script);
   }
 
   public void addSavedParameter(final String name, final Object value) {
@@ -110,30 +112,32 @@ public class Form extends ElementContainer {
   }
 
   public String getAcceptCharset() {
-    return acceptCharset;
+    return this.acceptCharset;
   }
 
   /**
    * @return Returns the action.
    */
   public String getAction() {
-    return action;
+    return this.action;
   }
 
-  protected Map getActionParameters(final HttpServletRequest request) {
-    final Set fieldNames = getFields().keySet();
-    final Map parameters = new HashMap();
-    for (final Enumeration paramNames = request.getParameterNames(); paramNames.hasMoreElements();) {
-      final String fieldName = (String)paramNames.nextElement();
+  protected Map<String, String[]> getActionParameters(final HttpServletRequest request) {
+    final Set<String> fieldNames = getFields().keySet();
+    final Map<String, String[]> parameters = new HashMap<>();
+    for (final Enumeration<String> paramNames = request.getParameterNames(); paramNames
+      .hasMoreElements();) {
+      final String fieldName = paramNames.nextElement();
       if (!fieldNames.contains(fieldName) && !FORM_TASK_PARAM.equals(fieldName)) {
-        parameters.put(fieldName, request.getParameterValues(fieldName));
+        final String[] values = request.getParameterValues(fieldName);
+        parameters.put(fieldName, values);
       }
     }
     return parameters;
   }
 
   public String getEncType() {
-    return encType;
+    return this.encType;
   }
 
   @Override
@@ -142,27 +146,27 @@ public class Form extends ElementContainer {
   }
 
   @Override
-  public Object getInitialValue(final Field field,
-    final HttpServletRequest request) {
+  public <T> T getInitialValue(final Field field, final HttpServletRequest request) {
     return null;
   }
 
   public String getMethod() {
-    return method;
+    return this.method;
   }
 
   public String getName() {
-    return name;
+    return this.name;
   }
 
   public String getTask() {
-    return formTask;
+    return this.formTask;
   }
 
   public String getTitle() {
-    return title;
+    return this.title;
   }
 
+  @SuppressWarnings("unchecked")
   public <T> T getValue(final String fieldName) {
     final Field field = getField(fieldName);
     if (field != null) {
@@ -173,7 +177,7 @@ public class Form extends ElementContainer {
   }
 
   public boolean hasTask() {
-    return formTask != null;
+    return this.formTask != null;
   }
 
   public boolean hasValue(final String fieldName) {
@@ -187,15 +191,15 @@ public class Form extends ElementContainer {
 
   @Override
   public void initialize(final HttpServletRequest request) {
-    if (action == null || action.trim().length() == 0) {
-      action = URL_HELPER.getOriginatingRequestUri(request);
+    if (this.action == null || this.action.trim().length() == 0) {
+      this.action = URL_HELPER.getOriginatingRequestUri(request);
     }
     // ensure the formTaskField is initialized first so that it can be used
     // by the other fields
-    formTask = request.getParameter(FORM_TASK_PARAM);
+    this.formTask = request.getParameter(FORM_TASK_PARAM);
 
     final String method = request.getMethod();
-    posted = method.equalsIgnoreCase(POST_METHOD);
+    this.posted = method.equalsIgnoreCase(POST_METHOD);
     preInit(request);
     super.initialize(request);
 
@@ -207,16 +211,16 @@ public class Form extends ElementContainer {
     for (final Field field : fields) {
       field.postInit(request);
     }
-    final Map parameters = getActionParameters(request);
-    action = UrlUtil.getUrl(action, parameters);
+    final Map<String, String[]> parameters = getActionParameters(request);
+    this.action = UrlUtil.getUrl(this.action, parameters);
   }
 
   public boolean isMainFormTask() {
-    return hasTask() && formTask.equals(name);
+    return hasTask() && this.formTask.equals(this.name);
   }
 
   public boolean isPosted() {
-    return posted;
+    return this.posted;
   }
 
   public boolean isValid() {
@@ -225,7 +229,7 @@ public class Form extends ElementContainer {
       success &= field.isValid();
     }
     success &= validate();
-    valid = success;
+    this.valid = success;
     return success;
   }
 
@@ -235,10 +239,10 @@ public class Form extends ElementContainer {
   @Override
   public void serializeElement(final XmlWriter out) {
     serializeStartTag(out);
-    if (defaultFormTask != null) {
-      HtmlUtil.serializeHiddenInput(out, FORM_TASK_PARAM, defaultFormTask);
+    if (this.defaultFormTask != null) {
+      HtmlUtil.serializeHiddenInput(out, FORM_TASK_PARAM, this.defaultFormTask);
     }
-    for (final Entry<String, Object> savedParam : savedParameters.entrySet()) {
+    for (final Entry<String, Object> savedParam : this.savedParameters.entrySet()) {
       final Object value = savedParam.getValue();
       if (value != null) {
         HtmlUtil.serializeHiddenInput(out, savedParam.getKey(), value);
@@ -253,9 +257,8 @@ public class Form extends ElementContainer {
    * @throws IOException
    */
   public void serializeEndTag(final XmlWriter out) {
-    out.endTag(HtmlUtil.DIV);
-    out.endTag(HtmlUtil.FORM);
-    out.endTag(HtmlUtil.DIV);
+    out.endTag(HtmlElem.FORM);
+    out.endTag(HtmlElem.DIV);
   }
 
   /**
@@ -263,48 +266,49 @@ public class Form extends ElementContainer {
    * @throws IOException
    */
   public void serializeStartTag(final XmlWriter out) {
-    out.startTag(HtmlUtil.DIV);
+    out.startTag(HtmlElem.DIV);
     String cssClass = this.cssClass;
-    if (!valid) {
-      if (StringUtils.hasText(cssClass)) {
+    if (!this.valid) {
+      if (Property.hasValue(cssClass)) {
         cssClass += " formInvalid";
       } else {
         cssClass = "formInvalid";
       }
     }
-    out.attribute(HtmlUtil.ATTR_CLASS, cssClass);
+    out.attribute(HtmlAttr.CLASS, cssClass);
     final String title = getTitle();
     if (title != null) {
-      out.startTag(HtmlUtil.DIV);
-      out.attribute(HtmlUtil.ATTR_CLASS, "title");
+      out.startTag(HtmlElem.DIV);
+      out.attribute(HtmlAttr.CLASS, "title");
       out.text(title);
-      out.endTag(HtmlUtil.DIV);
+      out.endTag(HtmlElem.DIV);
     }
-    out.startTag(HtmlUtil.DIV);
-    out.attribute(HtmlUtil.ATTR_CLASS, "errorContainer");
-    out.startTag(HtmlUtil.DIV);
-    out.attribute(HtmlUtil.ATTR_CLASS, "title");
+    out.startTag(HtmlElem.DIV);
+    out.attribute(HtmlAttr.CLASS, "errorContainer");
+    out.startTag(HtmlElem.DIV);
+    out.attribute(HtmlAttr.CLASS, "title");
     out.text("The form contains errors, please update the highlighted fields to fix the errors.");
-    out.endTag(HtmlUtil.DIV);
-    out.startTag(HtmlUtil.UL);
-    out.endTag(HtmlUtil.UL);
-    out.endTag(HtmlUtil.DIV);
+    out.endTag(HtmlElem.DIV);
+    out.startTag(HtmlElem.UL);
+    out.endTag(HtmlElem.UL);
+    out.endTag(HtmlElem.DIV);
 
-    out.startTag(HtmlUtil.FORM);
-    if (onSubmit.size() > 0) {
-      final StringBuffer submitScripts = new StringBuffer();
-      for (final String script : onSubmit) {
+    out.startTag(HtmlElem.FORM);
+    if (this.onSubmit.size() > 0) {
+      final StringBuilder submitScripts = new StringBuilder();
+      for (final String script : this.onSubmit) {
         submitScripts.append(script).append(';');
       }
-      out.attribute(HtmlUtil.ATTR_ON_SUBMIT, submitScripts.toString());
+      out.attribute(HtmlAttr.ON_SUBMIT, submitScripts.toString());
     }
-    out.attribute(HtmlUtil.ATTR_ID, getName());
-    out.attribute(HtmlUtil.ATTR_NAME, getName());
-    out.attribute(HtmlUtil.ATTR_ACTION, getAction());
-    out.attribute(HtmlUtil.ATTR_METHOD, getMethod());
-    out.attribute(HtmlUtil.ATTR_ENCTYPE, getEncType());
-    out.attribute(HtmlUtil.ATTR_ACCEPT_CHARSET, getAcceptCharset());
-    out.startTag(HtmlUtil.DIV);
+    out.attribute(HtmlAttr.ID, getName());
+    out.attribute(HtmlAttr.NAME, getName());
+    out.attribute(HtmlAttr.ROLE, "form");
+    out.attribute(HtmlAttr.CLASS, "form-horizontal");
+    out.attribute(HtmlAttr.ACTION, getAction());
+    out.attribute(HtmlAttr.METHOD, getMethod());
+    out.attribute(HtmlAttr.ENCTYPE, getEncType());
+    out.attribute(HtmlAttr.ACCEPT_CHARSET, getAcceptCharset());
   }
 
   public void setAcceptCharset(final String acceptCharset) {

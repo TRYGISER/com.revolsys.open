@@ -1,18 +1,3 @@
-/*
- * Copyright 2004-2005 Revolution Systems Inc.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- *      http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.revolsys.ui.html.fields;
 
 import java.io.IOException;
@@ -21,44 +6,32 @@ import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.apache.log4j.Logger;
-
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.domain.Region;
 import com.revolsys.ui.html.form.Form;
-
-/**
- * @author Paul Austin
- * @version 1.0
- */
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
 
 public class RegionField extends Field {
 
-  private static final Logger log = Logger.getLogger(RegionField.class);
+  private String countryCode;
+
+  private List<Region> regions = new ArrayList<>();
 
   private String stringValue;
 
-  private List<Region> regions = new ArrayList<Region>();
-
-  private String countryCode;
-
-  /**
-   * @param name
-   * @param required
-   */
   public RegionField(final String name, final boolean required) {
     super(name, required);
   }
 
   @Override
   public boolean hasValue() {
-    return stringValue != null && !stringValue.equals("");
+    return this.stringValue != null && !this.stringValue.equals("");
   }
 
   @Override
   public void initialize(final Form form, final HttpServletRequest request) {
-    stringValue = request.getParameter(getName());
+    this.stringValue = request.getParameter(getName());
   }
 
   @Override
@@ -67,8 +40,8 @@ public class RegionField extends Field {
     if (!super.isValid()) {
       valid = false;
     } else if (hasValue()) {
-      if (regions.size() > 0) {
-        final Region region = Region.getRegionByName(countryCode, stringValue);
+      if (this.regions.size() > 0) {
+        final Region region = Region.getRegionByName(this.countryCode, this.stringValue);
         if (region == null) {
           addValidationError("Invalid Value");
           valid = false;
@@ -76,32 +49,27 @@ public class RegionField extends Field {
           setValue(region.getName());
         }
       } else {
-        setValue(stringValue);
+        setValue(this.stringValue);
       }
     }
     return valid;
   }
 
-  /*
-   * (non-Javadoc)
-   * @see com.revolsys.ui.html.form.Field#postInit()
-   */
   @Override
   public void postInit(final HttpServletRequest request) {
-    final CountryField countryField = (CountryField)getForm().getField(
-      "country");
-    countryCode = countryField.getCountryCode();
-    if (countryCode != null) {
-      regions = Region.getRegions(countryCode);
+    final CountryField countryField = (CountryField)getForm().getField("country");
+    this.countryCode = countryField.getCountryCode();
+    if (this.countryCode != null) {
+      this.regions = Region.getRegions(this.countryCode);
     }
-    if (stringValue == null) {
+    if (this.stringValue == null) {
       setValue(getInitialValue(request));
     }
   }
 
   @Override
   public void serializeElement(final XmlWriter out) {
-    if (regions.size() > 0) {
+    if (this.regions.size() > 0) {
       serializeSelectField(out);
     } else {
       serializeTextField(out);
@@ -109,13 +77,13 @@ public class RegionField extends Field {
   }
 
   private void serializeOptions(final XmlWriter out) {
-    for (final Region region : regions) {
-      out.startTag(HtmlUtil.OPTION);
-      if (region.getName().equals(stringValue)) {
-        out.attribute(HtmlUtil.ATTR_SELECTED, "true");
+    for (final Region region : this.regions) {
+      out.startTag(HtmlElem.OPTION);
+      if (region.getName().equals(this.stringValue)) {
+        out.attribute(HtmlAttr.SELECTED, "true");
       }
       out.text(region.getName());
-      out.endTag(HtmlUtil.OPTION);
+      out.endTag(HtmlElem.OPTION);
     }
   }
 
@@ -124,33 +92,37 @@ public class RegionField extends Field {
    * @throws IOException
    */
   private void serializeSelectField(final XmlWriter out) {
-    out.startTag(HtmlUtil.SELECT);
-    out.attribute(HtmlUtil.ATTR_NAME, getName());
+    out.startTag(HtmlElem.SELECT);
+    out.attribute(HtmlAttr.NAME, getName());
     serializeOptions(out);
-    out.endTag(HtmlUtil.SELECT);
+    out.endTag(HtmlElem.SELECT);
   }
 
   private void serializeTextField(final XmlWriter out) {
-    out.startTag(HtmlUtil.INPUT);
-    out.attribute(HtmlUtil.ATTR_NAME, getName());
-    out.attribute(HtmlUtil.ATTR_TYPE, "text");
-    out.attribute(HtmlUtil.ATTR_SIZE, "30");
-    out.attribute(HtmlUtil.ATTR_MAX_LENGTH, "30");
-    if (stringValue != null) {
-      out.attribute(HtmlUtil.ATTR_VALUE, stringValue);
+    out.startTag(HtmlElem.INPUT);
+    out.attribute(HtmlAttr.NAME, getName());
+    out.attribute(HtmlAttr.TYPE, "text");
+    out.attribute(HtmlAttr.CLASS, "form-control input-sm");
+    out.attribute(HtmlAttr.SIZE, "30");
+    out.attribute(HtmlAttr.MAX_LENGTH, "30");
+    if (this.stringValue != null) {
+      out.attribute(HtmlAttr.VALUE, this.stringValue);
     }
-    out.endTag(HtmlUtil.INPUT);
+    out.endTag(HtmlElem.INPUT);
   }
 
   @Override
   public void setValue(final Object value) {
     super.setValue(value);
-    stringValue = null;
-    if (regions.size() > 0) {
+    this.stringValue = null;
+    if (this.regions.size() > 0) {
       if (value != null) {
-        final Region region = Region.getRegionByName(countryCode, (String)value);
+        Region region = Region.getRegionByName(this.countryCode, (String)value);
+        if (region == null) {
+          region = Region.getRegionByCode(this.countryCode, (String)value);
+        }
         if (region != null) {
-          stringValue = region.getName();
+          this.stringValue = region.getName();
         }
       }
     }

@@ -4,48 +4,55 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.Closeable;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import javax.swing.AbstractListModel;
 import javax.swing.ComboBoxModel;
 
-import com.revolsys.gis.data.model.codes.CodeTable;
-import com.revolsys.util.CollectionUtil;
+import com.revolsys.identifier.Identifier;
+import com.revolsys.record.code.CodeTable;
+import com.revolsys.swing.parallel.Invoke;
 import com.revolsys.util.Property;
+import com.revolsys.util.Strings;
 
-public class CodeTableComboBoxModel extends AbstractListModel<Object> implements
-  ComboBoxModel<Object>, PropertyChangeListener, Closeable {
+public class CodeTableComboBoxModel extends AbstractListModel<Identifier>
+  implements ComboBoxModel<Identifier>, PropertyChangeListener, Closeable {
   private static final long serialVersionUID = 1L;
 
-  public static final Object NULL = new Object();
+  public static ComboBox<Identifier> newComboBox(final String fieldName, final CodeTable codeTable,
+    final boolean allowNull, final boolean idSuffix) {
+    final CodeTableComboBoxModel model = new CodeTableComboBoxModel(codeTable, allowNull);
 
-  public static ComboBox create(final String fieldName,
-    final CodeTable codeTable, final boolean allowNull) {
-    final CodeTableComboBoxModel model = new CodeTableComboBoxModel(codeTable,
-      allowNull);
-    final CodeTableObjectToStringConverter stringConverter = new CodeTableObjectToStringConverter(
-      codeTable);
-
-    final CodeTableListCellRenderer renderer = new CodeTableListCellRenderer(
-      codeTable);
-    final ComboBox comboBox = new ComboBox(fieldName, model, stringConverter,
-      renderer);
+    final ComboBox<Identifier> comboBox = ComboBox.newComboBox(fieldName, model, (id) -> {
+      if (id == null || id == Identifier.NULL) {
+        return null;
+      } else {
+        final List<Object> values = codeTable.getValues(id);
+        if (values == null || values.isEmpty()) {
+          return null;
+        } else {
+          final String string = Strings.toString(":", values);
+          if (idSuffix) {
+            return string + " (" + id + ")";
+          } else {
+            return string;
+          }
+        }
+      }
+    });
     return comboBox;
   }
 
-  private Object selectedItem;
+  private final boolean allowNull;
 
   private CodeTable codeTable;
 
-  private final boolean allowNull;
+  private Object selectedItem;
 
   public CodeTableComboBoxModel(final CodeTable codeTable) {
     this(codeTable, true);
   }
 
-  public CodeTableComboBoxModel(final CodeTable codeTable,
-    final boolean allowNull) {
+  public CodeTableComboBoxModel(final CodeTable codeTable, final boolean allowNull) {
     this.codeTable = codeTable;
     this.allowNull = allowNull;
     Property.addListener(codeTable, "valuesChanged", this);
@@ -53,23 +60,27 @@ public class CodeTableComboBoxModel extends AbstractListModel<Object> implements
 
   @Override
   public void close() {
-    Property.removeListener(codeTable, "valuesChanged", this);
-    codeTable = null;
-    selectedItem = null;
+    Property.removeListener(this.codeTable, "valuesChanged", this);
+    this.codeTable = null;
+    this.selectedItem = null;
   }
 
   @Override
-  public Object getElementAt(int index) {
+  public void fireContentsChanged(final Object source, final int index0, final int index1) {
+    Invoke.later(() -> super.fireContentsChanged(source, index0, index1));
+  }
+
+  @Override
+  public Identifier getElementAt(int index) {
     if (this.allowNull) {
       if (index == 0) {
-        return NULL;
+        return Identifier.NULL;
       }
       index--;
     }
-    if (index < getSize()) {
-      final Map<Object, List<Object>> codes = this.codeTable.getCodes();
-      final Set<Object> keys = codes.keySet();
-      return CollectionUtil.get(keys, index);
+    if (index >= 0 && index < getSize()) {
+      final List<Identifier> identifiers = this.codeTable.getIdentifiers();
+      return identifiers.get(index);
     } else {
       return null;
     }
@@ -77,7 +88,7 @@ public class CodeTableComboBoxModel extends AbstractListModel<Object> implements
 
   @Override
   public Object getSelectedItem() {
-    if (this.selectedItem == NULL) {
+    if (this.selectedItem == Identifier.NULL) {
       return null;
     } else {
       return this.selectedItem;
@@ -86,10 +97,10 @@ public class CodeTableComboBoxModel extends AbstractListModel<Object> implements
 
   @Override
   public int getSize() {
-    if (codeTable == null) {
+    if (this.codeTable == null) {
       return 0;
     } else {
-      int size = this.codeTable.getCodes().size();
+      int size = this.codeTable.getIdentifiers().size();
       if (this.allowNull) {
         size++;
       }

@@ -6,27 +6,16 @@ import java.awt.event.FocusListener;
 
 import javax.swing.JTextArea;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.gis.model.data.equals.EqualsRegistry;
+import com.revolsys.datatype.DataType;
+import com.revolsys.datatype.DataTypes;
 import com.revolsys.swing.listener.WeakFocusListener;
-import com.revolsys.swing.menu.PopupMenu;
-import com.revolsys.swing.undo.CascadingUndoManager;
-import com.revolsys.swing.undo.UndoManager;
+import com.revolsys.swing.menu.MenuFactory;
+import com.revolsys.util.Exceptions;
 
 public class TextArea extends JTextArea implements Field, FocusListener {
   private static final long serialVersionUID = 1L;
 
-  private final String fieldName;
-
-  private String fieldValue;
-
-  private String errorMessage;
-
-  private String originalToolTip;
-
-  private final CascadingUndoManager undoManager = new CascadingUndoManager();
+  private final FieldSupport fieldSupport;
 
   public TextArea() {
     this("fieldValue");
@@ -48,24 +37,32 @@ public class TextArea extends JTextArea implements Field, FocusListener {
     this(fieldName, fieldValue, 0, 0);
   }
 
-  public TextArea(final String fieldName, final Object fieldValue,
-    final int rows, final int columns) {
+  public TextArea(final String fieldName, final Object fieldValue, final int rows,
+    final int columns) {
+    final String text = DataTypes.toString(fieldValue);
+    this.fieldSupport = new FieldSupport(this, fieldName, text, true);
     setRows(rows);
     setColumns(columns);
-    this.fieldName = fieldName;
-    this.fieldValue = StringConverterRegistry.toString(fieldValue);
     setDocument(new PropertyChangeDocument(this));
-    setText(this.fieldValue);
+    setText(text);
     addFocusListener(new WeakFocusListener(this));
-    PopupMenu.getPopupMenuFactory(this);
-    this.undoManager.addKeyMap(this);
+    MenuFactory.getPopupMenuFactory(this);
     setRows(rows);
     setColumns(columns);
   }
 
   @Override
-  public void firePropertyChange(final String propertyName,
-    final Object oldValue, final Object newValue) {
+  public Field clone() {
+    try {
+      return (Field)super.clone();
+    } catch (final CloneNotSupportedException e) {
+      return Exceptions.throwUncheckedException(e);
+    }
+  }
+
+  @Override
+  public void firePropertyChange(final String propertyName, final Object oldValue,
+    final Object newValue) {
     super.firePropertyChange(propertyName, oldValue, newValue);
   }
 
@@ -80,13 +77,13 @@ public class TextArea extends JTextArea implements Field, FocusListener {
   }
 
   @Override
-  public String getFieldName() {
-    return this.fieldName;
+  public Color getFieldSelectedTextColor() {
+    return getSelectedTextColor();
   }
 
   @Override
-  public String getFieldValidationMessage() {
-    return this.errorMessage;
+  public FieldSupport getFieldSupport() {
+    return this.fieldSupport;
   }
 
   @SuppressWarnings("unchecked")
@@ -96,34 +93,11 @@ public class TextArea extends JTextArea implements Field, FocusListener {
   }
 
   @Override
-  public boolean isFieldValid() {
-    return true;
-  }
-
-  @Override
-  public void setFieldBackgroundColor(Color color) {
+  public void setFieldSelectedTextColor(Color color) {
     if (color == null) {
-      color = TextField.DEFAULT_BACKGROUND;
+      color = Field.DEFAULT_SELECTED_FOREGROUND;
     }
-    setBackground(color);
-  }
-
-  @Override
-  public void setFieldForegroundColor(Color color) {
-    if (color == null) {
-      color = TextField.DEFAULT_BACKGROUND;
-    }
-    setForeground(color);
-  }
-
-  @Override
-  public void setFieldInvalid(final String message,
-    final Color foregroundColor, final Color backgroundColor) {
-    setForeground(foregroundColor);
-    setSelectedTextColor(foregroundColor);
-    setBackground(backgroundColor);
-    this.errorMessage = message;
-    super.setToolTipText(this.errorMessage);
+    setSelectedTextColor(color);
   }
 
   @Override
@@ -132,40 +106,19 @@ public class TextArea extends JTextArea implements Field, FocusListener {
   }
 
   @Override
-  public void setFieldValid() {
-    setForeground(TextField.DEFAULT_FOREGROUND);
-    setSelectedTextColor(TextField.DEFAULT_SELECTED_FOREGROUND);
-    setBackground(TextField.DEFAULT_BACKGROUND);
-    this.errorMessage = null;
-    super.setToolTipText(this.originalToolTip);
-  }
-
-  @Override
-  public void setFieldValue(final Object value) {
-    final String newValue = StringConverterRegistry.toString(value);
-    final String oldValue = this.fieldValue;
-    if (!EqualsRegistry.equal(getText(), newValue)) {
+  public boolean setFieldValue(final Object value) {
+    final String newValue = DataTypes.toString(value);
+    if (!DataType.equal(getText(), newValue)) {
       setText(newValue);
     }
-    if (!EqualsRegistry.equal(oldValue, value)) {
-      this.fieldValue = (String)value;
-      firePropertyChange(this.fieldName, oldValue, value);
-      SetFieldValueUndoableEdit.create(this.undoManager.getParent(), this,
-        oldValue, value);
-    }
+    return this.fieldSupport.setValue(newValue);
   }
 
   @Override
   public void setToolTipText(final String text) {
-    this.originalToolTip = text;
-    if (!StringUtils.hasText(this.errorMessage)) {
+    if (this.fieldSupport == null || this.fieldSupport.setOriginalTooltipText(text)) {
       super.setToolTipText(text);
     }
-  }
-
-  @Override
-  public void setUndoManager(final UndoManager undoManager) {
-    this.undoManager.setParent(undoManager);
   }
 
   @Override

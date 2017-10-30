@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -26,7 +26,7 @@ import org.apache.log4j.Logger;
 /**
  * The JexlUtil is a utility class for processing strings that contain patterns
  * from the Jakarta Commons Jexl library.
- * 
+ *
  * @author Paul Austin
  */
 public final class JexlUtil {
@@ -37,29 +37,35 @@ public final class JexlUtil {
 
   /**
    * Add the text to the Jexl expression, wrapping the text in a '' string.
-   * 
+   *
    * @param jexlExpression The expression to add the test to.
    * @param text The text to add.
    */
-  private static void addText(final StringBuffer jexlExpression,
-    final String text) {
-    jexlExpression.append("'")
-      .append(text.replaceAll("'", "' + \"'\" + '"))
-      .append("'");
+  private static void addText(final StringBuilder jexlExpression, final String text) {
+    jexlExpression.append("'").append(text.replaceAll("'", "' + \"'\" + '")).append("'");
+  }
+
+  public static Object evaluateExpression(final JexlContext context, final Expression expression) {
+    try {
+      return expression.evaluate(context);
+    } catch (final Exception e) {
+      LOG.error(
+        "Unable to evaluate expression '" + expression.getExpression() + "': " + e.getMessage(), e);
+      return null;
+    }
   }
 
   /**
    * Convert expressions into valid JexlExpressions, if the string does not
    * contain any expressions in the form ${el} then null will be returned and
    * the caller can use the raw string.
-   * 
+   *
    * @param expression The string containing expressions.
    * @return The expression object for the string expression.
    * @throws Exception If there was an error creating the expression.
    */
-  public static Expression createExpression(final String expression)
-    throws Exception {
-    return createExpression(expression, DEFAULT_EXPRESSION_PATTERN);
+  public static Expression newExpression(final String expression) throws Exception {
+    return newExpression(expression, DEFAULT_EXPRESSION_PATTERN);
   }
 
   /**
@@ -76,7 +82,7 @@ public final class JexlUtil {
    * group. The characters outside the first group will be removed from the
    * string and the expression portion will be added to the expression.
    * </p>
-   * 
+   *
    * @param expression The string containing expressions.
    * @param expressionPattern The regular expression pattern used to identify
    *          expressions in the string. The first group in the expression will
@@ -84,8 +90,8 @@ public final class JexlUtil {
    * @return The expression object for the string expression.
    * @throws Exception If there was an error creating the expression.
    */
-  public static Expression createExpression(final String expression,
-    final String expressionPattern) throws Exception {
+  public static Expression newExpression(final String expression, final String expressionPattern)
+    throws Exception {
     final String newExpression = expression.replaceAll("\n", "");
     // Wrap the entires expression in '' and replace the expressions in the
     // form "${expr)" to ' + expr + '
@@ -93,7 +99,7 @@ public final class JexlUtil {
     final Matcher matcher = compiledPattern.matcher(newExpression);
     int lastEnd = 0;
     if (matcher.find()) {
-      final StringBuffer jexlExpression = new StringBuffer();
+      final StringBuilder jexlExpression = new StringBuilder();
       do {
         final int startIndex = matcher.start();
         if (startIndex != lastEnd) {
@@ -115,17 +121,6 @@ public final class JexlUtil {
       expr = expr.replaceAll("\\+ ''$", "");
       return ExpressionFactory.createExpression(expr);
     } else {
-      return null;
-    }
-  }
-
-  public static Object evaluateExpression(final JexlContext context,
-    final Expression expression) {
-    try {
-      return expression.evaluate(context);
-    } catch (final Exception e) {
-      LOG.error("Unable to evaluate expression '" + expression.getExpression()
-        + "': " + e.getMessage(), e);
       return null;
     }
   }

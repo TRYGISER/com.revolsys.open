@@ -10,65 +10,66 @@ import java.util.Map;
 
 import javax.measure.unit.SI;
 
-import com.revolsys.gis.cs.GeographicCoordinateSystem;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.data.model.DataObjectMetaDataImpl;
-import com.revolsys.gis.data.model.types.DataTypes;
-import com.revolsys.gis.model.coordinates.DoubleCoordinates;
-import com.revolsys.io.PathUtil;
-import com.revolsys.io.json.JsonParser;
-import com.revolsys.jts.geom.BoundingBox;
-import com.revolsys.jts.geom.Coordinates;
-import com.revolsys.jts.geom.GeometryFactory;
+import com.revolsys.datatype.DataTypes;
+import com.revolsys.geometry.cs.GeographicCoordinateSystem;
+import com.revolsys.geometry.model.BoundingBox;
+import com.revolsys.geometry.model.GeometryFactory;
+import com.revolsys.geometry.model.Point;
+import com.revolsys.geometry.model.impl.PointDoubleXY;
+import com.revolsys.geometry.model.impl.PointDoubleXYZ;
+import com.revolsys.io.PathName;
+import com.revolsys.record.Record;
+import com.revolsys.record.io.format.json.JsonParser;
+import com.revolsys.record.schema.RecordDefinition;
+import com.revolsys.record.schema.RecordDefinitionImpl;
 import com.revolsys.util.UrlUtil;
 
 public class GeoNamesService {
-  public static final DataObjectMetaData NAME_METADATA;
+  public static final RecordDefinition NAME_RECORD_DEFINITION;
 
-  public static final DataObjectMetaData WIKIPEDIA_METADATA;
+  public static final RecordDefinition WIKIPEDIA_RECORD_DEFINITION;
 
   static {
-    final DataObjectMetaDataImpl meta = new DataObjectMetaDataImpl(
-      PathUtil.toPath("/geoname.org", "name"));
-    meta.addAttribute("geonameId", DataTypes.STRING, false);
-    meta.addAttribute("name", DataTypes.STRING, false);
-    meta.addAttribute("fcode", DataTypes.STRING, false);
-    meta.addAttribute("fcodeName", DataTypes.STRING, false);
-    meta.addAttribute("fcl", DataTypes.STRING, false);
-    meta.addAttribute("fclName", DataTypes.STRING, false);
-    meta.addAttribute("adminName1", DataTypes.STRING, false);
-    meta.addAttribute("adminName2", DataTypes.STRING, false);
-    meta.addAttribute("adminName3", DataTypes.STRING, false);
-    meta.addAttribute("adminName4", DataTypes.STRING, false);
-    meta.addAttribute("adminCode1", DataTypes.STRING, false);
-    meta.addAttribute("population", DataTypes.INTEGER, false);
-    meta.addAttribute("countryCode", DataTypes.STRING, false);
-    meta.addAttribute("countryName", DataTypes.STRING, false);
-    meta.addAttribute("timeZoneId", DataTypes.STRING, false);
-    meta.addAttribute("geometry", DataTypes.POINT, false);
-    NAME_METADATA = meta;
+    final RecordDefinitionImpl recordDefinition = new RecordDefinitionImpl(
+      PathName.newPathName("/geoname.org/name"));
+    recordDefinition.addField("geonameId", DataTypes.STRING, false);
+    recordDefinition.addField("name", DataTypes.STRING, false);
+    recordDefinition.addField("fcode", DataTypes.STRING, false);
+    recordDefinition.addField("fcodeName", DataTypes.STRING, false);
+    recordDefinition.addField("fcl", DataTypes.STRING, false);
+    recordDefinition.addField("fclName", DataTypes.STRING, false);
+    recordDefinition.addField("adminName1", DataTypes.STRING, false);
+    recordDefinition.addField("adminName2", DataTypes.STRING, false);
+    recordDefinition.addField("adminName3", DataTypes.STRING, false);
+    recordDefinition.addField("adminName4", DataTypes.STRING, false);
+    recordDefinition.addField("adminCode1", DataTypes.STRING, false);
+    recordDefinition.addField("population", DataTypes.INTEGER, false);
+    recordDefinition.addField("countryCode", DataTypes.STRING, false);
+    recordDefinition.addField("countryName", DataTypes.STRING, false);
+    recordDefinition.addField("timeZoneId", DataTypes.STRING, false);
+    recordDefinition.addField("geometry", DataTypes.POINT, false);
+    NAME_RECORD_DEFINITION = recordDefinition;
 
-    final DataObjectMetaDataImpl wikipediaMetaData = new DataObjectMetaDataImpl(
-      PathUtil.toPath("/geoname.org", "wikipedia"));
-    wikipediaMetaData.addAttribute("summary", DataTypes.STRING, false);
-    wikipediaMetaData.addAttribute("title", DataTypes.STRING, false);
-    wikipediaMetaData.addAttribute("wikipediaUrl", DataTypes.STRING, false);
-    wikipediaMetaData.addAttribute("countryCode", DataTypes.STRING, false);
-    wikipediaMetaData.addAttribute("feature", DataTypes.STRING, false);
-    wikipediaMetaData.addAttribute("thumbnailImg", DataTypes.STRING, false);
-    wikipediaMetaData.addAttribute("lang", DataTypes.STRING, false);
-    wikipediaMetaData.addAttribute("population", DataTypes.INTEGER, false);
-    wikipediaMetaData.addAttribute("geometry", DataTypes.POINT, false);
+    final RecordDefinitionImpl wikipediaRecordDefinition = new RecordDefinitionImpl(
+      PathName.newPathName("/geoname.org/wikipedia"));
+    wikipediaRecordDefinition.addField("summary", DataTypes.STRING, false);
+    wikipediaRecordDefinition.addField("title", DataTypes.STRING, false);
+    wikipediaRecordDefinition.addField("wikipediaUrl", DataTypes.STRING, false);
+    wikipediaRecordDefinition.addField("countryCode", DataTypes.STRING, false);
+    wikipediaRecordDefinition.addField("feature", DataTypes.STRING, false);
+    wikipediaRecordDefinition.addField("thumbnailImg", DataTypes.STRING, false);
+    wikipediaRecordDefinition.addField("lang", DataTypes.STRING, false);
+    wikipediaRecordDefinition.addField("population", DataTypes.INTEGER, false);
+    wikipediaRecordDefinition.addField("geometry", DataTypes.POINT, false);
 
-    WIKIPEDIA_METADATA = wikipediaMetaData;
+    WIKIPEDIA_RECORD_DEFINITION = wikipediaRecordDefinition;
   }
+
+  private URL findNearbyBoundingBoxJsonUrl;
 
   private URL searchJsonUrl;
 
   private URL wikipediaBoundingBoxJsonUrl;
-
-  private URL findNearbyBoundingBoxJsonUrl;
 
   public GeoNamesService() {
     final String url = "Http://ws.geonames.org";
@@ -83,106 +84,97 @@ public class GeoNamesService {
     init(url);
   }
 
-  public List<DataObject> getNames(final BoundingBox boundingBox) {
-    final GeometryFactory geometryFactory = GeometryFactory.getFactory(4326);
-    final GeographicCoordinateSystem cs = (GeographicCoordinateSystem)geometryFactory.getCoordinateSystem();
+  public List<Record> getNames(final BoundingBox boundingBox) {
+    final GeometryFactory geometryFactory = GeometryFactory.floating3(4326);
+    final GeographicCoordinateSystem cs = (GeographicCoordinateSystem)geometryFactory
+      .getCoordinateSystem();
     final BoundingBox geographicBoundingBox = boundingBox.convert(geometryFactory);
-    final Map<String, Object> params = new HashMap<String, Object>();
+    final Map<String, Object> params = new HashMap<>();
 
     final double radius = cs.getDatum().getSpheroid().getSemiMajorAxis();
     final double height = geographicBoundingBox.getHeight();
     final double width = geographicBoundingBox.getWidth();
     final double diagonal = Math.sqrt(width * width + height * height);
-    final double radiusKm = cs.getUnit()
-      .getConverterTo(SI.RADIAN)
-      .convert(diagonal)
-      * radius / 1000;
+    final double radiusKm = cs.getUnit().getConverterTo(SI.RADIAN).convert(diagonal) * radius
+      / 1000;
 
     params.put("lat", geographicBoundingBox.getCentreY());
-    params.put("lng", geographicBoundingBox.getCentreX());
+    params.put("lng", geographicBoundingBox.getCentreY());
     params.put("radius", radiusKm);
     params.put("maxRows", "50");
-    final String searchUrlString = UrlUtil.getUrl(
-      this.findNearbyBoundingBoxJsonUrl, params);
+    final String searchUrlString = UrlUtil.getUrl(this.findNearbyBoundingBoxJsonUrl, params);
     try {
       final URL searchUrl = new URL(searchUrlString);
       final Map<String, Object> result = JsonParser.getMap(searchUrl.openStream());
-      return mapToObjects(NAME_METADATA, result);
+      return mapToObjects(NAME_RECORD_DEFINITION, result);
     } catch (final IOException e) {
-      throw new IllegalArgumentException("Unable to connect to URL:"
-        + searchUrlString);
+      throw new IllegalArgumentException("Unable to connect to URL:" + searchUrlString);
     }
   }
 
-  public List<DataObject> getWikipediaArticles(final BoundingBox boundingBox) {
-    final BoundingBox geographicBoundingBox = boundingBox.convert(GeometryFactory.getFactory(4326));
-    final Map<String, Object> params = new HashMap<String, Object>();
+  public List<Record> getWikipediaArticles(final BoundingBox boundingBox) {
+    final BoundingBox geographicBoundingBox = boundingBox.convert(GeometryFactory.floating3(4326));
+    final Map<String, Object> params = new HashMap<>();
 
     params.put("north", geographicBoundingBox.getMaxY());
     params.put("east", geographicBoundingBox.getMaxX());
     params.put("south", geographicBoundingBox.getMinY());
     params.put("west", geographicBoundingBox.getMinX());
     params.put("maxRows", "50");
-    final String searchUrlString = UrlUtil.getUrl(
-      this.wikipediaBoundingBoxJsonUrl, params);
+    final String searchUrlString = UrlUtil.getUrl(this.wikipediaBoundingBoxJsonUrl, params);
     try {
       final URL searchUrl = new URL(searchUrlString);
       final Map<String, Object> result = JsonParser.getMap(searchUrl.openStream());
-      return mapToObjects(WIKIPEDIA_METADATA, result);
+      return mapToObjects(WIKIPEDIA_RECORD_DEFINITION, result);
     } catch (final IOException e) {
-      throw new IllegalArgumentException("Unable to connect to URL:"
-        + searchUrlString);
+      throw new IllegalArgumentException("Unable to connect to URL:" + searchUrlString);
     }
   }
 
   private void init(final URL url) {
     try {
       this.searchJsonUrl = new URL(url.toString() + "/searchJSON");
-      this.wikipediaBoundingBoxJsonUrl = new URL(url.toString()
-        + "/wikipediaBoundingBoxJSON");
-      this.findNearbyBoundingBoxJsonUrl = new URL(url.toString()
-        + "/findNearbyJSON");
+      this.wikipediaBoundingBoxJsonUrl = new URL(url.toString() + "/wikipediaBoundingBoxJSON");
+      this.findNearbyBoundingBoxJsonUrl = new URL(url.toString() + "/findNearbyJSON");
     } catch (final MalformedURLException e) {
       throw new IllegalArgumentException("Invalid URL:" + url);
     }
   }
 
-  private List<DataObject> mapToObjects(final DataObjectMetaData metaData,
+  private List<Record> mapToObjects(final RecordDefinition recordDefinition,
     final Map<String, Object> result) {
-    final List<DataObject> results = new ArrayList<DataObject>();
+    final List<Record> results = new ArrayList<>();
     final List<Map<String, Object>> names = (List<Map<String, Object>>)result.get("geonames");
     for (final Map<String, Object> name : names) {
-      final DataObject dataObject = metaData.createDataObject();
-      for (final String attributeName : metaData.getAttributeNames()) {
-        final Object value = name.get(attributeName);
+      final Record record = recordDefinition.newRecord();
+      for (final String fieldName : recordDefinition.getFieldNames()) {
+        final Object value = name.get(fieldName);
         if (value != null) {
-          dataObject.setValue(attributeName, value);
+          record.setValue(fieldName, value);
         }
       }
       final double lat = ((Number)name.get("lat")).doubleValue();
       final double lon = ((Number)name.get("lng")).doubleValue();
 
-      Coordinates coordinate = new DoubleCoordinates(lon, lat);
+      Point coordinate = new PointDoubleXY(lon, lat);
       final Number elevation = (Number)name.get("elevation");
       if (elevation == null) {
-        coordinate = new DoubleCoordinates(lon, lat);
+        coordinate = new PointDoubleXY(lon, lat);
       } else {
-        coordinate = new DoubleCoordinates(lon, lat, elevation.doubleValue());
+        coordinate = new PointDoubleXYZ(lon, lat, elevation.doubleValue());
       }
-      dataObject.setGeometryValue(GeometryFactory.getFactory()
-        .point(coordinate));
-      results.add(dataObject);
+      record.setGeometryValue(GeometryFactory.DEFAULT_3D.point(coordinate));
+      results.add(record);
     }
     return results;
   }
 
-  public List<DataObject> searchByName(final String name) {
+  public List<Record> searchByName(final String name) {
     return searchByName(name, null);
   }
 
-  public List<DataObject> searchByName(final String name,
-    final String countryCode) {
-    final Map<String, String> params = new HashMap<String, String>();
+  public List<Record> searchByName(final String name, final String countryCode) {
+    final Map<String, String> params = new HashMap<>();
     params.put("name", name);
     params.put("style", "FULL");
     params.put("type", "json");
@@ -190,10 +182,9 @@ public class GeoNamesService {
     try {
       final URL searchUrl = new URL(searchUrlString);
       final Map<String, Object> result = JsonParser.getMap(searchUrl.openStream());
-      return mapToObjects(NAME_METADATA, result);
+      return mapToObjects(NAME_RECORD_DEFINITION, result);
     } catch (final IOException e) {
-      throw new IllegalArgumentException("Unable to connect to URL:"
-        + searchUrlString);
+      throw new IllegalArgumentException("Unable to connect to URL:" + searchUrlString);
     }
   }
 }

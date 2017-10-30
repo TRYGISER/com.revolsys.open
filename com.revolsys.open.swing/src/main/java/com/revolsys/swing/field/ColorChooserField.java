@@ -6,12 +6,10 @@ import javax.swing.BorderFactory;
 import javax.swing.JColorChooser;
 
 import org.jdesktop.swingx.JXColorSelectionButton;
-import org.jdesktop.swingx.VerticalLayout;
 
+import com.revolsys.swing.EventQueue;
 import com.revolsys.swing.component.ColorAlphaPanel;
 import com.revolsys.swing.component.ValueField;
-import com.revolsys.swing.listener.InvokeMethodListener;
-import com.revolsys.util.Property;
 
 public class ColorChooserField extends ValueField {
   private static final long serialVersionUID = 1L;
@@ -20,9 +18,7 @@ public class ColorChooserField extends ValueField {
 
   public ColorChooserField(final String fieldName, final Color color) {
     super(fieldName, color);
-    Property.addListener(this.colorButton, "background",
-      new InvokeMethodListener(this, "updateFieldValue"));
-    setLayout(new VerticalLayout());
+    EventQueue.addPropertyChange(this.colorButton, "background", () -> updateFieldValue());
     setBorder(BorderFactory.createEmptyBorder(0, 3, 3, 0));
     add(this.colorButton);
     final JColorChooser chooser = this.colorButton.getChooser();
@@ -31,11 +27,11 @@ public class ColorChooserField extends ValueField {
   }
 
   @Override
-  public void setFieldValue(final Object color) {
-    super.setFieldValue(color);
+  public boolean setFieldValue(final Object color) {
     if (this.colorButton != null) {
       this.colorButton.setBackground((Color)color);
     }
+    return super.setFieldValue(color);
   }
 
   @Override

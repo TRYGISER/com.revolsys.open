@@ -12,48 +12,44 @@ import com.revolsys.ui.html.fields.HiddenField;
 import com.revolsys.ui.html.view.Element;
 import com.revolsys.ui.html.view.ElementContainer;
 import com.revolsys.ui.html.view.SetObject;
-import com.revolsys.ui.html.view.TableRow;
 import com.revolsys.util.Property;
 
 public class UiBuilderObjectForm extends Form {
   private final HtmlUiBuilder<?> builder;
 
+  private final ElementContainer fieldContainer = new ElementContainer(new TableBody());
+
   private List<String> fieldKeys;
 
   private final Object object;
 
-  private final ElementContainer fieldContainer = new ElementContainer(
-    new TableBody());
-
-  public UiBuilderObjectForm(final Object object,
-    final HtmlUiBuilder<?> uiBuilder, final List<String> fieldKeys) {
+  public UiBuilderObjectForm(final Object object, final HtmlUiBuilder<?> uiBuilder,
+    final List<String> fieldKeys) {
     super(uiBuilder.getTypeName());
     this.object = object;
     this.builder = uiBuilder;
     this.fieldKeys = fieldKeys;
-    add(fieldContainer);
+    add(this.fieldContainer);
   }
 
-  public UiBuilderObjectForm(final Object object,
-    final HtmlUiBuilder<?> uiBuilder, final String formName,
-    final List<String> fieldKeys) {
+  public UiBuilderObjectForm(final Object object, final HtmlUiBuilder<?> uiBuilder,
+    final String formName, final List<String> fieldKeys) {
     super(formName);
     this.object = object;
     this.builder = uiBuilder;
     this.fieldKeys = fieldKeys;
     add(new HiddenField("htmlCss", false));
     add(new HiddenField("plain", false));
-    add(fieldContainer);
+    add(this.fieldContainer);
   }
 
   @Override
-  public Object getInitialValue(final Field field,
-    final HttpServletRequest request) {
-    if (object != null) {
+  public Object getInitialValue(final Field field, final HttpServletRequest request) {
+    if (this.object != null) {
       final String propertyName = field.getName();
       if (propertyName != Form.FORM_TASK_PARAM) {
         try {
-          return Property.get(object, propertyName);
+          return Property.get(this.object, propertyName);
         } catch (final IllegalArgumentException e) {
           return null;
         }
@@ -63,16 +59,16 @@ public class UiBuilderObjectForm extends Form {
   }
 
   public Object getObject() {
-    return object;
+    return this.object;
   }
 
   @Override
   public void initialize(final HttpServletRequest request) {
-    for (final String key : fieldKeys) {
+    for (final String key : this.fieldKeys) {
       if (!getFieldNames().contains(key)) {
-        final Element field = builder.getField(request, key);
+        final Element field = this.builder.getAttribute(request, key);
         if (field instanceof SetObject) {
-          ((SetObject)field).setObject(object);
+          ((SetObject)field).setObject(this.object);
         }
         if (field != null) {
           if (!getElements().contains(field)) {
@@ -80,16 +76,14 @@ public class UiBuilderObjectForm extends Form {
               final HiddenField hiddenField = (HiddenField)field;
               add(hiddenField);
             } else {
-              final Decorator label = builder.getFieldTableLabel(key, field);
-              final TableRow row = new TableRow();
-              row.add(field, label);
-              fieldContainer.add(row);
+              final Decorator label = this.builder.getAttributeFormGroupLabel(key, field);
+              this.fieldContainer.add(field, label);
             }
           }
         }
       }
     }
-    builder.initializeForm(this, request);
+    this.builder.initializeForm(this, request);
     super.initialize(request);
   }
 
@@ -100,15 +94,14 @@ public class UiBuilderObjectForm extends Form {
   @Override
   public boolean validate() {
     boolean valid = true;
-    if (object != null) {
+    if (this.object != null) {
       for (final Field field : getFields().values()) {
         if (!field.hasValidationErrors() && !field.isReadOnly()) {
           final String propertyName = field.getName();
-          if (propertyName != Form.FORM_TASK_PARAM
-            && fieldKeys.contains(propertyName)) {
+          if (propertyName != Form.FORM_TASK_PARAM && this.fieldKeys.contains(propertyName)) {
             final Object value = field.getValue();
             try {
-              builder.setValue(object, propertyName, value);
+              this.builder.setValue(this.object, propertyName, value);
             } catch (final IllegalArgumentException e) {
               field.addValidationError(e.getMessage());
               valid = false;
@@ -117,7 +110,7 @@ public class UiBuilderObjectForm extends Form {
         }
       }
       if (valid) {
-        valid &= builder.validateForm(this);
+        valid &= this.builder.validateForm(this);
       }
     }
     valid &= super.validate();

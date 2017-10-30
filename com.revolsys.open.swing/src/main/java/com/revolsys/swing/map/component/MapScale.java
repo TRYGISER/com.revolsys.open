@@ -10,8 +10,6 @@ import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.border.BevelBorder;
 
-import org.springframework.util.StringUtils;
-
 import com.revolsys.swing.map.Viewport2D;
 import com.revolsys.util.Property;
 
@@ -34,7 +32,7 @@ public class MapScale extends JLabel implements PropertyChangeListener {
         return "Unknown";
       } else {
         final String string = scale.toString();
-        if (StringUtils.hasText(string)) {
+        if (Property.hasValue(string)) {
           return string;
         } else {
           return "Unknown";

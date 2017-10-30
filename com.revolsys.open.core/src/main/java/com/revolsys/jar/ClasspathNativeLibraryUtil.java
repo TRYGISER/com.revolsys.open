@@ -5,17 +5,12 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.revolsys.io.FileUtil;
+import com.revolsys.logging.Logs;
 import com.revolsys.util.OS;
 
 public class ClasspathNativeLibraryUtil {
-
-  private static final Map<String, Boolean> LIBRARY_LOADED_MAP = new HashMap<String, Boolean>();
-
-  public static final Logger LOG = LoggerFactory.getLogger(ClasspathNativeLibraryUtil.class);
+  private static final Map<String, Boolean> LIBRARY_LOADED_MAP = new HashMap<>();
 
   public static String getLibraryExtension() {
     if (OS.IS_WINDOWS) {
@@ -49,7 +44,7 @@ public class ClasspathNativeLibraryUtil {
     }
   }
 
-  public static void loadLibrary(final String name) {
+  public static boolean loadLibrary(final String name) {
     synchronized (LIBRARY_LOADED_MAP) {
       final Boolean loaded = LIBRARY_LOADED_MAP.get(name);
       if (loaded == null) {
@@ -57,75 +52,73 @@ public class ClasspathNativeLibraryUtil {
         final String ext = getLibraryExtension();
         final String arch = OS.getArch();
         final String operatingSystemName = getOperatingSystemName();
-        loadLibrary(prefix, name, arch, operatingSystemName, ext);
-      } else if (!loaded) {
-        throw new RuntimeException("Unable to load shared library " + name);
+        return loadLibrary(prefix, name, arch, operatingSystemName, ext);
+      } else {
+        return loaded;
       }
     }
   }
 
-  public static void loadLibrary(final String path, final String name) {
+  public static boolean loadLibrary(final String path, final String name) {
     final URL url = ClasspathNativeLibraryUtil.class.getResource(path);
+    boolean loaded = false;
     if (url == null) {
       try {
         System.loadLibrary(name);
+        loaded = true;
       } catch (final Throwable e) {
-        LOG.error("Unable to load shared library " + name, e);
-        LIBRARY_LOADED_MAP.put(name, Boolean.FALSE);
-        throw new RuntimeException("Unable to load shared library " + name, e);
+        Logs.debug(ClasspathNativeLibraryUtil.class, "Unable to load shared library " + name, e);
       }
     } else {
       try {
-        final File directory = FileUtil.createTempDirectory("jni", "name");
+        final File directory = FileUtil.newTempDirectory("jni", "name");
         final File file = new File(directory, name + ".dll");
         file.deleteOnExit();
         FileUtil.copy(url.openStream(), file);
         System.load(file.getCanonicalPath());
-        LIBRARY_LOADED_MAP.put(name, Boolean.FALSE);
+        loaded = true;
       } catch (final Throwable e) {
-        LOG.error("Unable to load shared library from classpath " + url, e);
-        LIBRARY_LOADED_MAP.put(name, Boolean.FALSE);
-        throw new RuntimeException("Unable to load shared library " + url, e);
+        Logs.error(ClasspathNativeLibraryUtil.class,
+          "Unable to load shared library from classpath " + url, e);
       }
     }
+    LIBRARY_LOADED_MAP.put(name, loaded);
+    return loaded;
   }
 
-  private static void loadLibrary(final String prefix, final String name,
-    final String arch, final String operatingSystemName, final String ext) {
-    final String fileName = prefix + name + "-" + arch + "-"
-      + operatingSystemName + "." + ext;
-    final String libraryName = "/native/" + fileName;
+  private static boolean loadLibrary(final String prefix, final String name, final String arch,
+    final String operatingSystemName, final String ext) {
+    boolean loaded = false;
+    final String fileName = prefix + name + "." + ext;
+    final String libraryName = "/native/" + operatingSystemName + "/" + arch + "/" + fileName;
     final URL url = ClasspathNativeLibraryUtil.class.getResource(libraryName);
     if (url == null) {
       if (arch.equals("x86_64")) {
-        loadLibrary(prefix, libraryName, "x86", operatingSystemName, ext);
+        loaded = loadLibrary(prefix, libraryName, "x86", operatingSystemName, ext);
       } else {
         try {
           System.loadLibrary(name);
+          loaded = true;
         } catch (final Throwable e) {
-          LOG.error("Unable to load shared library " + libraryName + " "
-            + fileName, e);
-          LIBRARY_LOADED_MAP.put(name, Boolean.FALSE);
-          throw new RuntimeException("Unable to load shared library "
-            + fileName, e);
+          Logs.debug(ClasspathNativeLibraryUtil.class,
+            "Unable to load shared library from classpath " + libraryName + " " + fileName, e);
         }
       }
     } else {
       try {
-        final File directory = FileUtil.createTempDirectory("jni", "name");
+        final File directory = FileUtil.newTempDirectory("jni", "name");
         final File file = new File(directory, fileName);
         file.deleteOnExit();
         FileUtil.copy(url.openStream(), file);
         System.load(file.getCanonicalPath());
-        LIBRARY_LOADED_MAP.put(name, Boolean.FALSE);
+        loaded = true;
       } catch (final Throwable e) {
-        LOG.error("Unable to load shared library from classpath " + libraryName
-          + " " + fileName, e);
-        LIBRARY_LOADED_MAP.put(name, Boolean.FALSE);
-        throw new RuntimeException("Unable to load shared library " + fileName,
-          e);
+        Logs.debug(ClasspathNativeLibraryUtil.class,
+          "Unable to load shared library from classpath " + libraryName + " " + fileName, e);
       }
     }
+    LIBRARY_LOADED_MAP.put(name, loaded);
+    return loaded;
   }
 
 }

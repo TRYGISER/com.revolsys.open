@@ -13,25 +13,22 @@ import com.revolsys.ui.web.utils.HttpServletUtils;
 
 public class SpringExpressionUtil {
 
-  public static EvaluationContext createEvaluationContext(final Object object) {
-    final EvaluationContext evaluationContext = new StandardEvaluationContext(
-      object);
+  public static EvaluationContext newEvaluationContext(final Object object) {
+    final EvaluationContext evaluationContext = new StandardEvaluationContext(object);
     final Map<String, String> pathVariables = HttpServletUtils.getPathVariables();
     setVariables(evaluationContext, pathVariables);
     return evaluationContext;
   }
 
-  public static EvaluationContext createSecurityEvaluationContext() {
+  public static EvaluationContext newSecurityEvaluationContext() {
     final SecurityContext securityContext = SecurityContextHolder.getContext();
     final Authentication authentication = securityContext.getAuthentication();
-    final MethodSecurityExpressionRoot root = new MethodSecurityExpressionRoot(
-      authentication);
-    final EvaluationContext evaluationContext = createEvaluationContext(root);
+    final MethodSecurityExpressionRoot root = new MethodSecurityExpressionRoot(authentication);
+    final EvaluationContext evaluationContext = newEvaluationContext(root);
     return evaluationContext;
   }
 
-  public static void setVariables(
-    final EvaluationContext evaluationContext,
+  public static void setVariables(final EvaluationContext evaluationContext,
     final Map<String, String> variables) {
     for (final Entry<String, String> variable : variables.entrySet()) {
       final String name = variable.getKey();

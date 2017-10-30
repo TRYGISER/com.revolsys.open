@@ -5,11 +5,11 @@ import java.util.Map;
 
 public class SimpleNameConverter implements NameConverter {
 
-  private final Map<String, String> names = new HashMap<String, String>();
+  private final Map<String, String> names = new HashMap<>();
 
   @Override
   public String convert(final String name) {
-    final String newName = names.get(name);
+    final String newName = this.names.get(name);
     if (newName != null) {
       return newName;
     } else {
@@ -18,6 +18,6 @@ public class SimpleNameConverter implements NameConverter {
   }
 
   public void setName(final String name, final String newName) {
-    names.put(name, newName);
+    this.names.put(name, newName);
   }
 }

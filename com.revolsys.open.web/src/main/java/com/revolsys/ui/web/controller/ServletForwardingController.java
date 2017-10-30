@@ -29,18 +29,14 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.AbstractController;
 import org.springframework.web.util.WebUtils;
 
-public class ServletForwardingController extends AbstractController implements
-  BeanNameAware {
+public class ServletForwardingController extends AbstractController implements BeanNameAware {
 
   private String servletName;
-
-  private String beanName;
 
   @PreDestroy
   public void destroy() {
     setApplicationContext(null);
-    servletName = null;
-    beanName = null;
+    this.servletName = null;
   }
 
   @Override
@@ -50,10 +46,11 @@ public class ServletForwardingController extends AbstractController implements
     final ServletContext servletContext = getServletContext();
     final RequestDispatcher rd = servletContext.getNamedDispatcher(this.servletName);
     if (rd == null) {
-      throw new ServletException("No servlet with name '" + this.servletName
-        + "' defined in web.xml");
+      throw new ServletException(
+        "No servlet with name '" + this.servletName + "' defined in web.xml");
     }
-    final String dispatcherRequestPath = (String)request.getAttribute("org.apache.catalina.core.DISPATCHER_REQUEST_PATH");
+    final String dispatcherRequestPath = (String)request
+      .getAttribute("org.apache.catalina.core.DISPATCHER_REQUEST_PATH");
     if (dispatcherRequestPath != null) {
       final String servletPath = request.getServletPath();
       final String pathInfo = request.getPathInfo();
@@ -85,7 +82,6 @@ public class ServletForwardingController extends AbstractController implements
 
   @Override
   public void setBeanName(final String name) {
-    this.beanName = name;
     if (this.servletName == null) {
       this.servletName = name;
     }
@@ -103,7 +99,7 @@ public class ServletForwardingController extends AbstractController implements
    * indicating an include request, and whether the response has already been
    * committed. In both cases, an include will be performed, as a forward is not
    * possible anymore.
-   * 
+   *
    * @param request current HTTP request
    * @param response current HTTP response
    * @return <code>true</code> for include, <code>false</code> for forward
@@ -114,7 +110,7 @@ public class ServletForwardingController extends AbstractController implements
    */
   protected boolean useInclude(final HttpServletRequest request,
     final HttpServletResponse response) {
-    return (WebUtils.isIncludeRequest(request) || response.isCommitted());
+    return WebUtils.isIncludeRequest(request) || response.isCommitted();
   }
 
 }

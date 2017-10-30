@@ -1,63 +1,48 @@
 package com.revolsys.io.file;
 
 import java.io.File;
-import java.util.Map;
 
-import org.slf4j.LoggerFactory;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
-import org.springframework.util.StringUtils;
-
+import com.revolsys.collection.map.MapEx;
 import com.revolsys.io.FileUtil;
 import com.revolsys.io.connection.AbstractConnectionRegistry;
-import com.revolsys.io.json.JsonMapIoFactory;
-import com.revolsys.util.CollectionUtil;
+import com.revolsys.io.connection.ConnectionRegistry;
+import com.revolsys.io.connection.ConnectionRegistryManager;
+import com.revolsys.logging.Logs;
+import com.revolsys.record.io.format.json.Json;
+import com.revolsys.spring.resource.Resource;
 
-public class FolderConnectionRegistry extends
-  AbstractConnectionRegistry<FolderConnection> {
-
-  private static final ThreadLocal<FolderConnectionRegistry> threadRegistry = new ThreadLocal<FolderConnectionRegistry>();
+public class FolderConnectionRegistry extends AbstractConnectionRegistry<FolderConnection> {
+  private static final ThreadLocal<FolderConnectionRegistry> threadRegistry = new ThreadLocal<>();
 
   public static FolderConnectionRegistry getForThread() {
     return FolderConnectionRegistry.threadRegistry.get();
   }
 
-  public static FolderConnectionRegistry setForThread(
-    final FolderConnectionRegistry registry) {
+  public static FolderConnectionRegistry setForThread(final FolderConnectionRegistry registry) {
     final FolderConnectionRegistry oldValue = getForThread();
     FolderConnectionRegistry.threadRegistry.set(registry);
     return oldValue;
   }
 
   public FolderConnectionRegistry(
-    final FolderConnectionManager connectionManager, final String name) {
-    super(connectionManager, name);
-    init();
+    final ConnectionRegistryManager<? extends ConnectionRegistry<FolderConnection>> connectionManager,
+    final String name, final boolean visible, final boolean readOnly,
+    final Resource directoryResource) {
+    super(connectionManager, name, visible, readOnly, directoryResource, "folderConnection");
   }
 
-  public FolderConnectionRegistry(
-    final FolderConnectionManager connectionManager, final String name,
-    final boolean visible, final FolderConnection... connections) {
-    super(connectionManager, name);
-    setReadOnly(!visible);
-    setVisible(visible);
-    init();
-    for (final FolderConnection connection : connections) {
-      addConnection(connection);
-    }
+  public FolderConnectionRegistry(final FileConnectionManager connectionManager,
+    final String name) {
+    this(connectionManager, name, true, false, null);
   }
 
-  public FolderConnectionRegistry(
-    final FolderConnectionManager connectionManager, final String name,
-    final Resource resource, final boolean readOnly) {
-    super(connectionManager, name);
-    setReadOnly(readOnly);
-    setDirectory(resource);
-    init();
+  public FolderConnectionRegistry(final FileConnectionManager connectionManager, final String name,
+    final Resource directory, final boolean readOnly) {
+    this(connectionManager, name, true, readOnly, directory);
   }
 
   public FolderConnectionRegistry(final String name) {
-    this(null, name, true);
+    this(null, name, true, false, null);
   }
 
   public FolderConnectionRegistry(final String name, final Resource resource,
@@ -69,46 +54,42 @@ public class FolderConnectionRegistry extends
     final String name = connection.getName();
     addConnection(name, connection);
     if (!isReadOnly()) {
-      final File file = getConnectionFile(name);
+      final File file = getConnectionFile(connection, true);
       if (file != null && (!file.exists() || file.canWrite())) {
-        final FileSystemResource resource = new FileSystemResource(file);
-        JsonMapIoFactory.write(connection.toMap(), resource);
+        connection.writeToFile(file);
       }
     }
   }
 
-  public FolderConnection addConnection(final String name, final File file) {
+  public FolderConnection addConnection(String name, final File file) {
+    name = getUniqueName(name);
     final FolderConnection connection = new FolderConnection(this, name, file);
     addConnection(connection);
     return connection;
   }
 
   @Override
-  protected FolderConnection loadConnection(final File connectionFile) {
-    final Map<String, ? extends Object> config = JsonMapIoFactory.toMap(connectionFile);
-    String name = CollectionUtil.getString(config, "name");
-    if (!StringUtils.hasText(name)) {
-      name = FileUtil.getBaseName(connectionFile);
-    }
-    try {
-      final String fileName = (String)config.get("file");
-
-      return addConnection(name, FileUtil.getFile(fileName));
-    } catch (final Throwable e) {
-      LoggerFactory.getLogger(getClass()).error(
-        "Error creating folder connection from: " + connectionFile, e);
-      return null;
-    }
+  public String getIconName() {
+    return "folder:link";
   }
 
   @Override
-  public boolean removeConnection(final FolderConnection connection) {
-    if (connection == null || isReadOnly()) {
-      return false;
-    } else {
-      final String name = connection.getName();
-      final boolean removed = removeConnection(name, connection);
-      return removed;
+  protected FolderConnection loadConnection(final File connectionFile,
+    final boolean importConnection) {
+    try {
+      final MapEx config = Json.toMap(connectionFile);
+      final String name = getConnectionName(config, connectionFile, importConnection);
+      final String fileName = (String)config.get("file");
+      final File file = FileUtil.getFile(fileName);
+      final FolderConnection connection = new FolderConnection(this, name, file);
+      if (!importConnection) {
+        connection.setConnectionFile(connectionFile);
+      }
+      addConnection(connection);
+      return connection;
+    } catch (final Throwable e) {
+      Logs.error(this, "Error creating folder connection from: " + connectionFile, e);
+      return null;
     }
   }
 }

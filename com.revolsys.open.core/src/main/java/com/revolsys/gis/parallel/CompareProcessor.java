@@ -4,210 +4,208 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
-import com.revolsys.filter.AndFilter;
-import com.revolsys.filter.Factory;
-import com.revolsys.filter.Filter;
-import com.revolsys.filter.FilterUtil;
-import com.revolsys.gis.algorithm.index.DataObjectQuadTree;
-import com.revolsys.gis.algorithm.index.PointDataObjectMap;
-import com.revolsys.gis.algorithm.linematch.LineMatchGraph;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectLog;
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.data.model.DataObjectUtil;
-import com.revolsys.gis.data.model.filter.DataObjectGeometryFilter;
-import com.revolsys.gis.io.Statistics;
-import com.revolsys.gis.jts.filter.LineEqualIgnoreDirectionFilter;
-import com.revolsys.gis.jts.filter.LineIntersectsFilter;
-import com.revolsys.jts.geom.Geometry;
-import com.revolsys.jts.geom.LineString;
-import com.revolsys.jts.geom.MultiLineString;
-import com.revolsys.jts.geom.Point;
+import com.revolsys.geometry.algorithm.linematch.LineMatchGraph;
+import com.revolsys.geometry.filter.LineEqualIgnoreDirectionFilter;
+import com.revolsys.geometry.filter.LineIntersectsFilter;
+import com.revolsys.geometry.index.PointRecordMap;
+import com.revolsys.geometry.index.quadtree.RecordQuadTree;
+import com.revolsys.geometry.model.Geometry;
+import com.revolsys.geometry.model.LineString;
+import com.revolsys.geometry.model.Lineal;
+import com.revolsys.geometry.model.Point;
 import com.revolsys.parallel.channel.Channel;
+import com.revolsys.predicate.Predicates;
+import com.revolsys.record.Record;
+import com.revolsys.record.RecordLog;
+import com.revolsys.record.Records;
+import com.revolsys.record.filter.RecordGeometryFilter;
+import com.revolsys.record.schema.RecordDefinition;
+import com.revolsys.util.count.LabelCountMap;
 
 public class CompareProcessor extends AbstractMergeProcess {
 
   private final boolean cleanDuplicatePoints = true;
 
-  private Statistics duplicateOtherStatistics = new Statistics(
-    "Duplicate Other");
+  private LabelCountMap duplicateOtherStatistics = new LabelCountMap("Duplicate Other");
 
-  private Statistics duplicateSourceStatistics = new Statistics(
-    "Duplicate Source");
+  private LabelCountMap duplicateSourceStatistics = new LabelCountMap("Duplicate Source");
 
-  private Factory<Filter<DataObject>, DataObject> equalFilterFactory;
+  private Function<Record, Predicate<Record>> equalFilterFactory;
 
-  private Statistics equalStatistics = new Statistics("Equal");
+  private LabelCountMap equalStatistics = new LabelCountMap("Equal");
 
-  private Filter<DataObject> excludeFilter;
+  private Predicate<Record> excludeFilter;
 
-  private Statistics excludeNotEqualOtherStatistics = new Statistics(
+  private LabelCountMap excludeNotEqualOtherStatistics = new LabelCountMap(
     "Exclude Not Equal Other");
 
-  private Statistics excludeNotEqualSourceStatistics = new Statistics(
+  private LabelCountMap excludeNotEqualSourceStatistics = new LabelCountMap(
     "Exclude Not Equal Source");
 
   private String label;
 
-  private Statistics notEqualOtherStatistics = new Statistics("Not Equal Other");
-
-  private Statistics notEqualSourceStatistics = new Statistics(
-    "Not Equal Source");
-
-  private DataObjectQuadTree otherIndex = new DataObjectQuadTree();
-
-  private PointDataObjectMap otherPointMap = new PointDataObjectMap();
-
-  private Set<DataObject> sourceObjects = new LinkedHashSet<DataObject>();
-
-  private final PointDataObjectMap sourcePointMap = new PointDataObjectMap();
-
   private boolean logNotEqualSource = true;
 
+  private LabelCountMap notEqualOtherStatistics = new LabelCountMap("Not Equal Other");
+
+  private LabelCountMap notEqualSourceStatistics = new LabelCountMap("Not Equal Source");
+
+  private RecordQuadTree<Record> otherIndex;
+
+  private PointRecordMap otherPointMap = new PointRecordMap();
+
+  private Set<Record> sourceObjects = new LinkedHashSet<>();
+
+  private final PointRecordMap sourcePointMap = new PointRecordMap();
+
   @Override
-  protected void addOtherObject(final DataObject object) {
-    final Geometry geometry = object.getGeometryValue();
+  protected void addOtherObject(final Record record) {
+    final Geometry geometry = record.getGeometry();
     if (geometry instanceof Point) {
       boolean add = true;
-      if (cleanDuplicatePoints) {
-        final List<DataObject> objects = otherPointMap.getObjects(object);
+      if (this.cleanDuplicatePoints) {
+        final List<Record> objects = this.otherPointMap.getRecords(record);
         if (!objects.isEmpty()) {
-          final Filter<DataObject> filter = equalFilterFactory.create(object);
-          add = !FilterUtil.matches(objects, filter);
+          final Predicate<Record> filter = this.equalFilterFactory.apply(record);
+          add = !Predicates.matches(objects, filter);
         }
         if (add) {
-          otherPointMap.add(object);
+          this.otherPointMap.add(record);
         } else {
-          duplicateOtherStatistics.add(object);
+          this.duplicateOtherStatistics.addCount(record);
         }
       }
     } else if (geometry instanceof LineString) {
-      otherIndex.insert(object);
+      this.otherIndex.addRecord(record);
     }
   }
 
   @Override
-  protected void addSourceObject(final DataObject object) {
-    final Geometry geometry = object.getGeometryValue();
+  protected void addSourceObject(final Record object) {
+    final Geometry geometry = object.getGeometry();
     if (geometry instanceof Point) {
       boolean add = true;
-      if (cleanDuplicatePoints) {
-        final List<DataObject> objects = sourcePointMap.getObjects(object);
+      if (this.cleanDuplicatePoints) {
+        final List<Record> objects = this.sourcePointMap.getRecords(object);
         if (!objects.isEmpty()) {
-          final Filter<DataObject> filter = equalFilterFactory.create(object);
-          add = !FilterUtil.matches(objects, filter);
+          final Predicate<Record> filter = this.equalFilterFactory.apply(object);
+          add = !Predicates.matches(objects, filter);
         }
       }
       if (add) {
-        sourcePointMap.add(object);
+        this.sourcePointMap.add(object);
       } else {
-        duplicateSourceStatistics.add(object);
+        this.duplicateSourceStatistics.addCount(object);
       }
     } else if (geometry instanceof LineString) {
-      sourceObjects.add(object);
+      this.sourceObjects.add(object);
     }
   }
 
-  public Statistics getDuplicateOtherStatistics() {
-    return duplicateOtherStatistics;
+  public LabelCountMap getDuplicateOtherStatistics() {
+    return this.duplicateOtherStatistics;
   }
 
-  public Statistics getDuplicateSourceStatistics() {
-    return duplicateSourceStatistics;
+  public LabelCountMap getDuplicateSourceStatistics() {
+    return this.duplicateSourceStatistics;
   }
 
-  public Factory<Filter<DataObject>, DataObject> getEqualFilterFactory() {
-    return equalFilterFactory;
+  public Function<Record, Predicate<Record>> getEqualFilterFactory() {
+    return this.equalFilterFactory;
   }
 
-  public Statistics getEqualStatistics() {
-    return equalStatistics;
+  public LabelCountMap getEqualStatistics() {
+    return this.equalStatistics;
   }
 
-  public Filter<DataObject> getExcludeFilter() {
-    return excludeFilter;
+  public Predicate<Record> getExcludeFilter() {
+    return this.excludeFilter;
   }
 
-  public Statistics getExcludeNotEqualOtherStatistics() {
-    return excludeNotEqualOtherStatistics;
+  public LabelCountMap getExcludeNotEqualOtherStatistics() {
+    return this.excludeNotEqualOtherStatistics;
   }
 
-  public Statistics getExcludeNotEqualSourceStatistics() {
-    return excludeNotEqualSourceStatistics;
+  public LabelCountMap getExcludeNotEqualSourceStatistics() {
+    return this.excludeNotEqualSourceStatistics;
   }
 
   public String getLabel() {
-    return label;
+    return this.label;
   }
 
-  public Statistics getNotEqualOtherStatistics() {
-    return notEqualOtherStatistics;
+  public LabelCountMap getNotEqualOtherStatistics() {
+    return this.notEqualOtherStatistics;
   }
 
-  public Statistics getNotEqualSourceStatistics() {
-    return notEqualSourceStatistics;
+  public LabelCountMap getNotEqualSourceStatistics() {
+    return this.notEqualSourceStatistics;
+  }
+
+  @Override
+  protected void init(final RecordDefinition recordDefinition) {
+    super.init(recordDefinition);
+    this.otherIndex = new RecordQuadTree<>(recordDefinition.getGeometryFactory());
   }
 
   public boolean isLogNotEqualSource() {
-    return logNotEqualSource;
+    return this.logNotEqualSource;
   }
 
-  private void logError(final DataObject object, final String message,
-    final boolean source) {
-    if (excludeFilter == null || !excludeFilter.accept(object)) {
+  private void logError(final Record object, final String message, final boolean source) {
+    if (this.excludeFilter == null || !this.excludeFilter.test(object)) {
       if (source) {
-        notEqualSourceStatistics.add(object);
+        this.notEqualSourceStatistics.addCount(object);
       } else {
-        notEqualOtherStatistics.add(object);
+        this.notEqualOtherStatistics.addCount(object);
       }
-      DataObjectLog.error(getClass(), message, object);
+      RecordLog.error(getClass(), message, object);
     } else {
       if (source) {
-        excludeNotEqualSourceStatistics.add(object);
+        this.excludeNotEqualSourceStatistics.addCount(object);
       } else {
-        excludeNotEqualOtherStatistics.add(object);
+        this.excludeNotEqualOtherStatistics.addCount(object);
       }
     }
   }
 
-  private void processExactLineMatch(final DataObject sourceObject) {
-    final LineString sourceLine = sourceObject.getGeometryValue();
+  private void processExactLineMatch(final Record sourceObject) {
+    final LineString sourceLine = sourceObject.getGeometry();
     final LineEqualIgnoreDirectionFilter lineEqualFilter = new LineEqualIgnoreDirectionFilter(
       sourceLine, 3);
-    final Filter<DataObject> geometryFilter = new DataObjectGeometryFilter<LineString>(
-      lineEqualFilter);
-    final Filter<DataObject> equalFilter = equalFilterFactory.create(sourceObject);
-    final Filter<DataObject> filter = new AndFilter<DataObject>(equalFilter,
-      geometryFilter);
+    final Predicate<Record> geometryFilter = new RecordGeometryFilter<>(lineEqualFilter);
+    final Predicate<Record> equalFilter = this.equalFilterFactory.apply(sourceObject);
+    final Predicate<Record> filter = equalFilter.and(geometryFilter);
 
-    final DataObject otherObject = otherIndex.queryFirst(sourceObject, filter);
+    final Record otherObject = this.otherIndex.queryFirst(sourceObject, filter);
     if (otherObject != null) {
-      equalStatistics.add(sourceObject);
+      this.equalStatistics.addCount(sourceObject);
       removeObject(sourceObject);
       removeOtherObject(otherObject);
     }
   }
 
   private void processExactLineMatches() {
-    for (final DataObject object : new ArrayList<DataObject>(sourceObjects)) {
+    for (final Record object : new ArrayList<>(this.sourceObjects)) {
       processExactLineMatch(object);
     }
   }
 
-  private void processExactPointMatch(final DataObject sourceObject) {
-    final Filter<DataObject> equalFilter = equalFilterFactory.create(sourceObject);
-    final DataObject otherObject = otherPointMap.getFirstMatch(sourceObject,
-      equalFilter);
+  private void processExactPointMatch(final Record sourceObject) {
+    final Predicate<Record> equalFilter = this.equalFilterFactory.apply(sourceObject);
+    final Record otherObject = this.otherPointMap.getFirstMatch(sourceObject, equalFilter);
     if (otherObject != null) {
-      final Point sourcePoint = sourceObject.getGeometryValue();
+      final Point sourcePoint = sourceObject.getGeometry();
       final double sourceZ = sourcePoint.getZ();
 
-      final Point otherPoint = otherObject.getGeometryValue();
+      final Point otherPoint = otherObject.getGeometry();
       final double otherZ = otherPoint.getZ();
 
       if (sourceZ == otherZ || Double.isNaN(sourceZ) && Double.isNaN(otherZ)) {
-        equalStatistics.add(sourceObject);
+        this.equalStatistics.addCount(sourceObject);
         removeObject(sourceObject);
         removeOtherObject(otherObject);
       }
@@ -215,18 +213,17 @@ public class CompareProcessor extends AbstractMergeProcess {
   }
 
   private void processExactPointMatches() {
-    for (final DataObject object : new ArrayList<DataObject>(
-      sourcePointMap.getAll())) {
+    for (final Record object : new ArrayList<>(this.sourcePointMap.getAll())) {
       processExactPointMatch(object);
     }
   }
 
   @Override
-  protected void processObjects(final DataObjectMetaData metaData,
-    final Channel<DataObject> out) {
-    if (otherIndex.size() + otherPointMap.size() == 0) {
-      if (logNotEqualSource) {
-        for (final DataObject object : sourceObjects) {
+  protected void processObjects(final RecordDefinition recordDefinition,
+    final Channel<Record> out) {
+    if (this.otherIndex.size() + this.otherPointMap.size() == 0) {
+      if (this.logNotEqualSource) {
+        for (final Record object : this.sourceObjects) {
           logError(object, "Source missing in Other", true);
         }
       }
@@ -235,44 +232,39 @@ public class CompareProcessor extends AbstractMergeProcess {
       processExactLineMatches();
       processPartialMatches();
     }
-    for (final DataObject object : otherIndex.queryAll()) {
+    for (final Record object : this.otherIndex.getAll()) {
       logError(object, "Other missing in Source", false);
     }
-    for (final DataObject object : otherPointMap.getAll()) {
-      logError(object, "Other missing in Source", false);
+    for (final Record record : this.otherPointMap.getAll()) {
+      logError(record, "Other missing in Source", false);
     }
-    if (logNotEqualSource) {
-      for (final DataObject object : sourceObjects) {
+    if (this.logNotEqualSource) {
+      for (final Record object : this.sourceObjects) {
         logError(object, "Source missing in Other", true);
       }
     }
-    sourceObjects.clear();
-    otherIndex = new DataObjectQuadTree();
-    otherPointMap.clear();
+    this.sourceObjects.clear();
+    this.otherIndex = null;
+    this.otherPointMap.clear();
   }
 
-  private void processPartialMatch(final DataObject sourceObject) {
-    final Geometry sourceGeometry = sourceObject.getGeometryValue();
+  private void processPartialMatch(final Record sourceObject) {
+    final Geometry sourceGeometry = sourceObject.getGeometry();
     if (sourceGeometry instanceof LineString) {
       final LineString sourceLine = (LineString)sourceGeometry;
 
-      final LineIntersectsFilter intersectsFilter = new LineIntersectsFilter(
-        sourceLine);
-      final Filter<DataObject> geometryFilter = new DataObjectGeometryFilter<LineString>(
-        intersectsFilter);
-      final Filter<DataObject> equalFilter = equalFilterFactory.create(sourceObject);
-      final Filter<DataObject> filter = new AndFilter<DataObject>(equalFilter,
-        geometryFilter);
-      final List<DataObject> otherObjects = otherIndex.queryList(
-        sourceGeometry, filter);
+      final LineIntersectsFilter intersectsFilter = new LineIntersectsFilter(sourceLine);
+      final Predicate<Record> geometryFilter = new RecordGeometryFilter<>(intersectsFilter);
+      final Predicate<Record> equalFilter = this.equalFilterFactory.apply(sourceObject);
+      final Predicate<Record> filter = equalFilter.and(geometryFilter);
+      final List<Record> otherObjects = this.otherIndex.queryList(sourceGeometry, filter);
       if (!otherObjects.isEmpty()) {
-        final LineMatchGraph<DataObject> graph = new LineMatchGraph<DataObject>(
-          sourceObject, sourceLine);
-        for (final DataObject otherObject : otherObjects) {
-          final LineString otherLine = otherObject.getGeometryValue();
+        final LineMatchGraph<Record> graph = new LineMatchGraph<>(sourceObject, sourceLine);
+        for (final Record otherObject : otherObjects) {
+          final LineString otherLine = otherObject.getGeometry();
           graph.add(otherLine);
         }
-        final MultiLineString nonMatchedLines = graph.getNonMatchedLines(0);
+        final Lineal nonMatchedLines = graph.getNonMatchedLines(0);
         if (nonMatchedLines.isEmpty()) {
           removeObject(sourceObject);
 
@@ -283,20 +275,17 @@ public class CompareProcessor extends AbstractMergeProcess {
           } else {
             for (int j = 0; j < nonMatchedLines.getGeometryCount(); j++) {
               final Geometry newGeometry = nonMatchedLines.getGeometry(j);
-              final DataObject newObject = DataObjectUtil.copy(sourceObject,
-                newGeometry);
+              final Record newObject = Records.copy(sourceObject, newGeometry);
               addSourceObject(newObject);
             }
           }
         }
         for (int i = 0; i < otherObjects.size(); i++) {
-          final DataObject otherObject = otherObjects.get(i);
-          final MultiLineString otherNonMatched = graph.getNonMatchedLines(
-            i + 1, 0);
+          final Record otherObject = otherObjects.get(i);
+          final Lineal otherNonMatched = graph.getNonMatchedLines(i + 1, 0);
           for (int j = 0; j < otherNonMatched.getGeometryCount(); j++) {
             final Geometry newGeometry = otherNonMatched.getGeometry(j);
-            final DataObject newOtherObject = DataObjectUtil.copy(otherObject,
-              newGeometry);
+            final Record newOtherObject = Records.copy(otherObject, newGeometry);
             addOtherObject(newOtherObject);
           }
           removeOtherObject(otherObject);
@@ -306,30 +295,29 @@ public class CompareProcessor extends AbstractMergeProcess {
   }
 
   private void processPartialMatches() {
-    for (final DataObject object : new ArrayList<DataObject>(sourceObjects)) {
+    for (final Record object : new ArrayList<>(this.sourceObjects)) {
       processPartialMatch(object);
     }
   }
 
-  private void removeObject(final DataObject object) {
-    sourceObjects.remove(object);
+  private void removeObject(final Record object) {
+    this.sourceObjects.remove(object);
   }
 
-  private void removeOtherObject(final DataObject object) {
-    final Geometry geometry = object.getGeometryValue();
+  private void removeOtherObject(final Record object) {
+    final Geometry geometry = object.getGeometry();
     if (geometry instanceof Point) {
-      otherPointMap.remove(object);
+      this.otherPointMap.remove(object);
     } else {
-      otherIndex.remove(object);
+      this.otherIndex.removeRecord(object);
     }
   }
 
-  public void setEqualFilterFactory(
-    final Factory<Filter<DataObject>, DataObject> equalFilterFactory) {
+  public void setEqualFilterFactory(final Function<Record, Predicate<Record>> equalFilterFactory) {
     this.equalFilterFactory = equalFilterFactory;
   }
 
-  public void setExcludeFilter(final Filter<DataObject> excludeFilter) {
+  public void setExcludeFilter(final Predicate<Record> excludeFilter) {
     this.excludeFilter = excludeFilter;
   }
 
@@ -343,34 +331,34 @@ public class CompareProcessor extends AbstractMergeProcess {
 
   @Override
   protected void setUp() {
-    equalStatistics.connect();
-    notEqualSourceStatistics.connect();
-    notEqualOtherStatistics.connect();
-    duplicateSourceStatistics.connect();
-    duplicateOtherStatistics.connect();
-    excludeNotEqualSourceStatistics.connect();
-    excludeNotEqualOtherStatistics.connect();
+    this.equalStatistics.connect();
+    this.notEqualSourceStatistics.connect();
+    this.notEqualOtherStatistics.connect();
+    this.duplicateSourceStatistics.connect();
+    this.duplicateOtherStatistics.connect();
+    this.excludeNotEqualSourceStatistics.connect();
+    this.excludeNotEqualOtherStatistics.connect();
   }
 
   @Override
   protected void tearDown() {
-    sourceObjects = null;
-    sourcePointMap.clear();
-    otherPointMap = null;
-    otherIndex = null;
-    equalStatistics.disconnect();
-    notEqualSourceStatistics.disconnect();
-    notEqualOtherStatistics.disconnect();
-    duplicateSourceStatistics.disconnect();
-    duplicateOtherStatistics.disconnect();
-    excludeNotEqualSourceStatistics.disconnect();
-    excludeNotEqualOtherStatistics.disconnect();
-    equalStatistics = null;
-    notEqualSourceStatistics = null;
-    notEqualOtherStatistics = null;
-    duplicateSourceStatistics = null;
-    duplicateOtherStatistics = null;
-    excludeNotEqualSourceStatistics = null;
-    excludeNotEqualOtherStatistics = null;
+    this.sourceObjects = null;
+    this.sourcePointMap.clear();
+    this.otherPointMap = null;
+    this.otherIndex = null;
+    this.equalStatistics.disconnect();
+    this.notEqualSourceStatistics.disconnect();
+    this.notEqualOtherStatistics.disconnect();
+    this.duplicateSourceStatistics.disconnect();
+    this.duplicateOtherStatistics.disconnect();
+    this.excludeNotEqualSourceStatistics.disconnect();
+    this.excludeNotEqualOtherStatistics.disconnect();
+    this.equalStatistics = null;
+    this.notEqualSourceStatistics = null;
+    this.notEqualOtherStatistics = null;
+    this.duplicateSourceStatistics = null;
+    this.duplicateOtherStatistics = null;
+    this.excludeNotEqualSourceStatistics = null;
+    this.excludeNotEqualOtherStatistics = null;
   }
 }

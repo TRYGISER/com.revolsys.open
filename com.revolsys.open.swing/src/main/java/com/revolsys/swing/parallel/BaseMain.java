@@ -9,29 +9,29 @@ import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.ToolTipManager;
 import javax.swing.UIManager;
+import javax.swing.UIManager.LookAndFeelInfo;
 
 import org.apache.commons.beanutils.MethodUtils;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
-import org.springframework.util.StringUtils;
 
+import com.revolsys.logging.Logs;
 import com.revolsys.swing.listener.MacApplicationListenerHandler;
 import com.revolsys.swing.logging.ListLog4jAppender;
 import com.revolsys.swing.logging.LoggingEventPanel;
-import com.revolsys.util.ExceptionUtil;
+import com.revolsys.util.Property;
 
 public class BaseMain implements UncaughtExceptionHandler {
 
-  public static void run(final Class<? extends BaseMain> mainClass,
-    final String[] args) {
+  public static void run(final Class<? extends BaseMain> mainClass, final String[] args) {
     try {
       final BaseMain main = mainClass.newInstance();
       main.processArguments(args);
       main.run();
     } catch (final Throwable e) {
-      ExceptionUtil.log(mainClass, e);
+      Logs.error(mainClass, e);
     }
   }
 
@@ -40,19 +40,21 @@ public class BaseMain implements UncaughtExceptionHandler {
       final Class<?> clazz = Class.forName("com.apple.eawt.Application");
       final Method appMethod = clazz.getMethod("getApplication");
       final Object application = appMethod.invoke(clazz);
-      MethodUtils.invokeMethod(application, "setDockIconImage", image);
-
+      if (image != null) {
+        MethodUtils.invokeMethod(application, "setDockIconImage", image);
+      }
       final Class<?> quitStrategyClass = Class.forName("com.apple.eawt.QuitStrategy");
-      final Object closeAllWindows = quitStrategyClass.getField(
-        "CLOSE_ALL_WINDOWS").get(quitStrategyClass);
-      MethodUtils.invokeExactMethod(application, "setQuitStrategy",
-        closeAllWindows);
+      final Object closeAllWindows = quitStrategyClass.getField("CLOSE_ALL_WINDOWS")
+        .get(quitStrategyClass);
+      MethodUtils.invokeExactMethod(application, "setQuitStrategy", closeAllWindows);
       MacApplicationListenerHandler.init(application);
     } catch (final ClassNotFoundException t) {
     } catch (final Throwable t) {
       t.printStackTrace();
     }
   }
+
+  private String lookAndFeelName;
 
   private final String name;
 
@@ -61,15 +63,21 @@ public class BaseMain implements UncaughtExceptionHandler {
     Thread.setDefaultUncaughtExceptionHandler(this);
   }
 
-  public void doPreRun() throws Throwable {
-
+  public String getLookAndFeelName() {
+    return this.lookAndFeelName;
   }
 
-  public void doRun() throws Throwable {
-    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-    JFrame.setDefaultLookAndFeelDecorated(true);
-    JDialog.setDefaultLookAndFeelDecorated(true);
-    ToolTipManager.sharedInstance().setInitialDelay(100);
+  public void logError(final Throwable e) {
+    final Logger logger = Logger.getLogger(getClass());
+    final LoggingEvent event = new LoggingEvent(logger.getClass().getName(), logger, Level.ERROR,
+      "Unable to start application", e);
+
+    LoggingEventPanel.showDialog(null, event);
+    Logs.error(this, "Unable to start application " + this.name, e);
+  }
+
+  protected void preRunDo() throws Throwable {
+
   }
 
   public void processArguments(final String[] args) {
@@ -77,33 +85,61 @@ public class BaseMain implements UncaughtExceptionHandler {
 
   public void run() {
     try {
-      doPreRun();
-      Invoke.later(this, "doRun");
+      preRunDo();
+      Invoke.later(() -> {
+        try {
+          runDo();
+        } catch (final Throwable e) {
+          logError(e);
+        }
+      });
     } catch (final Throwable e) {
-      final Logger logger = Logger.getLogger(getClass());
-      final LoggingEvent event = new LoggingEvent(logger.getClass().getName(),
-        logger, Level.ERROR, "Unable to start application", e);
-
-      LoggingEventPanel.showDialog(null, event);
-      ExceptionUtil.log(getClass(), "Unable to start application " + name, e);
+      logError(e);
     }
+  }
+
+  protected void runDo() throws Throwable {
+    boolean lookSet = false;
+    if (Property.hasValue(this.lookAndFeelName)) {
+      final LookAndFeelInfo[] installedLookAndFeels = UIManager.getInstalledLookAndFeels();
+      for (final LookAndFeelInfo lookAndFeelInfo : installedLookAndFeels) {
+        final String name = lookAndFeelInfo.getName();
+        if (this.lookAndFeelName.equals(name)) {
+          try {
+            final String className = lookAndFeelInfo.getClassName();
+            UIManager.setLookAndFeel(className);
+            lookSet = true;
+          } catch (final Throwable e) {
+          }
+        }
+      }
+    }
+    if (!lookSet) {
+      UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+    }
+    JFrame.setDefaultLookAndFeelDecorated(true);
+    JDialog.setDefaultLookAndFeelDecorated(true);
+    ToolTipManager.sharedInstance().setInitialDelay(100);
+  }
+
+  public void setLookAndFeelName(final String lookAndFeelName) {
+    this.lookAndFeelName = lookAndFeelName;
   }
 
   @Override
   public void uncaughtException(final Thread t, final Throwable e) {
     final Class<? extends BaseMain> logClass = getClass();
     String message = e.getMessage();
-    if (!StringUtils.hasText(message)) {
+    if (!Property.hasValue(message)) {
       if (e instanceof NullPointerException) {
         message = "Null pointer";
       } else {
-        message = "Unknow error";
+        message = "Unknown error";
       }
     }
-    ExceptionUtil.log(logClass, message, e);
+    Logs.error(logClass, message, e);
     @SuppressWarnings("unchecked")
-    final Enumeration<Appender> allAppenders = Logger.getRootLogger()
-      .getAllAppenders();
+    final Enumeration<Appender> allAppenders = Logger.getRootLogger().getAllAppenders();
     while (allAppenders.hasMoreElements()) {
       final Appender appender = allAppenders.nextElement();
       if (appender instanceof ListLog4jAppender) {
@@ -111,8 +147,8 @@ public class BaseMain implements UncaughtExceptionHandler {
       }
     }
     final Logger logger = Logger.getLogger(logClass);
-    final LoggingEvent event = new LoggingEvent(logger.getClass().getName(),
-      logger, Level.ERROR, message, e);
+    final LoggingEvent event = new LoggingEvent(logger.getClass().getName(), logger, Level.ERROR,
+      message, e);
 
     LoggingEventPanel.showDialog(null, event);
 

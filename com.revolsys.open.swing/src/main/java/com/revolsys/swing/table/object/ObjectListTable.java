@@ -8,19 +8,23 @@ import javax.swing.event.TableModelEvent;
 
 import org.jdesktop.swingx.table.TableColumnExt;
 
-import com.revolsys.swing.table.BaseJxTable;
+import com.revolsys.swing.table.BaseJTable;
 
-public class ObjectListTable<T> extends BaseJxTable implements Iterable<T> {
+public class ObjectListTable<T> extends BaseJTable implements Iterable<T> {
   private static final long serialVersionUID = 1L;
 
-  public ObjectListTable(final List<String> columnNames,
-    final List<String> columnTitles) {
+  public ObjectListTable(final List<String> columnNames, final List<String> columnTitles) {
     this(new ObjectListTableModel<T>(columnNames, columnTitles));
   }
 
   public ObjectListTable(final List<T> objects, final List<String> columnNames,
     final List<String> titles) {
-    this(new ObjectListTableModel<T>(objects, columnNames, titles));
+    this(new ObjectListTableModel<>(objects, columnNames, titles));
+  }
+
+  public ObjectListTable(final List<T> objects, final List<String> columnNames,
+    final List<String> columnTitles, final List<Class<?>> columnClasses) {
+    this(new ObjectListTableModel<>(objects, columnNames, columnTitles, columnClasses));
   }
 
   public ObjectListTable(final ObjectListTableModel<T> model) {
@@ -30,7 +34,6 @@ public class ObjectListTable<T> extends BaseJxTable implements Iterable<T> {
       final TableColumnExt column = getColumnExt(i);
       column.sizeWidthToFit();
     }
-    model.addTableModelListener(this);
   }
 
   public ObjectListTable(final String... columnNames) {
@@ -48,7 +51,7 @@ public class ObjectListTable<T> extends BaseJxTable implements Iterable<T> {
 
   @SuppressWarnings("unchecked")
   public <V> V getSelectedObject() {
-    final int selectedRow = getSelectedRow();
+    final int selectedRow = getSelectedRowInModel();
     if (selectedRow > -1) {
       final ObjectListTableModel<T> model = getObjectListTableModel();
       return (V)model.getObject(selectedRow);
@@ -57,6 +60,7 @@ public class ObjectListTable<T> extends BaseJxTable implements Iterable<T> {
     }
   }
 
+  @Override
   @SuppressWarnings("unchecked")
   public ObjectListTableModel<T> getTableModel() {
     return (ObjectListTableModel<T>)getModel();

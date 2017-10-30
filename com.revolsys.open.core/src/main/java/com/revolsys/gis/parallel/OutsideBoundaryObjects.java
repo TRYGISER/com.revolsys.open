@@ -3,74 +3,67 @@ package com.revolsys.gis.parallel;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.jts.geom.Geometry;
-import com.revolsys.jts.geom.prep.PreparedGeometry;
-import com.revolsys.jts.geom.prep.PreparedGeometryFactory;
+import com.revolsys.geometry.model.Geometry;
+import com.revolsys.logging.Logs;
+import com.revolsys.record.Record;
 
 public class OutsideBoundaryObjects {
-  private static final Logger LOG = LoggerFactory.getLogger(OutsideBoundaryObjects.class);
-
-  private Set<DataObject> objects = new LinkedHashSet<DataObject>();
-
   private Geometry boundary;
 
-  private PreparedGeometry preparedBoundary;
+  private Set<Record> objects = new LinkedHashSet<>();
 
-  public boolean addObject(final DataObject object) {
-    return objects.add(object);
-  }
+  private Geometry preparedBoundary;
 
-  public boolean boundaryContains(final DataObject object) {
-    final Geometry geometry = object.getGeometryValue();
-    return boundaryContains(geometry);
+  public boolean addObject(final Record object) {
+    return this.objects.add(object);
   }
 
   public boolean boundaryContains(final Geometry geometry) {
-    return geometry == null || boundary == null
-      || preparedBoundary.contains(geometry);
+    return geometry == null || this.boundary == null || this.preparedBoundary.contains(geometry);
+  }
+
+  public boolean boundaryContains(final Record object) {
+    final Geometry geometry = object.getGeometry();
+    return boundaryContains(geometry);
   }
 
   public void clear() {
-    objects = new LinkedHashSet<DataObject>();
+    this.objects = new LinkedHashSet<>();
   }
 
   public void expandBoundary(final Geometry geometry) {
-    if (boundary == null) {
+    if (this.boundary == null) {
       setBoundary(geometry);
     } else {
-      setBoundary(boundary.union(geometry));
+      setBoundary(this.boundary.union(geometry));
     }
   }
 
-  public Set<DataObject> getAndClearObjects() {
-    final Set<DataObject> objects = this.objects;
-    LOG.info("Outside boundary objects size=" + this.objects.size());
+  public Set<Record> getAndClearObjects() {
+    final Set<Record> objects = this.objects;
+    Logs.info(this, "Outside boundary objects size=" + this.objects.size());
     clear();
     return objects;
   }
 
   public Geometry getBoundary() {
-    return boundary;
+    return this.boundary;
   }
 
-  public Set<DataObject> getObjects() {
-    return objects;
+  public Set<Record> getObjects() {
+    return this.objects;
   }
 
-  public boolean removeObject(final DataObject object) {
-    return objects.remove(object);
+  public boolean removeObject(final Record object) {
+    return this.objects.remove(object);
   }
 
   public void setBoundary(final Geometry boundary) {
     this.boundary = boundary;
-    this.preparedBoundary = PreparedGeometryFactory.prepare(boundary);
+    this.preparedBoundary = boundary.prepare();
   }
 
-  public void setObjects(final Set<DataObject> objects) {
+  public void setObjects(final Set<Record> objects) {
     this.objects = objects;
   }
 }

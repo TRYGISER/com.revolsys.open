@@ -9,20 +9,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
 
-import com.revolsys.util.ExceptionUtil;
+import com.revolsys.logging.Logs;
+import com.revolsys.util.Property;
 
 public class StringTemplate implements Serializable {
   /**
-  * Static inner class to parse URI template strings into a matching regular
-  * expression.
-  */
+   * Static inner class to parse URI template strings into a matching regular
+   * expression.
+   */
   private static class Parser {
 
-    private final List<String> variableNames = new LinkedList<String>();
-
     private final StringBuilder patternBuilder = new StringBuilder();
+
+    private final List<String> variableNames = new LinkedList<>();
 
     private Parser(final String uriTemplate) {
       Assert.hasText(uriTemplate, "'template' must not be null");
@@ -53,31 +53,31 @@ public class StringTemplate implements Serializable {
     }
   }
 
-  private static final long serialVersionUID = 1L;
-
   private static final Pattern NAMES_PATTERN = Pattern.compile("\\{([^/]+?)\\}");
+
+  private static final long serialVersionUID = 1L;
 
   private static final String VALUE_REGEX = "(.*)";
 
-  private List<String> variableNames;
-
   private final String template;
+
+  private List<String> variableNames;
 
   public StringTemplate(final String template) {
     this.template = template;
-    if (StringUtils.hasText(template)) {
+    if (Property.hasValue(template)) {
       try {
         final Parser parser = new Parser(template);
         this.variableNames = parser.getVariableNames();
       } catch (final Throwable e) {
-        ExceptionUtil.log(getClass(), "Invalid Template:" + template, e);
+        Logs.error(this, "Invalid Template:" + template, e);
       }
     }
   }
 
   public String expand(Map<String, ?> uriVariables) {
-    if (variableNames == null) {
-      return template;
+    if (this.variableNames == null) {
+      return this.template;
     } else {
       if (uriVariables == null) {
         uriVariables = Collections.emptyMap();
@@ -104,7 +104,7 @@ public class StringTemplate implements Serializable {
       final Object uriVariable = uriVariableValues[i++];
       String replacement;
       if (uriVariable == null) {
-        replacement = Matcher.quoteReplacement("");
+        replacement = Matcher.quoteReplacement("null");
       } else {
         replacement = Matcher.quoteReplacement(uriVariable.toString());
       }
@@ -115,12 +115,12 @@ public class StringTemplate implements Serializable {
   }
 
   public List<String> getVariableNames() {
-    return variableNames;
+    return this.variableNames;
   }
 
   @Override
   public String toString() {
-    return template;
+    return this.template;
   }
 
 }

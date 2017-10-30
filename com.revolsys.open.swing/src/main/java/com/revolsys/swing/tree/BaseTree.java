@@ -1,188 +1,226 @@
 package com.revolsys.swing.tree;
 
-import java.awt.Component;
-import java.awt.Window;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
+import java.awt.Rectangle;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.util.Arrays;
+import java.util.List;
 
-import javax.swing.JPopupMenu;
+import javax.swing.DropMode;
 import javax.swing.JTree;
-import javax.swing.SwingUtilities;
-import javax.swing.event.TreeExpansionEvent;
-import javax.swing.event.TreeExpansionListener;
-import javax.swing.event.TreeWillExpandListener;
-import javax.swing.tree.ExpandVetoException;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.DefaultTreeSelectionModel;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
+import javax.swing.tree.TreeSelectionModel;
 
+import com.revolsys.collection.EmptyReference;
+import com.revolsys.collection.map.LinkedHashMapEx;
+import com.revolsys.collection.map.MapEx;
+import com.revolsys.properties.ObjectWithProperties;
 import com.revolsys.swing.menu.MenuFactory;
-import com.revolsys.swing.tree.model.ObjectTreeModel;
-import com.revolsys.swing.tree.model.node.AbstractTreeNode;
-import com.revolsys.swing.tree.model.node.LazyLoadTreeNode;
+import com.revolsys.swing.parallel.Invoke;
+import com.revolsys.swing.tree.dnd.TreeTransferHandler;
+import com.revolsys.swing.tree.node.OpenStateTreeNode;
 
-public class BaseTree extends JTree implements MouseListener,
-  TreeWillExpandListener, TreeExpansionListener {
+public class BaseTree extends JTree implements ObjectWithProperties {
+  private static Reference<BaseTreeNode> menuNode = new EmptyReference<>();
+
   private static final long serialVersionUID = 1L;
+
+  @SuppressWarnings("unchecked")
+  public static <V extends BaseTreeNode> V getMenuNode() {
+    return (V)menuNode.get();
+  }
+
+  protected static void setMenuNode(final BaseTreeNode menuNode) {
+    BaseTree.menuNode = new WeakReference<>(menuNode);
+  }
+
+  private final MapEx properties = new LinkedHashMapEx();
 
   private boolean menuEnabled = true;
 
-  static Object mouseClickItem = null;
+  private BaseTreeListener treeListener = new BaseTreeListener(this);
 
-  @SuppressWarnings("unchecked")
-  public static <V> V getMouseClickItem() {
-    return (V)mouseClickItem;
-  }
-
-  public static void showMenu(final MenuFactory menuFactory,
-    final Object object, final Component component, final int x, final int y) {
-    if (menuFactory != null) {
-      mouseClickItem = object;
-      final JPopupMenu menu = menuFactory.createJPopupMenu();
-      if (menu != null) {
-        final int numItems = menu.getSubElements().length;
-        if (menu != null && numItems > 0) {
-          final Window window = SwingUtilities.windowForComponent(component);
-          if (window != null) {
-            if (window.isAlwaysOnTop()) {
-              window.setAlwaysOnTop(true);
-              window.setAlwaysOnTop(false);
-            }
-            window.toFront();
-          }
-          menu.show(component, x, y);
-          // TODO add listener to set item=null
-        }
-      }
-    }
-  }
-
-  public static void showMenu(final Object object, final Component component,
-    final int x, final int y) {
-    if (object != null) {
-      final MenuFactory menu = ObjectTreeModel.findMenu(object);
-      showMenu(menu, object, component, x, y);
-    }
-  }
-
-  public BaseTree() {
-    this(getDefaultTreeModel());
-  }
-
-  public BaseTree(final TreeModel newModel) {
-    super(newModel);
-    final Object root = newModel.getRoot();
-    if (root instanceof AbstractTreeNode) {
-      final AbstractTreeNode treeNode = (AbstractTreeNode)root;
-      treeNode.setTree(this);
-    }
-    addTreeWillExpandListener(this);
-    addTreeExpansionListener(this);
-    addMouseListener(this);
+  public BaseTree(final BaseTreeNode root) {
+    super(new DefaultTreeModel(root, true));
+    setRoot(root);
+    setRootVisible(true);
+    setShowsRootHandles(true);
+    setLargeModel(true);
+    setToggleClickCount(0);
     setRowHeight(0);
+    setCellRenderer(new BaseTreeCellRenderer());
+    setExpandsSelectedPaths(true);
+    setTransferHandler(new TreeTransferHandler());
+    setDragEnabled(true);
+    setDropMode(DropMode.ON_OR_INSERT);
+    final DefaultTreeSelectionModel selectionModel = new DefaultTreeSelectionModel();
+    selectionModel.setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+    setSelectionModel(selectionModel);
+    expandPath(root);
+  }
+
+  public void collapsePath(final List<Object> items) {
+    final TreePath path = getTreePath(items);
+    collapsePath(path);
+  }
+
+  public void collapsePath(final Object... items) {
+    if (items != null) {
+      collapsePath(Arrays.asList(items));
+    }
   }
 
   @Override
   public void collapsePath(final TreePath path) {
     final Object node = path.getLastPathComponent();
-    if (node instanceof AbstractTreeNode) {
-      final AbstractTreeNode treeNode = (AbstractTreeNode)node;
+    if (node instanceof BaseTreeNode) {
+      final BaseTreeNode treeNode = (BaseTreeNode)node;
       treeNode.collapseChildren();
       treeNode.nodeCollapsed(treeNode);
     }
     super.collapsePath(path);
   }
 
+  public void expandAllNodes() {
+    expandAllNodes(0, getRowCount());
+  }
+
+  private void expandAllNodes(final int startingIndex, final int rowCount) {
+    for (int i = startingIndex; i < rowCount; ++i) {
+      expandRow(i);
+    }
+
+    if (getRowCount() != rowCount) {
+      expandAllNodes(rowCount, getRowCount());
+    }
+  }
+
+  public void expandPath(final List<?> items) {
+    final TreePath path = getTreePath(items);
+    expandPath(path);
+  }
+
+  public void expandPath(final Object... items) {
+    if (items != null) {
+      expandPath(Arrays.asList(items));
+    }
+  }
+
   public MenuFactory getMenuFactory(final TreePath path) {
     final Object node = path.getLastPathComponent();
-    if (node instanceof AbstractTreeNode) {
-      final AbstractTreeNode treeNode = (AbstractTreeNode)node;
+    if (node instanceof BaseTreeNode) {
+      final BaseTreeNode treeNode = (BaseTreeNode)node;
       return treeNode.getMenu();
     } else {
       return null;
     }
   }
 
-  public boolean isMenuEnabled() {
-    return menuEnabled;
+  @Override
+  public DefaultTreeModel getModel() {
+    return (DefaultTreeModel)super.getModel();
   }
 
   @Override
-  public void mouseClicked(final MouseEvent e) {
-  }
-
-  @Override
-  public void mouseEntered(final MouseEvent e) {
-  }
-
-  @Override
-  public void mouseExited(final MouseEvent e) {
-  }
-
-  @Override
-  public void mousePressed(final MouseEvent e) {
-    if (e.isPopupTrigger()) {
-      popup(e);
-      repaint();
-    }
-  }
-
-  @Override
-  public void mouseReleased(final MouseEvent e) {
-    if (e.isPopupTrigger()) {
-      popup(e);
-      repaint();
-    }
-  }
-
-  private void popup(final MouseEvent e) {
-    if (this.menuEnabled) {
-      final int x = e.getX() + 5;
-      final int y = e.getY();
-      final TreePath path = getPathForLocation(x, y);
-      if (path != null) {
-
-        TreePath[] selectionPaths = getSelectionPaths();
-        if (selectionPaths == null
-          || !Arrays.asList(selectionPaths).contains(path)) {
-          selectionPaths = new TreePath[] {
-            path
-          };
-          setSelectionPaths(selectionPaths);
-        }
-
-        final MenuFactory menu = getMenuFactory(path);
-        final Object node = path.getLastPathComponent();
-        showMenu(menu, node, this, x, y);
+  public Rectangle getPathBounds(final TreePath path) {
+    final Object lastPathComponent = path.getLastPathComponent();
+    if (lastPathComponent instanceof BaseTreeNode) {
+      final BaseTreeNode treeNode = (BaseTreeNode)lastPathComponent;
+      if (!treeNode.isVisible()) {
+        return null;
       }
     }
+    return super.getPathBounds(path);
+  }
+
+  @Override
+  public MapEx getProperties() {
+    return this.properties;
+  }
+
+  public BaseTreeNode getRootNode() {
+    final TreeModel model = getModel();
+    final BaseTreeNode root = (BaseTreeNode)model.getRoot();
+    return root;
+  }
+
+  public TreePath getTreePath(final List<?> items) {
+    final BaseTreeNode root = getRootNode();
+    if (root == null) {
+      return null;
+    } else {
+      return root.getTreePath(items);
+    }
+
+  }
+
+  public boolean isMenuEnabled() {
+    return this.menuEnabled;
+  }
+
+  @Override
+  public void removeNotify() {
+    setTransferHandler(null);
+    setDragEnabled(false);
+    getRootNode().setParent(null);
+  }
+
+  @Override
+  protected void setExpandedState(final TreePath path, final boolean state) {
+    Invoke.later(() -> {
+      super.setExpandedState(path, state);
+      if (isExpanded(path) == state) {
+        final Object node = path.getLastPathComponent();
+        if (node instanceof OpenStateTreeNode) {
+          final OpenStateTreeNode openState = (OpenStateTreeNode)node;
+          openState.setOpen(state);
+        }
+        if (node instanceof BaseTreeNode) {
+          final BaseTreeNode treeNode = (BaseTreeNode)node;
+          if (treeNode.isAllowsChildren()) {
+            for (final BaseTreeNode childNode : treeNode.getChildren()) {
+              if (childNode instanceof OpenStateTreeNode) {
+                final OpenStateTreeNode childState = (OpenStateTreeNode)childNode;
+                if (childState.isOpen()) {
+                  final TreePath childPath = childNode.getTreePath();
+                  setExpandedState(childPath, true);
+                }
+              }
+            }
+          }
+        }
+      }
+    });
   }
 
   public void setMenuEnabled(final boolean menuEnabled) {
     this.menuEnabled = menuEnabled;
   }
 
-  @Override
-  public void treeCollapsed(final TreeExpansionEvent event) {
-  }
-
-  @Override
-  public void treeExpanded(final TreeExpansionEvent event) {
-  }
-
-  @Override
-  public void treeWillCollapse(final TreeExpansionEvent event)
-    throws ExpandVetoException {
-  }
-
-  @Override
-  public void treeWillExpand(final TreeExpansionEvent event)
-    throws ExpandVetoException {
-    final TreePath path = event.getPath();
-    final Object node = path.getLastPathComponent();
-    if (node instanceof LazyLoadTreeNode) {
-      final LazyLoadTreeNode lazyLoadTreeNode = (LazyLoadTreeNode)node;
-      lazyLoadTreeNode.loadChildren();
+  public void setRoot(final BaseTreeNode root) {
+    final DefaultTreeModel model = getModel();
+    final BaseTreeNode oldRoot = getRootNode();
+    if (oldRoot != null && root != oldRoot) {
+      oldRoot.delete();
     }
+    model.setRoot(root);
+    if (root != null) {
+      root.setTree(this);
+    }
+  }
+
+  public void setRoot(final Object root) {
+    final BaseTreeNode rootNode = BaseTreeNode.newTreeNode(root);
+    setRoot(rootNode);
+  }
+
+  public void setTreeListener(final BaseTreeListener treeListener) {
+    if (this.treeListener != treeListener) {
+      this.treeListener.close();
+    }
+    this.treeListener = treeListener;
   }
 }

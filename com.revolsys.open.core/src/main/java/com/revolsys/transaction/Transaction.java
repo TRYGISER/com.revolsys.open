@@ -4,12 +4,25 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.revolsys.util.ExceptionUtil;
+import com.revolsys.io.BaseCloseable;
+import com.revolsys.util.Exceptions;
 
-public class Transaction implements AutoCloseable {
+public class Transaction implements BaseCloseable {
 
   private static ThreadLocal<Transaction> currentTransaction = new ThreadLocal<>();
+
+  public static void afterCommit(final Runnable runnable) {
+    if (runnable != null) {
+      if (TransactionSynchronizationManager.isSynchronizationActive()) {
+        final RunnableAfterCommit synchronization = new RunnableAfterCommit(runnable);
+        TransactionSynchronizationManager.registerSynchronization(synchronization);
+      } else {
+        runnable.run();
+      }
+    }
+  }
 
   public static Transaction getCurrentTransaction() {
     return currentTransaction.get();
@@ -20,14 +33,13 @@ public class Transaction implements AutoCloseable {
   }
 
   public static Runnable runnable(final Runnable runnable,
-    final PlatformTransactionManager transactionManager,
-    final Propagation propagation) {
+    final PlatformTransactionManager transactionManager, final Propagation propagation) {
     if (transactionManager == null || propagation == null) {
       return runnable;
     } else {
-      final DefaultTransactionDefinition transactionDefinition = Transaction.transactionDefinition(propagation);
-      return new TransactionRunnable(transactionManager, transactionDefinition,
-        runnable);
+      final DefaultTransactionDefinition transactionDefinition = Transaction
+        .transactionDefinition(propagation);
+      return new TransactionRunnable(transactionManager, transactionDefinition, runnable);
     }
   }
 
@@ -38,8 +50,7 @@ public class Transaction implements AutoCloseable {
     }
   }
 
-  public static DefaultTransactionDefinition transactionDefinition(
-    final Propagation propagation) {
+  public static DefaultTransactionDefinition transactionDefinition(final Propagation propagation) {
     if (propagation == null) {
       return null;
     } else {
@@ -51,9 +62,8 @@ public class Transaction implements AutoCloseable {
   }
 
   public static DefaultTransactionStatus transactionStatus(
-    final PlatformTransactionManager transactionManager,
-    final Propagation propagation) {
-    if (propagation == null) {
+    final PlatformTransactionManager transactionManager, final Propagation propagation) {
+    if (propagation == null || transactionManager == null) {
       return null;
     } else {
       final DefaultTransactionDefinition transactionDefinition = transactionDefinition(propagation);
@@ -95,35 +105,33 @@ public class Transaction implements AutoCloseable {
 
   public Transaction(final PlatformTransactionManager transactionManager,
     final Propagation propagation) {
-    this(transactionManager, Transaction.transactionStatus(transactionManager,
-      propagation));
+    this(transactionManager, Transaction.transactionStatus(transactionManager, propagation));
   }
 
   public Transaction(final PlatformTransactionManager transactionManager,
     final TransactionDefinition transactionDefinition) {
-    this(transactionManager, transactionStatus(transactionManager,
-      transactionDefinition));
+    this(transactionManager, transactionStatus(transactionManager, transactionDefinition));
   }
 
   @Override
   public void close() throws RuntimeException {
     commit();
-    currentTransaction.set(previousTransaction);
+    currentTransaction.set(this.previousTransaction);
     this.transactionManager = null;
     this.previousTransaction = null;
     this.transactionStatus = null;
   }
 
   protected void commit() {
-    if (transactionManager != null && transactionStatus != null) {
-      if (!transactionStatus.isCompleted()) {
-        if (transactionStatus.isRollbackOnly()) {
+    if (this.transactionManager != null && this.transactionStatus != null) {
+      if (!this.transactionStatus.isCompleted()) {
+        if (this.transactionStatus.isRollbackOnly()) {
           rollback();
         } else {
           try {
-            transactionManager.commit(transactionStatus);
+            this.transactionManager.commit(this.transactionStatus);
           } catch (final Throwable e) {
-            ExceptionUtil.throwUncheckedException(e);
+            Exceptions.throwUncheckedException(e);
           }
         }
       }
@@ -131,31 +139,39 @@ public class Transaction implements AutoCloseable {
   }
 
   public PlatformTransactionManager getTransactionManager() {
-    return transactionManager;
+    return this.transactionManager;
   }
 
   public DefaultTransactionStatus getTransactionStatus() {
-    return transactionStatus;
+    return this.transactionStatus;
+  }
+
+  public boolean isCompleted() {
+    if (this.transactionStatus == null) {
+      return true;
+    } else {
+      return this.transactionStatus.isCompleted();
+    }
   }
 
   public boolean isRollbackOnly() {
-    return transactionStatus.isRollbackOnly();
+    return this.transactionStatus.isRollbackOnly();
   }
 
   protected void rollback() {
-    if (transactionManager != null && transactionStatus != null) {
-      transactionManager.rollback(transactionStatus);
+    if (this.transactionManager != null && this.transactionStatus != null) {
+      this.transactionManager.rollback(this.transactionStatus);
     }
   }
 
   public void setRollbackOnly() {
-    if (transactionStatus != null) {
-      transactionStatus.setRollbackOnly();
+    if (this.transactionStatus != null) {
+      this.transactionStatus.setRollbackOnly();
     }
   }
 
   public RuntimeException setRollbackOnly(final Throwable e) {
     setRollbackOnly();
-    return ExceptionUtil.throwUncheckedException(e);
+    return Exceptions.throwUncheckedException(e);
   }
 }

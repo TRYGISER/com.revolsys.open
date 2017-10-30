@@ -1,18 +1,18 @@
 package com.revolsys.visitor;
 
 import java.util.Comparator;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
-import com.revolsys.collection.Visitor;
 import com.revolsys.comparator.ComparatorProxy;
-import com.revolsys.filter.AndFilter;
-import com.revolsys.filter.Filter;
-import com.revolsys.filter.FilterProxy;
+import com.revolsys.predicate.PredicateProxy;
+import com.revolsys.predicate.Predicates;
 
-public abstract class AbstractVisitor<T> implements Visitor<T>, FilterProxy<T>,
-  ComparatorProxy<T> {
-  private Filter<T> filter;
-
+public abstract class AbstractVisitor<T>
+  implements Consumer<T>, PredicateProxy<T>, ComparatorProxy<T> {
   private Comparator<T> comparator;
+
+  private Predicate<T> predicate = Predicates.all();
 
   public AbstractVisitor() {
   }
@@ -21,34 +21,34 @@ public abstract class AbstractVisitor<T> implements Visitor<T>, FilterProxy<T>,
     this.comparator = comparator;
   }
 
-  public AbstractVisitor(final Filter<T> filter) {
-    this.filter = filter;
+  public AbstractVisitor(final Predicate<T> predicate) {
+    setPredicate(predicate);
   }
 
-  public AbstractVisitor(final Filter<T> filter, final Comparator<T> comparator) {
-    this.filter = filter;
+  public AbstractVisitor(final Predicate<T> predicate, final Comparator<T> comparator) {
     this.comparator = comparator;
+    setPredicate(predicate);
   }
 
   @Override
   public Comparator<T> getComparator() {
-    return comparator;
+    return this.comparator;
   }
 
   @Override
-  public Filter<T> getFilter() {
-    return filter;
+  public Predicate<T> getPredicate() {
+    return this.predicate;
   }
 
   public void setComparator(final Comparator<T> comparator) {
     this.comparator = comparator;
   }
 
-  public void setFilter(final Filter<T> filter) {
-    this.filter = filter;
-  }
-
-  public void setFilters(final Filter<T>... filters) {
-    this.filter = new AndFilter<T>(filters);
+  public void setPredicate(final Predicate<T> predicate) {
+    if (predicate == null) {
+      this.predicate = Predicates.all();
+    } else {
+      this.predicate = predicate;
+    }
   }
 }

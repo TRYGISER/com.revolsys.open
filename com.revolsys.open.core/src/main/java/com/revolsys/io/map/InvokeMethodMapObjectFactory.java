@@ -1,47 +1,49 @@
 package com.revolsys.io.map;
 
-import java.lang.ref.Reference;
-import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 
 import org.apache.commons.beanutils.MethodUtils;
 
-import com.revolsys.util.ExceptionUtil;
+import com.revolsys.collection.map.LinkedHashMapEx;
+import com.revolsys.collection.map.MapEx;
+import com.revolsys.util.Exceptions;
 
-public class InvokeMethodMapObjectFactory extends AbstractMapObjectFactory {
-
-  private final Reference<Object> object;
-
+public class InvokeMethodMapObjectFactory extends AbstractMapObjectFactory
+  implements MapSerializer {
   private final String methodName;
 
-  public InvokeMethodMapObjectFactory(final String typeName,
-    final String description, final Object object, final String methodName) {
+  private final Class<?> typeClass;
+
+  public InvokeMethodMapObjectFactory(final String typeName, final String description,
+    final Class<?> typeClass, final String methodName) {
     super(typeName, description);
-    this.object = new WeakReference<Object>(object);
+    this.typeClass = typeClass;
     this.methodName = methodName;
   }
 
   @SuppressWarnings("unchecked")
   @Override
-  public <V> V toObject(final Map<String, ? extends Object> properties) {
+  public <V> V mapToObject(final Map<String, ? extends Object> properties) {
     try {
-      final Object object = this.object.get();
-      if (object instanceof Class<?>) {
-        final Class<?> clazz = (Class<?>)object;
-        return (V)MethodUtils.invokeStaticMethod(clazz, this.methodName,
-          properties);
-      } else if (object != null) {
-        return (V)MethodUtils.invokeMethod(object, this.methodName, properties);
-      } else {
-        return null;
-      }
+      final Class<?> clazz = this.typeClass;
+      return (V)MethodUtils.invokeStaticMethod(clazz, this.methodName, properties);
     } catch (final NoSuchMethodException e) {
-      return ExceptionUtil.throwUncheckedException(e);
+      return Exceptions.throwUncheckedException(e);
     } catch (final IllegalAccessException e) {
-      return ExceptionUtil.throwUncheckedException(e);
+      return Exceptions.throwUncheckedException(e);
     } catch (final InvocationTargetException e) {
-      return ExceptionUtil.throwCauseException(e);
+      return Exceptions.throwCauseException(e);
     }
+  }
+
+  @Override
+  public MapEx toMap() {
+    final MapEx map = new LinkedHashMapEx();
+    map.put("typeName", getTypeName());
+    map.put("description", getDescription());
+    map.put("typeClass", this.typeClass);
+    map.put("methodName", this.methodName);
+    return map;
   }
 }

@@ -4,25 +4,32 @@ import java.awt.Component;
 
 import javax.swing.Action;
 import javax.swing.Icon;
-import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenuItem;
 
+import com.revolsys.swing.action.AbstractAction;
+import com.revolsys.swing.action.RunnableAction;
 import com.revolsys.swing.action.enablecheck.EnableCheck;
 import com.revolsys.swing.component.ComponentFactory;
-import com.revolsys.util.ExceptionUtil;
+import com.revolsys.util.Exceptions;
 
 public class ActionMainMenuItemFactory implements ComponentFactory<JMenuItem> {
 
+  private final AbstractAction action;
+
   private EnableCheck checkBoxSelectedCheck;
 
-  private final Action action;
+  private String iconName;
 
-  public ActionMainMenuItemFactory(final Action action) {
+  public ActionMainMenuItemFactory(final AbstractAction action) {
     this.action = action;
+    if (action instanceof RunnableAction) {
+      final RunnableAction runnableAction = (RunnableAction)action;
+      this.iconName = runnableAction.getIconName();
+    }
   }
 
   public ActionMainMenuItemFactory(final EnableCheck checkBoxSelectedCheck,
-    final Action action) {
+    final AbstractAction action) {
     this(action);
     this.checkBoxSelectedCheck = checkBoxSelectedCheck;
   }
@@ -32,7 +39,7 @@ public class ActionMainMenuItemFactory implements ComponentFactory<JMenuItem> {
     try {
       return (ActionMainMenuItemFactory)super.clone();
     } catch (final CloneNotSupportedException e) {
-      return ExceptionUtil.throwUncheckedException(e);
+      return Exceptions.throwUncheckedException(e);
     }
   }
 
@@ -42,19 +49,13 @@ public class ActionMainMenuItemFactory implements ComponentFactory<JMenuItem> {
   }
 
   @Override
-  public JMenuItem createComponent() {
-    if (this.checkBoxSelectedCheck != null) {
-      final JCheckBoxMenuItem menuItem = new JCheckBoxMenuItem(this.action);
-      menuItem.setSelected(this.checkBoxSelectedCheck.isEnabled());
-      return menuItem;
-    } else {
-      return new JMenuItem(this.action);
-    }
+  public final Icon getIcon() {
+    return (Icon)this.action.getValue(Action.SMALL_ICON);
   }
 
   @Override
-  public final Icon getIcon() {
-    return (Icon)this.action.getValue(Action.SMALL_ICON);
+  public String getIconName() {
+    return this.iconName;
   }
 
   @Override
@@ -65,6 +66,17 @@ public class ActionMainMenuItemFactory implements ComponentFactory<JMenuItem> {
   @Override
   public String getToolTip() {
     return (String)this.action.getValue(Action.SHORT_DESCRIPTION);
+  }
+
+  @Override
+  public JMenuItem newComponent() {
+    if (this.checkBoxSelectedCheck == null) {
+      return this.action.newMenuItem();
+    } else {
+      final CheckBoxMenuItem menuItem = this.action.newCheckboxMenuItem();
+      menuItem.setSelectedCheck(this.checkBoxSelectedCheck);
+      return menuItem;
+    }
   }
 
   @Override

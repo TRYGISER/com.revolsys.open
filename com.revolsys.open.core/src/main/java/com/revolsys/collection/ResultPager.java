@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,6 +15,7 @@
  */
 package com.revolsys.collection;
 
+import java.io.Closeable;
 import java.util.List;
 
 /**
@@ -27,117 +28,120 @@ import java.util.List;
  * display the appropriate navigation controls. The {@link #getList()} method is
  * used to return the List of objects in the current page.
  * </p>
- * 
+ *
  * @author Paul Austin
  * @param <T> The type of object to page.
  */
-public interface ResultPager<T> extends AutoCloseable {
+public interface ResultPager<T> extends Closeable {
   @Override
   void close();
 
   /**
    * Get the index of the last object in the current page.
-   * 
+   *
    * @return The index of the last object in the current page.
    */
   int getEndIndex();
 
   /**
    * Get the list of objects in the current page.
-   * 
+   *
    * @return The list of objects in the current page.
    */
   List<T> getList();
 
   /**
    * Get the page number of the next page.
-   * 
+   *
    * @return Thepage number of the next page.
    */
   int getNextPageNumber();
 
   /**
    * Get the number of pages.
-   * 
+   *
    * @return The number of pages.
    */
   int getNumPages();
 
   /**
    * Get the total number of results returned.
-   * 
+   *
    * @return The total number of results returned.
    */
   int getNumResults();
 
   /**
    * Get the page number of the current page.
-   * 
+   *
    * @return Thepage number of the current page.
    */
   int getPageNumber();
 
   /**
    * Get the number of objects to display in a page.
-   * 
+   *
    * @return The number of objects to display in a page.
    */
   int getPageSize();
 
   /**
    * Get the page number of the previous page.
-   * 
+   *
    * @return Thepage number of the previous page.
    */
   int getPreviousPageNumber();
 
   /**
    * Get the index of the first object in the current page.
-   * 
+   *
    * @return The index of the first object in the current page.
    */
   int getStartIndex();
 
   /**
    * Check to see if there is a next page.
-   * 
+   *
    * @return True if there is a next page.
    */
   boolean hasNextPage();
 
   /**
    * Check to see if there is a previous page.
-   * 
+   *
    * @return True if there is a previous page.
    */
   boolean hasPreviousPage();
 
   /**
    * Check to see if this is the first page.
-   * 
+   *
    * @return True if this is the first page.
    */
   boolean isFirstPage();
 
   /**
    * Check to see if this is the last page.
-   * 
+   *
    * @return True if this is the last page.
    */
   boolean isLastPage();
 
   /**
    * Set the current page number.
-   * 
+   *
    * @param pageNumber The current page number.
    */
   void setPageNumber(int pageNumber);
 
-  void setPageNumberAndSize(int pageSize, int pageNumber);
+  default void setPageNumberAndSize(final int pageSize, final int pageNumber) {
+    setPageSize(pageSize);
+    setPageNumber(pageNumber);
+  }
 
   /**
    * Set the number of objects per page.
-   * 
+   *
    * @param pageSize The number of objects per page.
    */
   void setPageSize(int pageSize);

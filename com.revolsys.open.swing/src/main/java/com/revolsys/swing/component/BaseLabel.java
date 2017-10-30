@@ -1,20 +1,25 @@
 package com.revolsys.swing.component;
 
-import javax.swing.JLabel;
+import javax.swing.SwingConstants;
 
 import org.jdesktop.swingx.JXLabel;
-import org.springframework.util.StringUtils;
 
 import com.revolsys.swing.SwingUtil;
+import com.revolsys.util.Property;
 
 public class BaseLabel extends JXLabel {
+
+  /**
+   *
+   */
+  private static final long serialVersionUID = 1L;
 
   public BaseLabel() {
     setOpaque(false);
     setFont(SwingUtil.FONT);
     setLineWrap(true);
-    setVerticalTextPosition(JLabel.TOP);
-    setVerticalAlignment(JLabel.NORTH);
+    setVerticalTextPosition(SwingConstants.TOP);
+    setVerticalAlignment(SwingConstants.NORTH);
 
   }
 
@@ -25,7 +30,7 @@ public class BaseLabel extends JXLabel {
 
   @Override
   public void setText(String text) {
-    if (StringUtils.hasText(text)) {
+    if (Property.hasValue(text)) {
       if (!text.startsWith("<html")) {
         if (text.startsWith("<")) {
           text = "<html>" + text + "</html>";

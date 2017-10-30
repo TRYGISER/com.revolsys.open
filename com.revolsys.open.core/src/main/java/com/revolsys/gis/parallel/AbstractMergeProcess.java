@@ -1,46 +1,41 @@
 package com.revolsys.gis.parallel;
 
 import com.revolsys.collection.ArrayUtil;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectMetaData;
 import com.revolsys.parallel.channel.Channel;
 import com.revolsys.parallel.channel.ClosedException;
 import com.revolsys.parallel.channel.MultiInputSelector;
 import com.revolsys.parallel.channel.store.Buffer;
 import com.revolsys.parallel.process.AbstractInOutProcess;
+import com.revolsys.record.Record;
+import com.revolsys.record.schema.RecordDefinition;
 
-public abstract class AbstractMergeProcess extends
-  AbstractInOutProcess<DataObject, DataObject> {
+public abstract class AbstractMergeProcess extends AbstractInOutProcess<Record, Record> {
 
   private static final int OTHER_INDEX = 1;
 
   private static final int SOURCE_INDEX = 0;
 
-  private Channel<DataObject> otherIn;
+  private Channel<Record> otherIn;
 
   private int otherInBufferSize = 0;
 
-  protected boolean acceptObject(final DataObject object) {
-    return true;
-  }
-
-  private void addObjectFromOtherChannel(final Channel<DataObject>[] channels,
-    final boolean[] guard, final DataObject[] objects, final int channelIndex) {
+  private void addObjectFromOtherChannel(final Channel<Record>[] channels, final boolean[] guard,
+    final Record[] objects, final int channelIndex) {
     int otherIndex;
     if (channelIndex == SOURCE_INDEX) {
       otherIndex = OTHER_INDEX;
     } else {
       otherIndex = SOURCE_INDEX;
     }
-    final Channel<DataObject> otherChannel = channels[otherIndex];
+    final Channel<Record> otherChannel = channels[otherIndex];
     if (otherChannel == null) {
       guard[otherIndex] = false;
       guard[channelIndex] = true;
     } else if (guard[otherIndex]) {
       while (objects[otherIndex] == null) {
         try {
-          final DataObject object = otherChannel.read();
-          if (acceptObject(object)) {
+          final Record object = otherChannel.read();
+          if (testObject(object)) {
             objects[otherIndex] = object;
             return;
           }
@@ -55,17 +50,16 @@ public abstract class AbstractMergeProcess extends
 
   /**
    * Add an object from the other (otherId) channel.
-   * 
+   *
    * @param object The object to add.
    */
-  protected abstract void addOtherObject(DataObject object);
+  protected abstract void addOtherObject(Record object);
 
-  private DataObjectMetaData addSavedObjects(
-    final DataObjectMetaData currentType, final String currentTypeName,
-    final Channel<DataObject> out, final boolean[] guard,
-    final DataObject[] objects) {
-    final DataObject sourceObject = objects[SOURCE_INDEX];
-    final DataObject otherObject = objects[OTHER_INDEX];
+  private RecordDefinition addSavedObjects(final RecordDefinition currentType,
+    final String currentTypeName, final Channel<Record> out, final boolean[] guard,
+    final Record[] objects) {
+    final Record sourceObject = objects[SOURCE_INDEX];
+    final Record otherObject = objects[OTHER_INDEX];
     if (sourceObject == null) {
       if (otherObject == null) {
         return null;
@@ -73,7 +67,7 @@ public abstract class AbstractMergeProcess extends
         addOtherObject(otherObject);
         objects[OTHER_INDEX] = null;
         guard[OTHER_INDEX] = true;
-        return otherObject.getMetaData();
+        return otherObject.getRecordDefinition();
       }
     } else if (otherObject == null) {
       if (sourceObject == null) {
@@ -82,12 +76,12 @@ public abstract class AbstractMergeProcess extends
         addSourceObject(sourceObject);
         objects[SOURCE_INDEX] = null;
         guard[SOURCE_INDEX] = true;
-        return sourceObject.getMetaData();
+        return sourceObject.getRecordDefinition();
       }
     } else {
-      final DataObjectMetaData sourceType = sourceObject.getMetaData();
+      final RecordDefinition sourceType = sourceObject.getRecordDefinition();
       final String sourceTypeName = sourceType.getPath();
-      final DataObjectMetaData otherType = otherObject.getMetaData();
+      final RecordDefinition otherType = otherObject.getRecordDefinition();
       final String otherTypeName = otherType.getPath();
       if (sourceTypeName.equals(currentTypeName)) {
         addSourceObject(sourceObject);
@@ -105,8 +99,7 @@ public abstract class AbstractMergeProcess extends
         return currentType;
       } else {
         processObjects(currentType, out);
-        final int nameCompare = sourceTypeName.toString().compareTo(
-          otherTypeName.toString());
+        final int nameCompare = sourceTypeName.toString().compareTo(otherTypeName.toString());
         if (nameCompare < 0) {
           // If the first feature type name is < second feature type
           // name
@@ -146,63 +139,64 @@ public abstract class AbstractMergeProcess extends
 
   /**
    * Add an object from the source (in) channel.
-   * 
+   *
    * @param object The object to add.
    */
-  protected abstract void addSourceObject(DataObject object);
+  protected abstract void addSourceObject(Record object);
 
   /**
    * @return the in
    */
-  public Channel<DataObject> getOtherIn() {
-    if (otherIn == null) {
-      if (otherInBufferSize < 1) {
-        setOtherIn(new Channel<DataObject>());
+  public Channel<Record> getOtherIn() {
+    if (this.otherIn == null) {
+      if (this.otherInBufferSize < 1) {
+        setOtherIn(new Channel<Record>());
       } else {
-        final Buffer<DataObject> buffer = new Buffer<DataObject>(
-          otherInBufferSize);
-        setOtherIn(new Channel<DataObject>(buffer));
+        final Buffer<Record> buffer = new Buffer<>(this.otherInBufferSize);
+        setOtherIn(new Channel<>(buffer));
       }
     }
-    return otherIn;
+    return this.otherIn;
   }
 
   public int getOtherInBufferSize() {
-    return otherInBufferSize;
+    return this.otherInBufferSize;
   }
 
-  protected abstract void processObjects(DataObjectMetaData currentType,
-    Channel<DataObject> out);
+  protected void init(final RecordDefinition recordDefinition) {
+  }
+
+  protected abstract void processObjects(RecordDefinition currentType, Channel<Record> out);
 
   @Override
   @SuppressWarnings("unchecked")
-  protected void run(final Channel<DataObject> in, final Channel<DataObject> out) {
+  protected void run(final Channel<Record> in, final Channel<Record> out) {
     setUp();
     try {
-      DataObjectMetaData currentType = null;
+      RecordDefinition currentType = null;
       String currentTypeName = null;
-      final Channel<DataObject>[] channels = ArrayUtil.create(in, otherIn);
+      final Channel<Record>[] channels = ArrayUtil.newArray(in, this.otherIn);
 
       final boolean[] guard = new boolean[] {
         true, true
       };
-      final DataObject[] objects = new DataObject[2];
+      final Record[] objects = new Record[2];
       final String[] typePaths = new String[2];
       for (int i = 0; i < 2; i++) {
         try {
-          final Channel<DataObject> channel = channels[i];
+          final Channel<Record> channel = channels[i];
           if (channel == null) {
             guard[i] = false;
           } else {
-            DataObject object = null;
-            boolean accept = false;
+            Record object = null;
+            boolean test = false;
             do {
               object = channel.read();
-              accept = acceptObject(object);
-            } while (!accept);
-            if (accept) {
+              test = testObject(object);
+            } while (!test);
+            if (test) {
               objects[i] = object;
-              typePaths[i] = objects[i].getMetaData().getPath();
+              typePaths[i] = objects[i].getRecordDefinition().getPath();
             }
 
           }
@@ -210,14 +204,14 @@ public abstract class AbstractMergeProcess extends
           guard[i] = false;
         }
       }
-      final DataObject otherObject = objects[OTHER_INDEX];
+      final Record otherObject = objects[OTHER_INDEX];
       if (typePaths[SOURCE_INDEX] != null) {
-        final DataObject sourceObject = objects[SOURCE_INDEX];
+        final Record sourceObject = objects[SOURCE_INDEX];
         if (typePaths[OTHER_INDEX] != null) {
-          final int nameCompare = typePaths[SOURCE_INDEX].toString().compareTo(
-            typePaths[OTHER_INDEX].toString());
+          final int nameCompare = typePaths[SOURCE_INDEX].toString()
+            .compareTo(typePaths[OTHER_INDEX].toString());
           if (nameCompare <= 0) {
-            currentType = sourceObject.getMetaData();
+            currentType = sourceObject.getRecordDefinition();
             currentTypeName = typePaths[SOURCE_INDEX];
             addSourceObject(sourceObject);
             objects[SOURCE_INDEX] = null;
@@ -226,7 +220,7 @@ public abstract class AbstractMergeProcess extends
             }
           }
           if (nameCompare >= 0) {
-            currentType = otherObject.getMetaData();
+            currentType = otherObject.getRecordDefinition();
             currentTypeName = typePaths[OTHER_INDEX];
             addOtherObject(otherObject);
             objects[OTHER_INDEX] = null;
@@ -235,14 +229,14 @@ public abstract class AbstractMergeProcess extends
             }
           }
         } else {
-          currentType = sourceObject.getMetaData();
+          currentType = sourceObject.getRecordDefinition();
           currentTypeName = typePaths[SOURCE_INDEX];
           if (otherObject != null) {
             addSourceObject(otherObject);
           }
         }
       } else {
-        currentType = otherObject.getMetaData();
+        currentType = otherObject.getRecordDefinition();
         currentTypeName = typePaths[OTHER_INDEX];
         if (otherObject != null) {
           addOtherObject(otherObject);
@@ -255,13 +249,18 @@ public abstract class AbstractMergeProcess extends
         while (running) {
           final int channelIndex = alt.select(channels, guard, 1000);
           if (channelIndex >= 0) {
-            final DataObject object = channels[channelIndex].read();
-            if (acceptObject(object)) {
-              final DataObjectMetaData type = object.getMetaData();
-              final String typePath = type.getPath();
-              if (currentTypeName == null || typePath.equals(currentTypeName)) {
+            final Record object = channels[channelIndex].read();
+            if (testObject(object)) {
+              final RecordDefinition recordDefinition = object.getRecordDefinition();
+              final String typePath = recordDefinition.getPath();
+              if (currentTypeName == null) {
                 currentTypeName = typePath;
-                currentType = type;
+                currentType = recordDefinition;
+                init(recordDefinition);
+              }
+              if (typePath.equals(currentTypeName)) {
+                currentTypeName = typePath;
+                currentType = recordDefinition;
 
                 if (channelIndex == SOURCE_INDEX) {
                   addSourceObject(object);
@@ -270,10 +269,8 @@ public abstract class AbstractMergeProcess extends
                 }
               } else {
                 objects[channelIndex] = object;
-                addObjectFromOtherChannel(channels, guard, objects,
-                  channelIndex);
-                currentType = addSavedObjects(currentType, currentTypeName,
-                  out, guard, objects);
+                addObjectFromOtherChannel(channels, guard, objects, channelIndex);
+                currentType = addSavedObjects(currentType, currentTypeName, out, guard, objects);
                 if (currentType != null) {
                   currentTypeName = currentType.getPath();
                 }
@@ -289,8 +286,7 @@ public abstract class AbstractMergeProcess extends
         }
       } finally {
         try {
-          while (addSavedObjects(currentType, currentTypeName, out, guard,
-            objects) != null) {
+          while (addSavedObjects(currentType, currentTypeName, out, guard, objects) != null) {
           }
           processObjects(currentType, out);
         } finally {
@@ -298,7 +294,7 @@ public abstract class AbstractMergeProcess extends
         }
       }
     } finally {
-      otherIn.readDisconnect();
+      this.otherIn.readDisconnect();
       tearDown();
     }
   }
@@ -306,7 +302,7 @@ public abstract class AbstractMergeProcess extends
   /**
    * @param in the in to set
    */
-  public void setOtherIn(final Channel<DataObject> in) {
+  public void setOtherIn(final Channel<Record> in) {
     this.otherIn = in;
     in.readConnect();
   }
@@ -319,5 +315,9 @@ public abstract class AbstractMergeProcess extends
   }
 
   protected void tearDown() {
+  }
+
+  protected boolean testObject(final Record object) {
+    return true;
   }
 }

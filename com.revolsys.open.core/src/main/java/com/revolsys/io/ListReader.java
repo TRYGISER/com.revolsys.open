@@ -5,7 +5,6 @@ import java.util.Iterator;
 import java.util.List;
 
 public class ListReader<T> extends AbstractReader<T> {
-
   private List<T> values = Collections.emptyList();
 
   public ListReader() {
@@ -17,12 +16,12 @@ public class ListReader<T> extends AbstractReader<T> {
 
   @Override
   public void close() {
-    values = null;
+    this.values = null;
   }
 
   @Override
   public Iterator<T> iterator() {
-    return values.iterator();
+    return this.values.iterator();
   }
 
   @Override

@@ -12,41 +12,29 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 
 import com.revolsys.collection.ArrayListOfMap;
-import com.revolsys.io.FileUtil;
 import com.revolsys.io.IoConstants;
-import com.revolsys.io.IoFactoryRegistry;
-import com.revolsys.io.MapWriter;
-import com.revolsys.io.MapWriterFactory;
+import com.revolsys.io.IoFactory;
+import com.revolsys.io.map.MapWriter;
+import com.revolsys.io.map.MapWriterFactory;
 import com.revolsys.ui.web.utils.HttpServletUtils;
 
-public class ListOfMapHttpMessageConverter extends
-  AbstractHttpMessageConverter<ArrayListOfMap> {
-
-  private final IoFactoryRegistry ioFactoryRegistry = IoFactoryRegistry.getInstance();
-
+public class ListOfMapHttpMessageConverter extends AbstractHttpMessageConverter<ArrayListOfMap> {
   public ListOfMapHttpMessageConverter() {
-    super(ArrayListOfMap.class, null, IoFactoryRegistry.getInstance()
-      .getMediaTypes(MapWriterFactory.class));
+    super(ArrayListOfMap.class, null, IoFactory.mediaTypes(MapWriterFactory.class));
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public void write(final ArrayListOfMap list, final MediaType mediaType,
-    final HttpOutputMessage outputMessage) throws IOException,
-    HttpMessageNotWritableException {
+    final HttpOutputMessage outputMessage) throws IOException, HttpMessageNotWritableException {
     if (!HttpServletUtils.getResponse().isCommitted()) {
-      Charset charset = mediaType.getCharSet();
-      if (charset == null) {
-        charset = FileUtil.UTF8;
-      }
-      outputMessage.getHeaders().setContentType(mediaType);
+      final Charset charset = HttpServletUtils.setContentTypeWithCharset(outputMessage, mediaType);
       final OutputStream body = outputMessage.getBody();
-      final String mediaTypeString = mediaType.getType() + "/"
-        + mediaType.getSubtype();
-      final MapWriterFactory writerFactory = ioFactoryRegistry.getFactoryByMediaType(
-        MapWriterFactory.class, mediaTypeString);
-      final MapWriter writer = writerFactory.getMapWriter(body, charset);
-      writer.setProperty(IoConstants.INDENT_PROPERTY, true);
+      final String mediaTypeString = mediaType.getType() + "/" + mediaType.getSubtype();
+      final MapWriterFactory writerFactory = IoFactory.factoryByMediaType(MapWriterFactory.class,
+        mediaTypeString);
+      final MapWriter writer = writerFactory.newMapWriter(body, charset);
+      writer.setProperty(IoConstants.INDENT, true);
       writer.setProperty(IoConstants.SINGLE_OBJECT_PROPERTY, false);
       final HttpServletRequest request = HttpServletUtils.getRequest();
       writer.setProperty(IoConstants.JSON_LIST_ROOT_PROPERTY,

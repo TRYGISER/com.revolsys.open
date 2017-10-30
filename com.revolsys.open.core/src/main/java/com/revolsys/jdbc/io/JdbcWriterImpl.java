@@ -1,7 +1,6 @@
 package com.revolsys.jdbc.io;
 
 import java.sql.BatchUpdateException;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.LinkedHashMap;
@@ -16,29 +15,27 @@ import javax.sql.DataSource;
 import org.apache.log4j.Logger;
 import org.springframework.dao.DataAccessException;
 
-import com.revolsys.gis.data.io.DataObjectStore;
-import com.revolsys.gis.data.model.Attribute;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.data.model.DataObjectState;
-import com.revolsys.gis.data.model.GlobalIdProperty;
-import com.revolsys.gis.io.StatisticsMap;
-import com.revolsys.io.AbstractWriter;
+import com.revolsys.io.AbstractRecordWriter;
+import com.revolsys.io.FileUtil;
+import com.revolsys.io.PathName;
+import com.revolsys.jdbc.JdbcConnection;
 import com.revolsys.jdbc.JdbcUtils;
-import com.revolsys.jdbc.attribute.JdbcAttribute;
+import com.revolsys.jdbc.field.JdbcFieldDefinition;
+import com.revolsys.record.Record;
+import com.revolsys.record.RecordState;
+import com.revolsys.record.property.GlobalIdProperty;
+import com.revolsys.record.schema.FieldDefinition;
+import com.revolsys.record.schema.RecordDefinition;
+import com.revolsys.record.schema.RecordStore;
 import com.revolsys.transaction.Transaction;
+import com.revolsys.util.count.CategoryLabelCountMap;
 
-public class JdbcWriterImpl extends AbstractWriter<DataObject> implements
-  JdbcWriter {
+public class JdbcWriterImpl extends AbstractRecordWriter {
   private static final Logger LOG = Logger.getLogger(JdbcWriterImpl.class);
 
   private int batchSize = 1;
 
-  private Connection connection;
-
-  private DataSource dataSource;
-
-  private JdbcDataObjectStore dataStore;
+  private JdbcConnection connection;
 
   private boolean flushBetweenTypes = false;
 
@@ -46,64 +43,72 @@ public class JdbcWriterImpl extends AbstractWriter<DataObject> implements
 
   private String label;
 
-  private DataObjectMetaData lastMetaData;
+  private RecordDefinition lastRecordDefinition;
 
   private boolean quoteColumnNames = true;
+
+  private JdbcRecordStore recordStore;
 
   private String sqlPrefix;
 
   private String sqlSuffix;
 
-  private final Map<String, Integer> typeCountMap = new LinkedHashMap<String, Integer>();
-
-  private Map<String, Integer> typeDeleteBatchCountMap = new LinkedHashMap<String, Integer>();
-
-  private Map<String, String> typeDeleteSqlMap = new LinkedHashMap<String, String>();
-
-  private Map<String, PreparedStatement> typeDeleteStatementMap = new LinkedHashMap<String, PreparedStatement>();
-
-  private Map<String, Integer> typeInsertBatchCountMap = new LinkedHashMap<String, Integer>();
-
-  private Map<String, Integer> typeInsertSequenceBatchCountMap = new LinkedHashMap<String, Integer>();
-
-  private Map<String, String> typeInsertSequenceSqlMap = new LinkedHashMap<String, String>();
-
-  private Map<String, PreparedStatement> typeInsertSequenceStatementMap = new LinkedHashMap<String, PreparedStatement>();
-
-  private Map<String, String> typeInsertSqlMap = new LinkedHashMap<String, String>();
-
-  private Map<String, PreparedStatement> typeInsertStatementMap = new LinkedHashMap<String, PreparedStatement>();
-
-  private Map<String, Integer> typeUpdateBatchCountMap = new LinkedHashMap<String, Integer>();
-
-  private Map<String, String> typeUpdateSqlMap = new LinkedHashMap<String, String>();
-
-  private Map<String, PreparedStatement> typeUpdateStatementMap = new LinkedHashMap<String, PreparedStatement>();
-
-  private StatisticsMap statistics;
+  private CategoryLabelCountMap statistics;
 
   private boolean throwExceptions = false;
 
-  public JdbcWriterImpl(final JdbcDataObjectStore dataStore) {
-    this(dataStore, dataStore.getStatistics());
+  private final Map<PathName, Integer> typeCountMap = new LinkedHashMap<>();
+
+  private Map<PathName, Integer> typeDeleteBatchCountMap = new LinkedHashMap<>();
+
+  private Map<PathName, String> typeDeleteSqlMap = new LinkedHashMap<>();
+
+  private Map<PathName, PreparedStatement> typeDeleteStatementMap = new LinkedHashMap<>();
+
+  private Map<PathName, Integer> typeInsertBatchCountMap = new LinkedHashMap<>();
+
+  private Map<PathName, Integer> typeInsertSequenceBatchCountMap = new LinkedHashMap<>();
+
+  private Map<PathName, String> typeInsertSequenceSqlMap = new LinkedHashMap<>();
+
+  private Map<PathName, PreparedStatement> typeInsertSequenceStatementMap = new LinkedHashMap<>();
+
+  private Map<PathName, String> typeInsertSqlMap = new LinkedHashMap<>();
+
+  private Map<PathName, PreparedStatement> typeInsertStatementMap = new LinkedHashMap<>();
+
+  private Map<PathName, Integer> typeUpdateBatchCountMap = new LinkedHashMap<>();
+
+  private Map<PathName, String> typeUpdateSqlMap = new LinkedHashMap<>();
+
+  private Map<PathName, PreparedStatement> typeUpdateStatementMap = new LinkedHashMap<>();
+
+  public JdbcWriterImpl(final JdbcRecordStore recordStore) {
+    this(recordStore, recordStore.getStatistics());
   }
 
-  public JdbcWriterImpl(final JdbcDataObjectStore dataStore,
-    final StatisticsMap statistics) {
-    this.dataStore = dataStore;
+  public JdbcWriterImpl(final JdbcRecordStore recordStore, final CategoryLabelCountMap statistics) {
+    this.recordStore = recordStore;
     this.statistics = statistics;
-    setConnection(dataStore.getConnection());
-    setDataSource(dataStore.getDataSource());
+    this.connection = recordStore.getJdbcConnection();
+    final DataSource dataSource = this.connection.getDataSource();
+    if (dataSource != null) {
+      try {
+        this.connection.setAutoCommit(false);
+      } catch (final SQLException e) {
+        throw new RuntimeException("Unable to create connection", e);
+      }
+    }
     statistics.connect();
   }
 
-  private void addSqlColumEqualsPlaceholder(final StringBuffer sqlBuffer,
-    final JdbcAttribute attribute) {
-    final String attributeName = attribute.getName();
-    if (quoteColumnNames) {
-      sqlBuffer.append('"').append(attributeName).append('"');
+  private void addSqlColumEqualsPlaceholder(final StringBuilder sqlBuffer,
+    final JdbcFieldDefinition attribute) {
+    final String fieldName = attribute.getName();
+    if (this.quoteColumnNames) {
+      sqlBuffer.append('"').append(fieldName).append('"');
     } else {
-      sqlBuffer.append(attributeName);
+      sqlBuffer.append(fieldName);
     }
     sqlBuffer.append(" = ");
     attribute.addInsertStatementPlaceHolder(sqlBuffer, false);
@@ -113,20 +118,20 @@ public class JdbcWriterImpl extends AbstractWriter<DataObject> implements
   @PreDestroy
   public void close() {
     flush();
-    doClose();
+    closeDo();
   }
 
-  private void close(final Map<String, String> sqlMap,
-    final Map<String, PreparedStatement> statementMap,
-    final Map<String, Integer> batchCountMap) {
-    for (final Entry<String, PreparedStatement> entry : statementMap.entrySet()) {
-      final String typePath = entry.getKey();
+  private void close(final Map<PathName, String> sqlMap,
+    final Map<PathName, PreparedStatement> statementMap,
+    final Map<PathName, Integer> batchCountMap) {
+    for (final Entry<PathName, PreparedStatement> entry : statementMap.entrySet()) {
+      final PathName typePath = entry.getKey();
       final PreparedStatement statement = entry.getValue();
       final String sql = sqlMap.get(typePath);
       try {
         processCurrentBatch(typePath, sql, statement, batchCountMap);
       } catch (final DataAccessException e) {
-        if (throwExceptions) {
+        if (this.throwExceptions) {
           throw e;
         } else {
           LOG.error("Error commiting records", e);
@@ -136,114 +141,113 @@ public class JdbcWriterImpl extends AbstractWriter<DataObject> implements
     }
   }
 
-  public synchronized void commit() {
-    flush();
-    JdbcUtils.commit(connection);
-  }
-
-  private void delete(final DataObject object) throws SQLException {
-    final DataObjectMetaData objectType = object.getMetaData();
-    final String typePath = objectType.getPath();
-    final DataObjectMetaData metaData = getDataObjectMetaData(typePath);
-    flushIfRequired(metaData);
-    PreparedStatement statement = typeDeleteStatementMap.get(typePath);
-    if (statement == null) {
-      final String sql = getDeleteSql(metaData);
-      try {
-        statement = connection.prepareStatement(sql);
-        typeDeleteStatementMap.put(typePath, statement);
-      } catch (final SQLException e) {
-        LOG.error(sql, e);
-      }
-    }
-    int parameterIndex = 1;
-    final JdbcAttribute idAttribute = (JdbcAttribute)metaData.getIdAttribute();
-    parameterIndex = idAttribute.setInsertPreparedStatementValue(statement,
-      parameterIndex, object);
-    statement.addBatch();
-    Integer batchCount = typeDeleteBatchCountMap.get(typePath);
-    if (batchCount == null) {
-      batchCount = 1;
-      typeDeleteBatchCountMap.put(typePath, 1);
-    } else {
-      batchCount += 1;
-      typeDeleteBatchCountMap.put(typePath, batchCount);
-    }
-    dataStore.addStatistic("Delete", object);
-
-    // TODO this locks code tables which prevents insert
-    // if (batchCount >= batchSize) {
-    // final String sql = getDeleteSql(metaData);
-    // processCurrentBatch(typePath, sql, statement, typeDeleteBatchCountMap,
-    // getDeleteStatistics());
-    // }
-  }
-
-  protected synchronized void doClose() {
-    if (dataStore != null) {
+  protected synchronized void closeDo() {
+    if (this.recordStore != null) {
       try {
 
-        close(typeInsertSqlMap, typeInsertStatementMap, typeInsertBatchCountMap);
-        close(typeInsertSequenceSqlMap, typeInsertSequenceStatementMap,
-          typeInsertSequenceBatchCountMap);
-        close(typeUpdateSqlMap, typeUpdateStatementMap, typeUpdateBatchCountMap);
-        close(typeDeleteSqlMap, typeDeleteStatementMap, typeDeleteBatchCountMap);
-        if (statistics != null) {
-          statistics.disconnect();
-          statistics = null;
+        close(this.typeInsertSqlMap, this.typeInsertStatementMap, this.typeInsertBatchCountMap);
+        close(this.typeInsertSequenceSqlMap, this.typeInsertSequenceStatementMap,
+          this.typeInsertSequenceBatchCountMap);
+        close(this.typeUpdateSqlMap, this.typeUpdateStatementMap, this.typeUpdateBatchCountMap);
+        close(this.typeDeleteSqlMap, this.typeDeleteStatementMap, this.typeDeleteBatchCountMap);
+        if (this.statistics != null) {
+          this.statistics.disconnect();
+          this.statistics = null;
         }
       } finally {
-        typeInsertSqlMap = null;
-        typeInsertStatementMap = null;
-        typeInsertBatchCountMap = null;
-        typeInsertSequenceSqlMap = null;
-        typeInsertSequenceStatementMap = null;
-        typeInsertSequenceBatchCountMap = null;
-        typeUpdateBatchCountMap = null;
-        typeUpdateSqlMap = null;
-        typeUpdateStatementMap = null;
-        typeDeleteBatchCountMap = null;
-        typeDeleteSqlMap = null;
-        typeDeleteStatementMap = null;
-        dataStore = null;
-        if (dataSource != null) {
+        this.typeInsertSqlMap = null;
+        this.typeInsertStatementMap = null;
+        this.typeInsertBatchCountMap = null;
+        this.typeInsertSequenceSqlMap = null;
+        this.typeInsertSequenceStatementMap = null;
+        this.typeInsertSequenceBatchCountMap = null;
+        this.typeUpdateBatchCountMap = null;
+        this.typeUpdateSqlMap = null;
+        this.typeUpdateStatementMap = null;
+        this.typeDeleteBatchCountMap = null;
+        this.typeDeleteSqlMap = null;
+        this.typeDeleteStatementMap = null;
+        this.recordStore = null;
+        if (this.connection != null) {
+          final DataSource dataSource = this.connection.getDataSource();
           try {
-            if (!Transaction.isHasCurrentTransaction()) {
-              connection.commit();
+            if (dataSource != null && !Transaction.isHasCurrentTransaction()) {
+              this.connection.commit();
             }
           } catch (final SQLException e) {
             throw new RuntimeException("Failed to commit data:", e);
           } finally {
-            JdbcUtils.release(connection, dataSource);
-            dataSource = null;
-            connection = null;
+            FileUtil.closeSilent(this.connection);
+            this.connection = null;
           }
         }
       }
     }
   }
 
-  @Override
-  public synchronized void flush() {
-    flush(typeInsertSqlMap, typeInsertStatementMap, typeInsertBatchCountMap);
-    flush(typeInsertSequenceSqlMap, typeInsertSequenceStatementMap,
-      typeInsertSequenceBatchCountMap);
-    flush(typeUpdateSqlMap, typeUpdateStatementMap, typeUpdateBatchCountMap);
-    flush(typeDeleteSqlMap, typeDeleteStatementMap, typeDeleteBatchCountMap);
+  public synchronized void commit() {
+    flush();
+    JdbcUtils.commit(this.connection);
   }
 
-  private void flush(final Map<String, String> sqlMap,
-    final Map<String, PreparedStatement> statementMap,
-    final Map<String, Integer> batchCountMap) {
+  private void delete(final Record object) throws SQLException {
+    final RecordDefinition objectType = object.getRecordDefinition();
+    final PathName typePath = objectType.getPathName();
+    final RecordDefinition recordDefinition = getRecordDefinition(typePath);
+    flushIfRequired(recordDefinition);
+    PreparedStatement statement = this.typeDeleteStatementMap.get(typePath);
+    if (statement == null) {
+      final String sql = getDeleteSql(recordDefinition);
+      try {
+        statement = this.connection.prepareStatement(sql);
+        this.typeDeleteStatementMap.put(typePath, statement);
+      } catch (final SQLException e) {
+        LOG.error(sql, e);
+      }
+    }
+    int parameterIndex = 1;
+    final JdbcFieldDefinition idField = (JdbcFieldDefinition)recordDefinition.getIdField();
+    parameterIndex = idField.setInsertPreparedStatementValue(statement, parameterIndex, object);
+    statement.addBatch();
+    Integer batchCount = this.typeDeleteBatchCountMap.get(typePath);
+    if (batchCount == null) {
+      batchCount = 1;
+      this.typeDeleteBatchCountMap.put(typePath, 1);
+    } else {
+      batchCount += 1;
+      this.typeDeleteBatchCountMap.put(typePath, batchCount);
+    }
+    this.recordStore.addStatistic("Delete", object);
+
+    // TODO this locks code tables which prevents insert
+    // if (batchCount >= batchSize) {
+    // final String sql = getDeleteSql(recordDefinition);
+    // processCurrentBatch(typePath, sql, statement, typeDeleteBatchCountMap,
+    // getDeleteStatistics());
+    // }
+  }
+
+  @Override
+  public synchronized void flush() {
+    flush(this.typeInsertSqlMap, this.typeInsertStatementMap, this.typeInsertBatchCountMap);
+    flush(this.typeInsertSequenceSqlMap, this.typeInsertSequenceStatementMap,
+      this.typeInsertSequenceBatchCountMap);
+    flush(this.typeUpdateSqlMap, this.typeUpdateStatementMap, this.typeUpdateBatchCountMap);
+    flush(this.typeDeleteSqlMap, this.typeDeleteStatementMap, this.typeDeleteBatchCountMap);
+  }
+
+  private void flush(final Map<PathName, String> sqlMap,
+    final Map<PathName, PreparedStatement> statementMap,
+    final Map<PathName, Integer> batchCountMap) {
     if (statementMap != null) {
-      for (final Entry<String, PreparedStatement> entry : statementMap.entrySet()) {
-        final String typePath = entry.getKey();
+      for (final Entry<PathName, PreparedStatement> entry : statementMap.entrySet()) {
+        final PathName typePath = entry.getKey();
         final PreparedStatement statement = entry.getValue();
         final String sql = sqlMap.get(typePath);
         try {
           processCurrentBatch(typePath, sql, statement, batchCountMap);
         } catch (final DataAccessException e) {
-          if (throwExceptions) {
+          if (this.throwExceptions) {
             throw e;
           } else {
             LOG.error("Error writing to database", e);
@@ -253,114 +257,100 @@ public class JdbcWriterImpl extends AbstractWriter<DataObject> implements
     }
   }
 
-  private void flushIfRequired(final DataObjectMetaData metaData) {
-    if (flushBetweenTypes && metaData != lastMetaData) {
+  private void flushIfRequired(final RecordDefinition recordDefinition) {
+    if (this.flushBetweenTypes && recordDefinition != this.lastRecordDefinition) {
       flush();
-      lastMetaData = metaData;
+      this.lastRecordDefinition = recordDefinition;
     }
   }
 
   public int getBatchSize() {
-    return batchSize;
+    return this.batchSize;
   }
 
-  private DataObjectMetaData getDataObjectMetaData(final String typePath) {
-    if (dataStore == null) {
-      return null;
-    } else {
-      final DataObjectMetaData metaData = dataStore.getMetaData(typePath);
-      return metaData;
-    }
-  }
-
-  public DataSource getDataSource() {
-    return dataSource;
-  }
-
-  private String getDeleteSql(final DataObjectMetaData type) {
-    final String typePath = type.getPath();
-    final String tableName = JdbcUtils.getQualifiedTableName(typePath);
-    String sql = typeDeleteSqlMap.get(typePath);
+  private String getDeleteSql(final RecordDefinition type) {
+    final PathName typePath = type.getPathName();
+    final String tableName = this.recordStore.getDatabaseQualifiedTableName(typePath);
+    String sql = this.typeDeleteSqlMap.get(typePath);
     if (sql == null) {
-      final StringBuffer sqlBuffer = new StringBuffer();
-      if (sqlPrefix != null) {
-        sqlBuffer.append(sqlPrefix);
+      final StringBuilder sqlBuffer = new StringBuilder();
+      if (this.sqlPrefix != null) {
+        sqlBuffer.append(this.sqlPrefix);
       }
       sqlBuffer.append("delete ");
-      if (hints != null) {
-        sqlBuffer.append(hints);
+      if (this.hints != null) {
+        sqlBuffer.append(this.hints);
       }
       sqlBuffer.append(" from ");
       sqlBuffer.append(tableName);
       sqlBuffer.append(" where ");
-      final JdbcAttribute idAttribute = (JdbcAttribute)type.getIdAttribute();
-      if (idAttribute == null) {
+      final JdbcFieldDefinition idField = (JdbcFieldDefinition)type.getIdField();
+      if (idField == null) {
         throw new RuntimeException("No primary key found for " + type);
       }
-      addSqlColumEqualsPlaceholder(sqlBuffer, idAttribute);
+      addSqlColumEqualsPlaceholder(sqlBuffer, idField);
 
       sqlBuffer.append(" ");
-      if (sqlSuffix != null) {
-        sqlBuffer.append(sqlSuffix);
+      if (this.sqlSuffix != null) {
+        sqlBuffer.append(this.sqlSuffix);
       }
       sql = sqlBuffer.toString();
 
-      typeDeleteSqlMap.put(typePath, sql);
+      this.typeDeleteSqlMap.put(typePath, sql);
     }
     return sql;
   }
 
-  private String getGeneratePrimaryKeySql(final DataObjectMetaData metaData) {
-    return dataStore.getGeneratePrimaryKeySql(metaData);
+  private String getGeneratePrimaryKeySql(final RecordDefinition recordDefinition) {
+    return this.recordStore.getGeneratePrimaryKeySql(recordDefinition);
   }
 
   /**
    * @return the hints
    */
   public String getHints() {
-    return hints;
+    return this.hints;
   }
 
-  private String getInsertSql(final DataObjectMetaData type,
-    final boolean generatePrimaryKey) {
-    final String typePath = type.getPath();
-    final String tableName = JdbcUtils.getQualifiedTableName(typePath);
+  private String getInsertSql(final RecordDefinition type, final boolean generatePrimaryKey) {
+    final PathName typePath = type.getPathName();
+    final String tableName = this.recordStore.getDatabaseQualifiedTableName(typePath);
     String sql;
     if (generatePrimaryKey) {
-      sql = typeInsertSequenceSqlMap.get(typePath);
+      sql = this.typeInsertSequenceSqlMap.get(typePath);
     } else {
-      sql = typeInsertSqlMap.get(typePath);
+      sql = this.typeInsertSqlMap.get(typePath);
     }
     if (sql == null) {
-      final StringBuffer sqlBuffer = new StringBuffer();
-      if (sqlPrefix != null) {
-        sqlBuffer.append(sqlPrefix);
+      final StringBuilder sqlBuffer = new StringBuilder();
+      if (this.sqlPrefix != null) {
+        sqlBuffer.append(this.sqlPrefix);
       }
       sqlBuffer.append("insert ");
-      if (hints != null) {
-        sqlBuffer.append(hints);
+      if (this.hints != null) {
+        sqlBuffer.append(this.hints);
       }
       sqlBuffer.append(" into ");
       sqlBuffer.append(tableName);
       sqlBuffer.append(" (");
       if (generatePrimaryKey) {
-        final String idAttributeName = type.getIdAttributeName();
-        if (quoteColumnNames) {
-          sqlBuffer.append('"').append(idAttributeName).append('"');
+        final String idFieldName = type.getIdFieldName();
+        if (this.quoteColumnNames) {
+          sqlBuffer.append('"').append(idFieldName).append('"');
         } else {
-          sqlBuffer.append(idAttributeName);
+          sqlBuffer.append(idFieldName);
         }
         sqlBuffer.append(",");
       }
-      for (int i = 0; i < type.getAttributeCount(); i++) {
-        if (!generatePrimaryKey || i != type.getIdAttributeIndex()) {
-          final String attributeName = type.getAttributeName(i);
-          if (quoteColumnNames) {
-            sqlBuffer.append('"').append(attributeName).append('"');
+      for (int i = 0; i < type.getFieldCount(); i++) {
+        if (!generatePrimaryKey || i != type.getIdFieldIndex()) {
+          final String fieldName = type.getFieldName(i);
+          if (this.quoteColumnNames) {
+            sqlBuffer.append('"').append(fieldName).append('"');
           } else {
-            sqlBuffer.append(attributeName);
+            sqlBuffer.append(fieldName);
           }
-          if (i < type.getAttributeCount() - 1) {
+          if (i < type.getFieldCount() - 1) {
             sqlBuffer.append(", ");
           }
         }
@@ -370,61 +360,70 @@ public class JdbcWriterImpl extends AbstractWriter<DataObject> implements
         sqlBuffer.append(getGeneratePrimaryKeySql(type));
         sqlBuffer.append(",");
       }
-      for (int i = 0; i < type.getAttributeCount(); i++) {
-        if (!generatePrimaryKey || i != type.getIdAttributeIndex()) {
-          final JdbcAttribute attribute = (JdbcAttribute)type.getAttribute(i);
+      for (int i = 0; i < type.getFieldCount(); i++) {
+        if (!generatePrimaryKey || i != type.getIdFieldIndex()) {
+          final JdbcFieldDefinition attribute = (JdbcFieldDefinition)type.getField(i);
           attribute.addInsertStatementPlaceHolder(sqlBuffer, generatePrimaryKey);
-          if (i < type.getAttributeCount() - 1) {
+          if (i < type.getFieldCount() - 1) {
             sqlBuffer.append(", ");
           }
         }
       }
       sqlBuffer.append(")");
-      if (sqlSuffix != null) {
-        sqlBuffer.append(sqlSuffix);
+      if (this.sqlSuffix != null) {
+        sqlBuffer.append(this.sqlSuffix);
       }
       sql = sqlBuffer.toString();
       if (generatePrimaryKey) {
-        typeInsertSequenceSqlMap.put(typePath, sql);
+        this.typeInsertSequenceSqlMap.put(typePath, sql);
       } else {
-        typeInsertSqlMap.put(typePath, sql);
+        this.typeInsertSqlMap.put(typePath, sql);
       }
     }
     return sql;
   }
 
   public String getLabel() {
-    return label;
+    return this.label;
+  }
+
+  private RecordDefinition getRecordDefinition(final PathName typePath) {
+    if (this.recordStore == null) {
+      return null;
+    } else {
+      final RecordDefinition recordDefinition = this.recordStore.getRecordDefinition(typePath);
+      return recordDefinition;
+    }
   }
 
   public String getSqlPrefix() {
-    return sqlPrefix;
+    return this.sqlPrefix;
   }
 
   public String getSqlSuffix() {
-    return sqlSuffix;
+    return this.sqlSuffix;
   }
 
-  private String getUpdateSql(final DataObjectMetaData type) {
-    final String typePath = type.getPath();
-    final String tableName = JdbcUtils.getQualifiedTableName(typePath);
-    String sql = typeUpdateSqlMap.get(typePath);
+  private String getUpdateSql(final RecordDefinition type) {
+    final PathName typePath = type.getPathName();
+    final String tableName = this.recordStore.getDatabaseQualifiedTableName(typePath);
+    String sql = this.typeUpdateSqlMap.get(typePath);
     if (sql == null) {
-      final StringBuffer sqlBuffer = new StringBuffer();
-      if (sqlPrefix != null) {
-        sqlBuffer.append(sqlPrefix);
+      final StringBuilder sqlBuffer = new StringBuilder();
+      if (this.sqlPrefix != null) {
+        sqlBuffer.append(this.sqlPrefix);
       }
       sqlBuffer.append("update ");
-      if (hints != null) {
-        sqlBuffer.append(hints);
+      if (this.hints != null) {
+        sqlBuffer.append(this.hints);
       }
       sqlBuffer.append(tableName);
       sqlBuffer.append(" set ");
-      final List<Attribute> idAttributes = type.getIdAttributes();
+      final List<FieldDefinition> idFields = type.getIdFields();
       boolean first = true;
-      for (final Attribute attribute : type.getAttributes()) {
-        if (!idAttributes.contains(attribute)) {
-          final JdbcAttribute jdbcAttribute = (JdbcAttribute)attribute;
+      for (final FieldDefinition attribute : type.getFields()) {
+        if (!idFields.contains(attribute)) {
+          final JdbcFieldDefinition jdbcAttribute = (JdbcFieldDefinition)attribute;
           if (first) {
             first = false;
           } else {
@@ -435,155 +434,150 @@ public class JdbcWriterImpl extends AbstractWriter<DataObject> implements
       }
       sqlBuffer.append(" where ");
       first = true;
-      for (final Attribute idAttribute : idAttributes) {
+      for (final FieldDefinition idField : idFields) {
         if (first) {
           first = false;
         } else {
           sqlBuffer.append(" AND ");
         }
-        final JdbcAttribute idJdbcAttribute = (JdbcAttribute)idAttribute;
+        final JdbcFieldDefinition idJdbcAttribute = (JdbcFieldDefinition)idField;
         addSqlColumEqualsPlaceholder(sqlBuffer, idJdbcAttribute);
       }
 
       sqlBuffer.append(" ");
-      if (sqlSuffix != null) {
-        sqlBuffer.append(sqlSuffix);
+      if (this.sqlSuffix != null) {
+        sqlBuffer.append(this.sqlSuffix);
       }
       sql = sqlBuffer.toString();
 
-      typeUpdateSqlMap.put(typePath, sql);
+      this.typeUpdateSqlMap.put(typePath, sql);
     }
     return sql;
   }
 
-  private void insert(final DataObject object) throws SQLException {
-    final DataObjectMetaData objectType = object.getMetaData();
-    final String typePath = objectType.getPath();
-    final DataObjectMetaData metaData = getDataObjectMetaData(typePath);
-    flushIfRequired(metaData);
-    final String idAttributeName = metaData.getIdAttributeName();
-    final boolean hasId = idAttributeName != null;
+  private void insert(final Record record) throws SQLException {
+    final PathName typePath = record.getPathName();
+    final RecordDefinition recordDefinition = getRecordDefinition(typePath);
+    flushIfRequired(recordDefinition);
+    final String idFieldName = recordDefinition.getIdFieldName();
+    final boolean hasId = idFieldName != null;
 
-    final GlobalIdProperty globalIdProperty = GlobalIdProperty.getProperty(object);
+    final GlobalIdProperty globalIdProperty = GlobalIdProperty.getProperty(record);
     if (globalIdProperty != null) {
-      if (object.getValue(globalIdProperty.getAttributeName()) == null) {
-        object.setValue(globalIdProperty.getAttributeName(), UUID.randomUUID()
-          .toString());
+      if (record.getValue(globalIdProperty.getFieldName()) == null) {
+        record.setValue(globalIdProperty.getFieldName(), UUID.randomUUID().toString());
       }
     }
 
-    final boolean hasIdValue = hasId
-      && object.getValue(idAttributeName) != null;
+    final boolean hasIdValue = hasId && record.getValue(idFieldName) != null;
 
     if (!hasId || hasIdValue) {
-      insert(object, typePath, metaData);
+      insert(record, typePath, recordDefinition);
     } else {
-      insertSequence(object, typePath, metaData);
+      insertSequence(record, typePath, recordDefinition);
     }
-    object.setState(DataObjectState.Persisted);
-    dataStore.addStatistic("Insert", object);
+    record.setState(RecordState.PERSISTED);
+    this.recordStore.addStatistic("Insert", record);
   }
 
-  private void insert(final DataObject object, final String typePath,
-    final DataObjectMetaData metaData) throws SQLException {
-    PreparedStatement statement = typeInsertStatementMap.get(typePath);
+  private void insert(final Record object, final PathName typePath,
+    final RecordDefinition recordDefinition) throws SQLException {
+    PreparedStatement statement = this.typeInsertStatementMap.get(typePath);
     if (statement == null) {
-      final String sql = getInsertSql(metaData, false);
+      final String sql = getInsertSql(recordDefinition, false);
       try {
-        statement = connection.prepareStatement(sql);
-        typeInsertStatementMap.put(typePath, statement);
+        statement = this.connection.prepareStatement(sql);
+        this.typeInsertStatementMap.put(typePath, statement);
       } catch (final SQLException e) {
         LOG.error(sql, e);
       }
     }
     int parameterIndex = 1;
-    for (final Attribute attribute : metaData.getAttributes()) {
-      final JdbcAttribute jdbcAttribute = (JdbcAttribute)attribute;
-      parameterIndex = jdbcAttribute.setInsertPreparedStatementValue(statement,
+    for (final FieldDefinition fieldDefinition : recordDefinition.getFields()) {
+      final JdbcFieldDefinition jdbcFieldDefinition = (JdbcFieldDefinition)fieldDefinition;
+      parameterIndex = jdbcFieldDefinition.setInsertPreparedStatementValue(statement,
         parameterIndex, object);
     }
     statement.addBatch();
-    Integer batchCount = typeInsertBatchCountMap.get(typePath);
+    Integer batchCount = this.typeInsertBatchCountMap.get(typePath);
     if (batchCount == null) {
       batchCount = 1;
-      typeInsertBatchCountMap.put(typePath, 1);
+      this.typeInsertBatchCountMap.put(typePath, 1);
     } else {
       batchCount += 1;
-      typeInsertBatchCountMap.put(typePath, batchCount);
+      this.typeInsertBatchCountMap.put(typePath, batchCount);
     }
-    if (batchCount >= batchSize) {
-      final String sql = getInsertSql(metaData, false);
-      processCurrentBatch(typePath, sql, statement, typeInsertBatchCountMap);
+    if (batchCount >= this.batchSize) {
+      final String sql = getInsertSql(recordDefinition, false);
+      processCurrentBatch(typePath, sql, statement, this.typeInsertBatchCountMap);
     }
   }
 
-  private void insertSequence(final DataObject object, final String typePath,
-    final DataObjectMetaData metaData) throws SQLException {
-    PreparedStatement statement = typeInsertSequenceStatementMap.get(typePath);
+  private void insertSequence(final Record object, final PathName typePath,
+    final RecordDefinition recordDefinition) throws SQLException {
+    PreparedStatement statement = this.typeInsertSequenceStatementMap.get(typePath);
     if (statement == null) {
-      final String sql = getInsertSql(metaData, true);
+      final String sql = getInsertSql(recordDefinition, true);
       try {
-        statement = connection.prepareStatement(sql);
-        typeInsertSequenceStatementMap.put(typePath, statement);
+        statement = this.connection.prepareStatement(sql);
+        this.typeInsertSequenceStatementMap.put(typePath, statement);
       } catch (final SQLException e) {
         LOG.error(sql, e);
       }
     }
     int parameterIndex = 1;
-    final Attribute idAttribute = metaData.getIdAttribute();
-    for (final Attribute attribute : metaData.getAttributes()) {
-      if (attribute != idAttribute) {
-        final JdbcAttribute jdbcAttribute = (JdbcAttribute)attribute;
-        parameterIndex = jdbcAttribute.setInsertPreparedStatementValue(
-          statement, parameterIndex, object);
+    final FieldDefinition idField = recordDefinition.getIdField();
+    for (final FieldDefinition field : recordDefinition.getFields()) {
+      if (field != idField) {
+        final JdbcFieldDefinition jdbcAttribute = (JdbcFieldDefinition)field;
+        parameterIndex = jdbcAttribute.setInsertPreparedStatementValue(statement, parameterIndex,
+          object);
       }
     }
     statement.addBatch();
-    Integer batchCount = typeInsertSequenceBatchCountMap.get(typePath);
+    Integer batchCount = this.typeInsertSequenceBatchCountMap.get(typePath);
     if (batchCount == null) {
       batchCount = 1;
-      typeInsertSequenceBatchCountMap.put(typePath, 1);
+      this.typeInsertSequenceBatchCountMap.put(typePath, 1);
     } else {
       batchCount += 1;
-      typeInsertSequenceBatchCountMap.put(typePath, batchCount);
+      this.typeInsertSequenceBatchCountMap.put(typePath, batchCount);
     }
-    if (batchCount >= batchSize) {
-      final String sql = getInsertSql(metaData, true);
-      processCurrentBatch(typePath, sql, statement,
-        typeInsertSequenceBatchCountMap);
+    if (batchCount >= this.batchSize) {
+      final String sql = getInsertSql(recordDefinition, true);
+      processCurrentBatch(typePath, sql, statement, this.typeInsertSequenceBatchCountMap);
     }
   }
 
   public boolean isFlushBetweenTypes() {
-    return flushBetweenTypes;
+    return this.flushBetweenTypes;
   }
 
   public boolean isQuoteColumnNames() {
-    return quoteColumnNames;
+    return this.quoteColumnNames;
   }
 
   public boolean isThrowExceptions() {
-    return throwExceptions;
+    return this.throwExceptions;
   }
 
-  private void processCurrentBatch(final String typePath, final String sql,
-    final PreparedStatement statement, final Map<String, Integer> batchCountMap) {
+  private void processCurrentBatch(final PathName typePath, final String sql,
+    final PreparedStatement statement, final Map<PathName, Integer> batchCountMap) {
     Integer batchCount = batchCountMap.get(typePath);
     if (batchCount == null) {
       batchCount = 0;
     }
     try {
-      Integer typeCount = typeCountMap.get(typePath);
+      Integer typeCount = this.typeCountMap.get(typePath);
       if (typeCount == null) {
         typeCount = batchCount;
       } else {
         typeCount += batchCount;
       }
-      typeCountMap.put(typePath, typeCount);
+      this.typeCountMap.put(typePath, typeCount);
       statement.executeBatch();
     } catch (final SQLException e) {
-      throw JdbcUtils.getException(getDataSource(), connection,
-        "Process Batch", sql, e);
+      throw this.connection.getException("Process Batch", sql, e);
     } catch (final RuntimeException e) {
       LOG.error(sql, e);
       throw e;
@@ -594,20 +588,6 @@ public class JdbcWriterImpl extends AbstractWriter<DataObject> implements
 
   public void setBatchSize(final int batchSize) {
     this.batchSize = batchSize;
-  }
-
-  public void setConnection(final Connection connection) {
-    this.connection = connection;
-  }
-
-  public void setDataSource(final DataSource dataSource) {
-    this.dataSource = dataSource;
-    try {
-      setConnection(JdbcUtils.getConnection(dataSource));
-      connection.setAutoCommit(false);
-    } catch (final SQLException e) {
-      throw new RuntimeException("Unable to create connection", e);
-    }
   }
 
   public void setFlushBetweenTypes(final boolean flushBetweenTypes) {
@@ -643,82 +623,82 @@ public class JdbcWriterImpl extends AbstractWriter<DataObject> implements
 
   @Override
   public String toString() {
-    if (dataStore == null) {
+    if (this.recordStore == null) {
       return super.toString();
     } else {
-      return dataStore.toString() + " writer";
+      return this.recordStore.toString() + " writer";
     }
   }
 
-  private void update(final DataObject object) throws SQLException {
-    final DataObjectMetaData objectType = object.getMetaData();
-    final String typePath = objectType.getPath();
-    final DataObjectMetaData metaData = getDataObjectMetaData(typePath);
-    flushIfRequired(metaData);
-    PreparedStatement statement = typeUpdateStatementMap.get(typePath);
+  private void update(final Record object) throws SQLException {
+    final RecordDefinition objectType = object.getRecordDefinition();
+    final PathName typePath = objectType.getPathName();
+    final RecordDefinition recordDefinition = getRecordDefinition(typePath);
+    flushIfRequired(recordDefinition);
+    PreparedStatement statement = this.typeUpdateStatementMap.get(typePath);
     if (statement == null) {
-      final String sql = getUpdateSql(metaData);
+      final String sql = getUpdateSql(recordDefinition);
       try {
-        statement = connection.prepareStatement(sql);
-        typeUpdateStatementMap.put(typePath, statement);
+        statement = this.connection.prepareStatement(sql);
+        this.typeUpdateStatementMap.put(typePath, statement);
       } catch (final SQLException e) {
         LOG.error(sql, e);
       }
     }
     int parameterIndex = 1;
-    final List<Attribute> idAttributes = metaData.getIdAttributes();
-    for (final Attribute attribute : metaData.getAttributes()) {
-      if (!idAttributes.contains(attribute)) {
-        final JdbcAttribute jdbcAttribute = (JdbcAttribute)attribute;
-        parameterIndex = jdbcAttribute.setInsertPreparedStatementValue(
-          statement, parameterIndex, object);
+    final List<FieldDefinition> idFields = recordDefinition.getIdFields();
+    for (final FieldDefinition fieldDefinition : recordDefinition.getFields()) {
+      if (!idFields.contains(fieldDefinition)) {
+        final JdbcFieldDefinition jdbcFieldDefinition = (JdbcFieldDefinition)fieldDefinition;
+        parameterIndex = jdbcFieldDefinition.setInsertPreparedStatementValue(statement,
+          parameterIndex, object);
       }
     }
-    for (final Attribute idAttribute : idAttributes) {
-      final JdbcAttribute jdbcAttribute = (JdbcAttribute)idAttribute;
-      parameterIndex = jdbcAttribute.setInsertPreparedStatementValue(statement,
+    for (final FieldDefinition idField : idFields) {
+      final JdbcFieldDefinition jdbcFieldDefinition = (JdbcFieldDefinition)idField;
+      parameterIndex = jdbcFieldDefinition.setInsertPreparedStatementValue(statement,
         parameterIndex, object);
 
     }
     statement.addBatch();
-    Integer batchCount = typeUpdateBatchCountMap.get(typePath);
+    Integer batchCount = this.typeUpdateBatchCountMap.get(typePath);
     if (batchCount == null) {
       batchCount = 1;
-      typeUpdateBatchCountMap.put(typePath, 1);
+      this.typeUpdateBatchCountMap.put(typePath, 1);
     } else {
       batchCount += 1;
-      typeUpdateBatchCountMap.put(typePath, batchCount);
+      this.typeUpdateBatchCountMap.put(typePath, batchCount);
     }
-    if (batchCount >= batchSize) {
-      final String sql = getUpdateSql(metaData);
-      processCurrentBatch(typePath, sql, statement, typeUpdateBatchCountMap);
+    if (batchCount >= this.batchSize) {
+      final String sql = getUpdateSql(recordDefinition);
+      processCurrentBatch(typePath, sql, statement, this.typeUpdateBatchCountMap);
     }
-    dataStore.addStatistic("Update", object);
+    this.recordStore.addStatistic("Update", object);
   }
 
   @Override
-  public synchronized void write(final DataObject object) {
+  public synchronized void write(final Record record) {
     try {
-      final DataObjectMetaData metaData = object.getMetaData();
-      final DataObjectStore dataStore = metaData.getDataStore();
-      final DataObjectState state = object.getState();
-      if (dataStore != this.dataStore) {
-        if (state != DataObjectState.Deleted) {
-          insert(object);
+      final RecordDefinition recordDefinition = record.getRecordDefinition();
+      final RecordStore recordStore = recordDefinition.getRecordStore();
+      final RecordState state = record.getState();
+      if (recordStore != this.recordStore) {
+        if (state != RecordState.DELETED) {
+          insert(record);
         }
       } else {
         switch (state) {
-          case New:
-            insert(object);
+          case NEW:
+            insert(record);
           break;
-          case Modified:
-            update(object);
+          case MODIFIED:
+            update(record);
           break;
-          case Persisted:
+          case PERSISTED:
           // No action required
           break;
-          case Deleted:
-            delete(object);
+          case DELETED:
+            delete(record);
           break;
           default:
             throw new IllegalStateException("State not known");

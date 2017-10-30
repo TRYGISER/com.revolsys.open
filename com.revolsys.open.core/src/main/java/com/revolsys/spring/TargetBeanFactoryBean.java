@@ -6,52 +6,52 @@ import org.springframework.beans.factory.config.BeanDefinition;
 
 public class TargetBeanFactoryBean extends AbstractFactoryBean<Object> {
 
-  private BeanFactory targetBeanFactory;
-
-  private String targetBeanName;
-
-  private BeanDefinition targetBeanDefinition;
+  private boolean instanceCreated = false;
 
   private Class<?> targetBeanClass;
 
-  private boolean instanceCreated = false;
+  private BeanDefinition targetBeanDefinition;
+
+  private BeanFactory targetBeanFactory;
+
+  private String targetBeanName;
 
   public TargetBeanFactoryBean() {
   }
 
   @Override
   protected Object createInstance() {
-    instanceCreated = true;
+    this.instanceCreated = true;
     return this.targetBeanFactory.getBean(this.targetBeanName);
   }
 
   @Override
   public Class<?> getObjectType() {
-    if (targetBeanClass == null) {
+    if (this.targetBeanClass == null) {
       return Object.class;
     } else {
-      return targetBeanClass;
+      return this.targetBeanClass;
     }
   }
 
   public Class<?> getTargetBeanClass() {
-    return targetBeanClass;
+    return this.targetBeanClass;
   }
 
   public BeanDefinition getTargetBeanDefinition() {
-    return targetBeanDefinition;
+    return this.targetBeanDefinition;
   }
 
   public BeanFactory getTargetBeanFactory() {
-    return targetBeanFactory;
+    return this.targetBeanFactory;
   }
 
   public String getTargetBeanName() {
-    return targetBeanName;
+    return this.targetBeanName;
   }
 
   public boolean isInstanceCreated() {
-    return instanceCreated;
+    return this.instanceCreated;
   }
 
   public void setTargetBeanClass(final Class<?> targetBeanClass) {
@@ -72,6 +72,6 @@ public class TargetBeanFactoryBean extends AbstractFactoryBean<Object> {
 
   @Override
   public String toString() {
-    return "Target=" + targetBeanName;
+    return "Target=" + this.targetBeanName;
   }
 }

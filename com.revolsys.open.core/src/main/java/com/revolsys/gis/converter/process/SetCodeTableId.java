@@ -7,64 +7,64 @@ import java.util.Map.Entry;
 
 import org.springframework.core.convert.converter.Converter;
 
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.data.model.codes.CodeTable;
+import com.revolsys.record.Record;
+import com.revolsys.record.code.CodeTable;
+import com.revolsys.record.schema.RecordDefinition;
 
-public class SetCodeTableId extends
-  AbstractSourceToTargetProcess<DataObject, DataObject> {
+public class SetCodeTableId extends AbstractSourceToTargetProcess<Record, Record> {
   private final CodeTable codeTable;
 
-  private final Map<String, Converter<DataObject, Object>> codeTableValueConverters = new HashMap<String, Converter<DataObject, Object>>();
+  private final Map<String, Converter<Record, Object>> codeTableValueConverters = new HashMap<>();
 
-  private final String targetAttributeName;
+  private final String targetFieldName;
 
-  public SetCodeTableId(final CodeTable codeTable,
-    final String targetAttributeName) {
+  public SetCodeTableId(final CodeTable codeTable, final String targetFieldName) {
     this.codeTable = codeTable;
-    this.targetAttributeName = targetAttributeName;
+    this.targetFieldName = targetFieldName;
   }
 
   @Override
-  public void process(final DataObject source, final DataObject target) {
-    final Map<String, Object> codeTableValues = new HashMap<String, Object>();
+  public void process(final Record source, final Record target) {
+    final Map<String, Object> codeTableValues = new HashMap<>();
 
-    for (final Entry<String, Converter<DataObject, Object>> entry : codeTableValueConverters.entrySet()) {
-      String codeTableAttributeName = entry.getKey();
-      final Converter<DataObject, Object> sourceAttributeConverter = entry.getValue();
+    for (final Entry<String, Converter<Record, Object>> entry : this.codeTableValueConverters
+      .entrySet()) {
+      String codeTableFieldName = entry.getKey();
+      final Converter<Record, Object> sourceAttributeConverter = entry.getValue();
       Object sourceValue = sourceAttributeConverter.convert(source);
       if (sourceValue != null) {
-        final DataObjectMetaData targetMetaData = target.getMetaData();
+        final RecordDefinition targetRecordDefinition = target.getRecordDefinition();
         String codeTableValueName = null;
-        final int dotIndex = codeTableAttributeName.indexOf(".");
+        final int dotIndex = codeTableFieldName.indexOf(".");
         if (dotIndex != -1) {
-          codeTableValueName = codeTableAttributeName.substring(dotIndex + 1);
-          codeTableAttributeName = codeTableAttributeName.substring(0, dotIndex);
+          codeTableValueName = codeTableFieldName.substring(dotIndex + 1);
+          codeTableFieldName = codeTableFieldName.substring(0, dotIndex);
         }
-        final CodeTable targetCodeTable = targetMetaData.getCodeTableByColumn(codeTableAttributeName);
+        final CodeTable targetCodeTable = targetRecordDefinition
+          .getCodeTableByFieldName(codeTableFieldName);
         if (targetCodeTable != null) {
           if (codeTableValueName == null) {
-            sourceValue = targetCodeTable.getId(sourceValue);
+            sourceValue = targetCodeTable.getIdentifier(sourceValue);
           } else {
-            sourceValue = targetCodeTable.getId(Collections.singletonMap(
-              codeTableValueName, sourceValue));
+            sourceValue = targetCodeTable
+              .getIdentifier(Collections.singletonMap(codeTableValueName, sourceValue));
           }
         }
       }
-      codeTableValues.put(codeTableAttributeName, sourceValue);
+      codeTableValues.put(codeTableFieldName, sourceValue);
     }
-    final Object codeId = codeTable.getId(codeTableValues);
-    target.setValue(targetAttributeName, codeId);
+    final Object codeId = this.codeTable.getIdentifier(codeTableValues);
+    target.setValue(this.targetFieldName, codeId);
   }
 
   public void setValueMapping(final String codeTableAttribute,
-    final Converter<DataObject, Object> valueConverter) {
-    codeTableValueConverters.put(codeTableAttribute, valueConverter);
+    final Converter<Record, Object> valueConverter) {
+    this.codeTableValueConverters.put(codeTableAttribute, valueConverter);
 
   }
 
   @Override
   public String toString() {
-    return "setCodeTableId" + codeTableValueConverters;
+    return "setCodeTableId" + this.codeTableValueConverters;
   }
 }

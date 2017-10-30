@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,8 +15,9 @@
  */
 package com.revolsys.ui.html.view;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
 
 public class Script extends Element {
   private String content;
@@ -36,31 +37,31 @@ public class Script extends Element {
    * @return Returns the content.
    */
   public String getContent() {
-    return content;
+    return this.content;
   }
 
   public String getFile() {
-    return file;
+    return this.file;
   }
 
   /**
    * @return Returns the type.
    */
   public String getType() {
-    return type;
+    return this.type;
   }
 
   @Override
   public void serializeElement(final XmlWriter out) {
-    out.startTag(HtmlUtil.SCRIPT);
-    out.attribute(HtmlUtil.ATTR_TYPE, type);
-    if (content != null) {
-      out.write(content);
+    out.startTag(HtmlElem.SCRIPT);
+    out.attribute(HtmlAttr.TYPE, this.type);
+    if (this.content != null) {
+      out.write(this.content);
     } else {
-      out.attribute(HtmlUtil.ATTR_SRC, file);
+      out.attribute(HtmlAttr.SRC, this.file);
       out.write('\n');
     }
-    out.endTag(HtmlUtil.SCRIPT);
+    out.endTag(HtmlElem.SCRIPT);
   }
 
   /**

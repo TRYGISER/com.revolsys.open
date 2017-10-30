@@ -1,8 +1,12 @@
 package com.revolsys.ui.web.servlet.listener;
 
 import java.beans.Introspector;
+import java.lang.management.ManagementFactory;
 import java.util.Enumeration;
+import java.util.Set;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -14,12 +18,11 @@ import org.springframework.beans.ClearCachedIntrospectionResults;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.web.util.Log4jWebConfigurer;
 
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.jts.geom.GeometryFactory;
-import com.revolsys.gis.cs.epsg.EpsgCoordinateSystems;
+import com.revolsys.geometry.cs.epsg.EpsgCoordinateSystems;
+import com.revolsys.geometry.model.GeometryFactory;
 import com.revolsys.io.IoFactoryRegistry;
-import com.revolsys.jdbc.io.JdbcFactoryRegistry;
-import com.revolsys.util.JavaBeanUtil;
+import com.revolsys.logging.Logs;
+import com.revolsys.util.Property;
 
 public class ContextCleanupListener implements ServletContextListener {
 
@@ -34,8 +37,8 @@ public class ContextCleanupListener implements ServletContextListener {
           try {
             ((DisposableBean)attrValue).destroy();
           } catch (final Throwable e) {
-            System.err.println("Couldn't invoke destroy method of attribute with name '"
-              + attrName + "'");
+            System.err
+              .println("Couldn't invoke destroy method of attribute with name '" + attrName + "'");
           }
         } else {
           servletContext.removeAttribute(attrName);
@@ -46,22 +49,19 @@ public class ContextCleanupListener implements ServletContextListener {
 
   @Override
   public void contextDestroyed(final ServletContextEvent event) {
-    final ClassLoader contextClassLoader = Thread.currentThread()
-      .getContextClassLoader();
+    final ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
     IoFactoryRegistry.clearInstance();
-    JdbcFactoryRegistry.clearInstance();
-    StringConverterRegistry.clearInstance();
     GeometryFactory.clear();
     EpsgCoordinateSystems.clear();
     cleanupAttributes(event.getServletContext());
 
-    JavaBeanUtil.clearCache();
     BeanUtilsBean.setInstance(null);
     CachedIntrospectionResults.clearClassLoader(contextClassLoader);
     CachedIntrospectionResults.clearClassLoader(CachedIntrospectionResults.class.getClassLoader());
     CachedIntrospectionResults.clearClassLoader(ClassLoader.getSystemClassLoader());
-    ClearCachedIntrospectionResults.clearCache();
     Introspector.flushCaches();
+    ClearCachedIntrospectionResults.clearCache();
+    Property.clearCache();
     Logger.getRootLogger().removeAllAppenders();
     Log4jWebConfigurer.shutdownLogging(event.getServletContext());
   }
@@ -69,7 +69,42 @@ public class ContextCleanupListener implements ServletContextListener {
   @Override
   public void contextInitialized(final ServletContextEvent event) {
     Log4jWebConfigurer.initLogging(event.getServletContext());
-    CachedIntrospectionResults.acceptClassLoader(Thread.currentThread()
-      .getContextClassLoader());
+    CachedIntrospectionResults.acceptClassLoader(Thread.currentThread().getContextClassLoader());
+  }
+
+  protected boolean isWebAppClassLoaderOrChild(ClassLoader classLoader) {
+    final ClassLoader webAppClassLoader = getClass().getClassLoader();
+
+    while (classLoader != null) {
+      if (classLoader == webAppClassLoader) {
+        return true;
+      }
+
+      classLoader = classLoader.getParent();
+    }
+
+    return false;
+  }
+
+  /** Unregister MBeans loaded by the web application class loader */
+  protected void unregisterMBeans() {
+    try {
+      final MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
+      final Set<ObjectName> allMBeanNames = mBeanServer.queryNames(new ObjectName("*:*"), null);
+
+      for (final ObjectName mbeanName : allMBeanNames) {
+        try {
+
+          final ClassLoader mBeanClassLoader = mBeanServer.getClassLoaderFor(mbeanName);
+          if (isWebAppClassLoaderOrChild(mBeanClassLoader)) {
+            mBeanServer.unregisterMBean(mbeanName);
+          }
+        } catch (final Throwable e) {
+          Logs.error(this, "Unable to deregister MBean" + mbeanName, e);
+        }
+      }
+    } catch (final Throwable e) {
+      Logs.error(this, "Unable to deregister MBeans", e);
+    }
   }
 }

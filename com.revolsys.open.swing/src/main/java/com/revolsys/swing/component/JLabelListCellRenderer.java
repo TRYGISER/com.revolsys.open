@@ -10,20 +10,18 @@ import javax.swing.plaf.basic.BasicComboBoxRenderer;
 
 public class JLabelListCellRenderer extends BasicComboBoxRenderer {
   /**
-   * 
+   *
    */
   private static final long serialVersionUID = -8014837570227669960L;
 
-  private final Map<Object, String> labels = new HashMap<Object, String>();
+  private final Map<Object, Icon> icons = new HashMap<>();
 
-  private final Map<Object, Icon> icons = new HashMap<Object, Icon>();
+  private final Map<Object, String> labels = new HashMap<>();
 
   @Override
-  public Component getListCellRendererComponent(final JList list,
-    final Object value, final int index, final boolean isSelected,
-    final boolean cellHasFocus) {
-    super.getListCellRendererComponent(list, value, index, isSelected,
-      cellHasFocus);
+  public Component getListCellRendererComponent(final JList list, final Object value,
+    final int index, final boolean isSelected, final boolean cellHasFocus) {
+    super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
     final String label = this.labels.get(value);
     if (label != null) {
       setText(label);

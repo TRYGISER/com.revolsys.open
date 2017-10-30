@@ -7,15 +7,15 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 
 public class ServerOverrideHttpServletRequest extends HttpServletRequestWrapper {
-  private String serverUrl;
+  private String scheme;
 
   private String secureServerUrl;
 
   private String serverName;
 
-  private String scheme;
-
   private int serverPort;
+
+  private String serverUrl;
 
   public ServerOverrideHttpServletRequest(final String serverUrl,
     final HttpServletRequest request) {
@@ -23,16 +23,16 @@ public class ServerOverrideHttpServletRequest extends HttpServletRequestWrapper 
 
     try {
       final URL url = new URL(serverUrl);
-      scheme = url.getProtocol();
-      serverName = url.getHost();
-      serverPort = url.getPort();
-      if (serverPort == -1) {
+      this.scheme = url.getProtocol();
+      this.serverName = url.getHost();
+      this.serverPort = url.getPort();
+      if (this.serverPort == -1) {
         this.serverPort = url.getDefaultPort();
-        this.serverUrl = scheme + "://" + serverName;
-        this.secureServerUrl = "https://" + serverName;
+        this.serverUrl = this.scheme + "://" + this.serverName;
+        this.secureServerUrl = "https://" + this.serverName;
       } else {
-        this.serverUrl = scheme + "://" + serverName + ":" + serverPort;
-        this.secureServerUrl = "https://" + serverName;
+        this.serverUrl = this.scheme + "://" + this.serverName + ":" + this.serverPort;
+        this.secureServerUrl = "https://" + this.serverName;
       }
     } catch (final MalformedURLException e) {
       throw new IllegalArgumentException("Invalid URL " + serverUrl);
@@ -45,7 +45,7 @@ public class ServerOverrideHttpServletRequest extends HttpServletRequestWrapper 
     String serverUrl;
     final String scheme = super.getScheme();
     if (scheme.equals("https")) {
-      serverUrl = secureServerUrl;
+      serverUrl = this.secureServerUrl;
     } else {
       serverUrl = this.serverUrl;
     }
@@ -70,13 +70,13 @@ public class ServerOverrideHttpServletRequest extends HttpServletRequestWrapper 
     if (super.getScheme().equals("https")) {
       return super.getScheme();
     } else {
-      return scheme;
+      return this.scheme;
     }
   }
 
   @Override
   public String getServerName() {
-    return serverName;
+    return this.serverName;
   }
 
   @Override
@@ -84,7 +84,7 @@ public class ServerOverrideHttpServletRequest extends HttpServletRequestWrapper 
     if (super.getScheme().equals("https")) {
       return super.getServerPort();
     } else {
-      return serverPort;
+      return this.serverPort;
     }
   }
 }

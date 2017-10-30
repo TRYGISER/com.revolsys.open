@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,60 +15,59 @@
  */
 package com.revolsys.ui.html.view;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.web.config.Page;
 import com.revolsys.ui.web.config.WebUiContext;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
 
 public class PageBreadcrumbsView extends ObjectView {
-  private String cssClass = "breadcrumbsMenu";
-
   private final WebUiContext context;
 
-  private String pageNode;
+  private String cssClass = "breadcrumbsMenu";
 
   public PageBreadcrumbsView() {
-    context = WebUiContext.get();
-    setObject(context.getPage());
+    this.context = WebUiContext.get();
+    setObject(this.context.getPage());
   }
 
   private void crumb(final XmlWriter out, final Page page, final boolean current) {
     if (page == null) {
-      out.startTag(HtmlUtil.LI);
-      out.startTag(HtmlUtil.A);
-      out.attribute(HtmlUtil.ATTR_HREF, context.getConfig().getBasePath() + "/");
+      out.startTag(HtmlElem.LI);
+      out.startTag(HtmlElem.A);
+      out.attribute(HtmlAttr.HREF, this.context.getConfig().getBasePath() + "/");
       out.text("HOME");
-      out.endTag(HtmlUtil.A);
+      out.endTag(HtmlElem.A);
       out.text(" >");
-      out.endTag(HtmlUtil.LI);
+      out.endTag(HtmlElem.LI);
     } else {
       crumb(out, page.getParent(), false);
-      out.startTag(HtmlUtil.LI);
+      out.startTag(HtmlElem.LI);
       if (current) {
-        out.attribute(HtmlUtil.ATTR_CLASS, "current");
+        out.attribute(HtmlAttr.CLASS, "current");
         out.text(page.getTitle());
       } else {
-        out.startTag(HtmlUtil.A);
-        out.attribute(HtmlUtil.ATTR_HREF, page.getFullUrl());
+        out.startTag(HtmlElem.A);
+        out.attribute(HtmlAttr.HREF, page.getFullUrl());
         out.text(page.getTitle());
-        out.endTag(HtmlUtil.A);
+        out.endTag(HtmlElem.A);
         out.text(" >");
       }
-      out.endTag(HtmlUtil.LI);
+      out.endTag(HtmlElem.LI);
     }
   }
 
   @Override
   public void serializeElement(final XmlWriter out) {
     final Page page = (Page)getObject();
-    out.startTag(HtmlUtil.DIV);
-    out.attribute(HtmlUtil.ATTR_CLASS, cssClass);
+    out.startTag(HtmlElem.DIV);
+    out.attribute(HtmlAttr.CLASS, this.cssClass);
 
-    out.startTag(HtmlUtil.UL);
+    out.startTag(HtmlElem.UL);
     crumb(out, page, true);
-    out.endTag(HtmlUtil.UL);
+    out.endTag(HtmlElem.UL);
 
-    out.endTag(HtmlUtil.DIV);
+    out.endTag(HtmlElem.DIV);
   }
 
   @Override
@@ -76,7 +75,7 @@ public class PageBreadcrumbsView extends ObjectView {
     if (value != null) {
       super.setProperty(name, value.toString());
       if (name.equals("cssClass")) {
-        cssClass = value.toString();
+        this.cssClass = value.toString();
       }
     }
   }

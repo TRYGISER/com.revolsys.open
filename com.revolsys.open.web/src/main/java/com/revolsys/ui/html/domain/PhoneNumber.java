@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -36,7 +36,7 @@ public final class PhoneNumber {
    * few digits of the phone number will be used to lookup a matching country
    * and formatted using that country, if that fails the unformatted phone
    * number will be returned.
-   * 
+   *
    * @param phoneNumber The normalized phone number to format.
    * @return The formatted phone number.
    */
@@ -50,7 +50,7 @@ public final class PhoneNumber {
    * country the first few digits of the phone number will be used to lookup a
    * matching country and formatted using that country, if that fails the
    * unformatted phone number will be returned.
-   * 
+   *
    * @param phoneNumber The normalized phone number to format.
    * @param country The Country the phone number should be formatted for.
    * @return The formatted phone number.
@@ -67,16 +67,14 @@ public final class PhoneNumber {
    * for that country the first few digits of the phone number will be used to
    * lookup a matching country and formatted using that country's international
    * format, if that fails the unformatted phone number will be returned.
-   * 
+   *
    * @param phoneNumber The normalized phone number to format.
    * @param country The Country the phone number should be formatted for.
    * @param international True if the phone number should use the international
    *          format.
    * @return The formatted phone number.
    */
-  public static String format(
-    final String phoneNumber,
-    final Country country,
+  public static String format(final String phoneNumber, final Country country,
     final boolean international) {
     String formattedNumber = null;
     if (phoneNumber == null) {
@@ -111,7 +109,7 @@ public final class PhoneNumber {
    * locale the first few digits of the phone number will be used to lookup a
    * matching country and formatted using that locale, if that fails the
    * unformatted phone number will be returned.
-   * 
+   *
    * @param phoneNumber The normalized phone number to format.
    * @param locale The Locale the phone number should be formatted for.
    * @return The formatted phone number.
@@ -123,16 +121,13 @@ public final class PhoneNumber {
   /**
    * Parse a phone number using the regular expression and if it matches the
    * phone number, format it using the specified format otherwise return null.
-   * 
+   *
    * @param phoneNumber The normalized phone number to format.
    * @param regex The regular expression to match phone numbers.
    * @param format The format specification.
    * @return The formatted phone number.
    */
-  public static String format(
-    final String phoneNumber,
-    final String regex,
-    final String format) {
+  public static String format(final String phoneNumber, final String regex, final String format) {
     if (phoneNumber != null && regex != null && format != null) {
       final Pattern pattern = Pattern.compile(regex);
       final Matcher matcher = pattern.matcher(phoneNumber);
@@ -143,18 +138,17 @@ public final class PhoneNumber {
         }
         Expression expression;
         try {
-          expression = JexlUtil.createExpression(format);
+          expression = JexlUtil.newExpression(format);
         } catch (final Exception e) {
-          throw new IllegalArgumentException(regex
-            + " is not a valid regular expression: " + e.getMessage());
+          throw new IllegalArgumentException(
+            regex + " is not a valid regular expression: " + e.getMessage());
         }
         final HashMapContext context = new HashMapContext();
         context.setVars(values);
         try {
           return (String)expression.evaluate(context);
         } catch (final Exception e) {
-          throw new IllegalArgumentException(format
-            + " is not a valid format: " + e.getMessage());
+          throw new IllegalArgumentException(format + " is not a valid format: " + e.getMessage());
         }
       }
     }
@@ -168,7 +162,7 @@ public final class PhoneNumber {
 
   /**
    * Normalize the phone number removing any non-digit characters.
-   * 
+   *
    * @param phoneNumber The phone number.
    * @return The normalized phone number.
    */

@@ -5,7 +5,7 @@ import java.text.DateFormat;
 
 /**
  * Serialize a date with the date and time fields.
- * 
+ *
  * @author Paul Austin
  */
 public class DateTimeSerializer extends DateSerializer {
@@ -14,7 +14,7 @@ public class DateTimeSerializer extends DateSerializer {
 
   /**
    * Get the date format instance.
-   * 
+   *
    * @return The date format instance.
    */
   protected DateFormat getDateFormat() {
@@ -23,16 +23,16 @@ public class DateTimeSerializer extends DateSerializer {
 
   /**
    * Get the time style.
-   * 
+   *
    * @return The time style.
    */
   public int getTimeStyle() {
-    return timeStyle;
+    return this.timeStyle;
   }
 
   /**
    * Set the time style.
-   * 
+   *
    * @param timeStyle The time style.
    */
   public void setTimeStyle(final int timeStyle) {
@@ -42,7 +42,7 @@ public class DateTimeSerializer extends DateSerializer {
   /**
    * Set the name of the style for use by
    * {@link DateFormat#getDateInstance(int)}.
-   * 
+   *
    * @param styleName The name of the date format style;
    */
   public void setTimeStyle(final String styleName) {
@@ -52,8 +52,7 @@ public class DateTimeSerializer extends DateSerializer {
     } catch (final SecurityException e) {
       throw new RuntimeException(e.getMessage(), e);
     } catch (final NoSuchFieldException e) {
-      throw new IllegalArgumentException(styleName
-        + " is not a valid DateFormat style");
+      throw new IllegalArgumentException(styleName + " is not a valid DateFormat style");
     } catch (final IllegalAccessException e) {
       throw new RuntimeException(e.getMessage(), e);
     }

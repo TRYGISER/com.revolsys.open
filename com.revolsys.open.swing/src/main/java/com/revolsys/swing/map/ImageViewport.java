@@ -3,32 +3,38 @@ package com.revolsys.swing.map;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 
-import com.revolsys.jts.geom.BoundingBox;
+import com.revolsys.geometry.model.BoundingBox;
+import com.revolsys.raster.BufferedGeoreferencedImage;
 import com.revolsys.swing.map.layer.Project;
 
-public class ImageViewport extends Viewport2D {
-
+public class ImageViewport extends GraphicsViewport2D {
   private final BufferedImage image;
 
-  private final Graphics2D graphics;
+  public ImageViewport(final Project project, final int width, final int height,
+    final BoundingBox boundingBox) {
+    this(project, width, height, boundingBox, BufferedImage.TYPE_INT_ARGB_PRE);
+  }
 
-  public ImageViewport(final Project project, final int width,
-    final int height, final BoundingBox boundingBox) {
+  public ImageViewport(final Project project, final int width, final int height,
+    final BoundingBox boundingBox, final int imageType) {
     super(project, width, height, boundingBox);
-    this.image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-    this.graphics = (Graphics2D)this.image.getGraphics();
+    this.image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB_PRE);
+    setGraphics((Graphics2D)this.image.getGraphics());
   }
 
-  @Override
-  protected void finalize() throws Throwable {
-    super.finalize();
-    if (graphics != null) {
-      graphics.dispose();
-    }
+  public ImageViewport(final Viewport2D parentViewport) {
+    this(parentViewport.getProject(), parentViewport.getViewWidthPixels(),
+      parentViewport.getViewHeightPixels(), parentViewport.getBoundingBox());
   }
 
-  public Graphics2D getGraphics() {
-    return this.graphics;
+  public ImageViewport(final Viewport2D parentViewport, final int imageType) {
+    this(parentViewport.getProject(), parentViewport.getViewWidthPixels(),
+      parentViewport.getViewHeightPixels(), parentViewport.getBoundingBox(), imageType);
+  }
+
+  public BufferedGeoreferencedImage getGeoreferencedImage() {
+    final BoundingBox boundingBox = getBoundingBox();
+    return new BufferedGeoreferencedImage(boundingBox, this.image);
   }
 
   public BufferedImage getImage() {

@@ -1,9 +1,8 @@
 package com.revolsys.jdbc.io;
 
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.io.Writer;
+import com.revolsys.record.io.RecordWriter;
 
-public interface JdbcWriter extends Writer<DataObject> {
+public interface JdbcWriter extends RecordWriter {
 
   @Override
   public void flush();

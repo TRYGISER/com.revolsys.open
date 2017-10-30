@@ -25,11 +25,10 @@ import com.revolsys.swing.map.MapPanel;
 import com.revolsys.swing.map.layer.Project;
 import com.revolsys.swing.parallel.Invoke;
 
-public class FileDropTargetListener implements DropTargetListener,
-  HierarchyListener {
-  private static final String ZERO_CHAR_STRING = String.valueOf((char)0);
-
+public class FileDropTargetListener implements DropTargetListener, HierarchyListener {
   private static final Logger LOG = Logger.getLogger(FileDropTargetListener.class);
+
+  private static final String ZERO_CHAR_STRING = String.valueOf((char)0);
 
   public FileDropTargetListener(final MapPanel map) {
     addDropTarget(map);
@@ -77,11 +76,11 @@ public class FileDropTargetListener implements DropTargetListener,
   public void drop(final DropTargetDropEvent event) {
     try {
       final Transferable tr = event.getTransferable();
-      List<File> files = null;
+      final List<File> files = new ArrayList<>();
       if (tr.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
         event.acceptDrop(DnDConstants.ACTION_COPY);
 
-        files = (List<File>)tr.getTransferData(DataFlavor.javaFileListFlavor);
+        files.addAll((List<File>)tr.getTransferData(DataFlavor.javaFileListFlavor));
       } else {
         final DataFlavor[] flavors = tr.getTransferDataFlavors();
         boolean handled = false;
@@ -89,17 +88,18 @@ public class FileDropTargetListener implements DropTargetListener,
           if (flavor.isRepresentationClassReader()) {
             event.acceptDrop(DnDConstants.ACTION_COPY);
 
-            final BufferedReader reader = new BufferedReader(
-              flavor.getReaderForText(tr));
+            final BufferedReader reader = new BufferedReader(flavor.getReaderForText(tr));
             handled = true;
-            files = new ArrayList<File>();
             String fileName = null;
             while ((fileName = reader.readLine()) != null) {
               try {
                 // kde seems to append a 0 char to the end of the reader
                 if (!ZERO_CHAR_STRING.equals(fileName)) {
-                  final File file = new File(new URI(fileName));
-                  files.add(file);
+                  final URI uri = new URI(fileName);
+                  if (uri.isAbsolute()) {
+                    final File file = new File(uri);
+                    files.add(file);
+                  }
                 }
               } catch (final URISyntaxException e) {
                 LOG.error("Drag and Drop file " + fileName + " not valid", e);
@@ -112,10 +112,8 @@ public class FileDropTargetListener implements DropTargetListener,
           return;
         }
       }
-      if (files != null && !files.isEmpty()) {
-        Invoke.background("Open Files", Project.get(), "openFiles",
-          files);
-      }
+      final Project project = Project.get();
+      Invoke.background("Open Files", () -> project.openFiles(files));
       event.getDropTargetContext().dropComplete(true);
     } catch (final Throwable e) {
       LOG.error("Unable to drop", e);
@@ -145,8 +143,7 @@ public class FileDropTargetListener implements DropTargetListener,
   private boolean isDragOk(final DropTargetDragEvent event) {
     final DataFlavor[] flavors = event.getCurrentDataFlavors();
     for (final DataFlavor flavor : flavors) {
-      if (flavor.equals(DataFlavor.javaFileListFlavor)
-        || flavor.isRepresentationClassReader()) {
+      if (flavor.equals(DataFlavor.javaFileListFlavor) || flavor.isRepresentationClassReader()) {
         return true;
       }
     }

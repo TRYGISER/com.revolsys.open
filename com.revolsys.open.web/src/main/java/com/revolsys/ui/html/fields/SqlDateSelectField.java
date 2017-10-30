@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,34 +27,26 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.apache.log4j.Logger;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.form.Form;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
 
 public class SqlDateSelectField extends Field {
 
-  private static final String YEAR_KEY = "Year";
-
   private static final String DAY_KEY = "Day";
 
-  private static final String MONTH_KEY = "Month";
-
-  public static int getYear(final int offset) {
-    final Calendar date = new GregorianCalendar();
-    date.add(Calendar.YEAR, offset);
-    return date.get(Calendar.YEAR);
-  }
-
-  private final Logger log = Logger.getLogger(SqlDateSelectField.class);
-
   private static final List DAY_OPTIONS;
+
+  private static final String MONTH_KEY = "Month";
 
   private static final List MONTH_OPTIONS;
 
   private static final String[] MONTHS = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
-    "Nov", "Dec"
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
   };
+
+  private static final String YEAR_KEY = "Year";
 
   static {
     final List dayOptions = new ArrayList();
@@ -71,17 +63,25 @@ public class SqlDateSelectField extends Field {
     MONTH_OPTIONS = Collections.unmodifiableList(monthOptions);
   }
 
-  private final List yearOptions = new ArrayList();
+  public static int getYear(final int offset) {
+    final Calendar date = new GregorianCalendar();
+    date.add(Calendar.YEAR, offset);
+    return date.get(Calendar.YEAR);
+  }
 
   private String dayStringValue;
 
-  private String monthStringValue;
+  private final int endYear;
 
-  private String yearStringValue;
+  private final Logger log = Logger.getLogger(SqlDateSelectField.class);
+
+  private String monthStringValue;
 
   private final int startYear;
 
-  private final int endYear;
+  private final List yearOptions = new ArrayList();
+
+  private String yearStringValue;
 
   /**
    * @param name
@@ -95,12 +95,12 @@ public class SqlDateSelectField extends Field {
    * @param name
    * @param required
    */
-  public SqlDateSelectField(final String name, final boolean required,
-    final int startYear, final int endYear) {
+  public SqlDateSelectField(final String name, final boolean required, final int startYear,
+    final int endYear) {
     super(name, required);
     for (int i = startYear; i <= endYear; i++) {
       final String val = String.valueOf(i);
-      yearOptions.add(new FieldValue(new Integer(i), val, val));
+      this.yearOptions.add(new FieldValue(new Integer(i), val, val));
     }
     this.startYear = startYear;
     this.endYear = endYear;
@@ -108,29 +108,29 @@ public class SqlDateSelectField extends Field {
 
   @Override
   public boolean hasValue() {
-    return dayStringValue != null && !dayStringValue.equals("")
-      && monthStringValue != null && !monthStringValue.equals("")
-      && yearStringValue != null && !yearStringValue.equals("");
+    return this.dayStringValue != null && !this.dayStringValue.equals("")
+      && this.monthStringValue != null && !this.monthStringValue.equals("")
+      && this.yearStringValue != null && !this.yearStringValue.equals("");
   }
 
   @Override
   public void initialize(final Form form, final HttpServletRequest request) {
-    dayStringValue = request.getParameter(getName() + DAY_KEY);
-    monthStringValue = request.getParameter(getName() + MONTH_KEY);
-    yearStringValue = request.getParameter(getName() + YEAR_KEY);
+    this.dayStringValue = request.getParameter(getName() + DAY_KEY);
+    this.monthStringValue = request.getParameter(getName() + MONTH_KEY);
+    this.yearStringValue = request.getParameter(getName() + YEAR_KEY);
     final Date date = (Date)getInitialValue(request);
     final Calendar calendar = Calendar.getInstance();
     if (date != null) {
       calendar.setTime(date);
     }
-    if (dayStringValue == null) {
-      dayStringValue = String.valueOf(calendar.get(Calendar.DAY_OF_MONTH));
+    if (this.dayStringValue == null) {
+      this.dayStringValue = String.valueOf(calendar.get(Calendar.DAY_OF_MONTH));
     }
-    if (monthStringValue == null) {
-      monthStringValue = String.valueOf(calendar.get(Calendar.MONTH));
+    if (this.monthStringValue == null) {
+      this.monthStringValue = String.valueOf(calendar.get(Calendar.MONTH));
     }
-    if (yearStringValue == null) {
-      yearStringValue = String.valueOf(calendar.get(Calendar.YEAR));
+    if (this.yearStringValue == null) {
+      this.yearStringValue = String.valueOf(calendar.get(Calendar.YEAR));
     }
 
   }
@@ -145,22 +145,21 @@ public class SqlDateSelectField extends Field {
       int month = 1;
       int year = 1900;
       try {
-        day = Integer.parseInt(dayStringValue);
+        day = Integer.parseInt(this.dayStringValue);
       } catch (final NumberFormatException e) {
         addValidationError("Invalid Day");
         valid = false;
       }
       try {
-        month = Integer.parseInt(monthStringValue);
+        month = Integer.parseInt(this.monthStringValue);
       } catch (final NumberFormatException e) {
         addValidationError("Invalid Month");
         valid = false;
       }
       try {
-        year = Integer.parseInt(yearStringValue);
-        if (year < startYear || year > endYear) {
-          addValidationError("Year must be between " + startYear + " and "
-            + endYear);
+        year = Integer.parseInt(this.yearStringValue);
+        if (year < this.startYear || year > this.endYear) {
+          addValidationError("Year must be between " + this.startYear + " and " + this.endYear);
           valid = false;
         }
       } catch (final NumberFormatException e) {
@@ -176,7 +175,7 @@ public class SqlDateSelectField extends Field {
           date.set(year, month, day);
           setValue(new Date(date.getTimeInMillis()));
         } catch (final Throwable e) {
-          log.debug(e.getMessage(), e);
+          this.log.debug(e.getMessage(), e);
           addValidationError("Invalid Date");
           valid = false;
 
@@ -192,45 +191,44 @@ public class SqlDateSelectField extends Field {
     out.entityRef("nbsp");
     serializeSelect(out, DAY_KEY, DAY_OPTIONS);
     out.entityRef("nbsp");
-    serializeSelect(out, YEAR_KEY, yearOptions);
+    serializeSelect(out, YEAR_KEY, this.yearOptions);
   }
 
-  private void serializeOptions(final XmlWriter out, final String part,
-    final List options) {
+  private void serializeOptions(final XmlWriter out, final String part, final List options) {
     String stringValue = "";
     if (part.equals(DAY_KEY)) {
-      stringValue = dayStringValue;
+      stringValue = this.dayStringValue;
     } else if (part.equals(MONTH_KEY)) {
-      stringValue = monthStringValue;
+      stringValue = this.monthStringValue;
     } else if (part.equals(YEAR_KEY)) {
-      stringValue = yearStringValue;
+      stringValue = this.yearStringValue;
     }
     if (!isRequired()) {
-      out.startTag(HtmlUtil.OPTION);
-      out.attribute(HtmlUtil.ATTR_VALUE, "");
+      out.startTag(HtmlElem.OPTION);
+      out.attribute(HtmlAttr.VALUE, "");
       out.text("-");
       out.endTag();
     }
     for (final Iterator optionIter = options.iterator(); optionIter.hasNext();) {
       final FieldValue option = (FieldValue)optionIter.next();
-      out.startTag(HtmlUtil.OPTION);
+      out.startTag(HtmlElem.OPTION);
       if (option.getStringValue().equals(stringValue)) {
-        out.attribute(HtmlUtil.ATTR_SELECTED, "true");
+        out.attribute(HtmlAttr.SELECTED, "true");
       }
       if (!option.getStringValue().equals(option.getLabel())) {
-        out.attribute(HtmlUtil.ATTR_VALUE, option.getStringValue());
+        out.attribute(HtmlAttr.VALUE, option.getStringValue());
       }
       out.text(option.getLabel());
-      out.endTag(HtmlUtil.OPTION);
+      out.endTag(HtmlElem.OPTION);
     }
   }
 
-  private void serializeSelect(final XmlWriter out, final String part,
-    final List options) {
+  private void serializeSelect(final XmlWriter out, final String part, final List options) {
     final String name = getName() + part;
-    out.startTag(HtmlUtil.SELECT);
-    out.attribute(HtmlUtil.ATTR_NAME, name);
+    out.startTag(HtmlElem.SELECT);
+    out.attribute(HtmlAttr.NAME, name);
+    out.attribute(HtmlAttr.CLASS, "form-control input-sm");
     serializeOptions(out, part, options);
-    out.endTag(HtmlUtil.SELECT);
+    out.endTag(HtmlElem.SELECT);
   }
 }

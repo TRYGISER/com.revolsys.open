@@ -7,149 +7,179 @@ import java.awt.Window;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
-import java.io.File;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 
+import javax.swing.Icon;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 
 import org.jdesktop.swingx.ScrollableSizeHint;
 import org.jdesktop.swingx.VerticalLayout;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import bibliothek.gui.dock.common.DefaultSingleCDockable;
 
 import com.revolsys.beans.KeyedPropertyChangeEvent;
 import com.revolsys.beans.PropertyChangeSupportProxy;
-import com.revolsys.converter.string.BooleanStringConverter;
-import com.revolsys.gis.cs.CoordinateSystem;
-import com.revolsys.gis.cs.esri.EsriCoordinateSystems;
-import com.revolsys.gis.cs.esri.EsriCsWktWriter;
-import com.revolsys.gis.model.data.equals.EqualsInstance;
-import com.revolsys.io.AbstractObjectWithProperties;
+import com.revolsys.collection.EmptyReference;
+import com.revolsys.collection.map.LinkedHashMapEx;
+import com.revolsys.collection.map.MapEx;
+import com.revolsys.collection.map.MapSerializerMap;
+import com.revolsys.datatype.DataType;
+import com.revolsys.datatype.DataTypes;
+import com.revolsys.geometry.cs.CoordinateSystem;
+import com.revolsys.geometry.cs.esri.EsriCoordinateSystems;
+import com.revolsys.geometry.cs.esri.EsriCsWktWriter;
+import com.revolsys.geometry.model.BoundingBox;
+import com.revolsys.geometry.model.GeometryFactory;
+import com.revolsys.io.BaseCloseable;
 import com.revolsys.io.FileUtil;
-import com.revolsys.io.map.MapObjectFactoryRegistry;
-import com.revolsys.io.map.MapSerializerUtil;
-import com.revolsys.jts.geom.BoundingBox;
-import com.revolsys.jts.geom.Envelope;
-import com.revolsys.jts.geom.GeometryFactory;
+import com.revolsys.io.map.MapObjectFactory;
+import com.revolsys.io.map.MapSerializer;
+import com.revolsys.logging.Logs;
+import com.revolsys.properties.BaseObjectWithProperties;
+import com.revolsys.swing.Borders;
+import com.revolsys.swing.Icons;
+import com.revolsys.swing.Panels;
 import com.revolsys.swing.SwingUtil;
-import com.revolsys.swing.action.enablecheck.AndEnableCheck;
-import com.revolsys.swing.action.enablecheck.EnableCheck;
-import com.revolsys.swing.border.TitledBorder;
 import com.revolsys.swing.component.BasePanel;
 import com.revolsys.swing.component.TabbedValuePanel;
 import com.revolsys.swing.component.ValueField;
 import com.revolsys.swing.field.Field;
-import com.revolsys.swing.layout.GroupLayoutUtil;
+import com.revolsys.swing.layout.GroupLayouts;
 import com.revolsys.swing.listener.BeanPropertyListener;
 import com.revolsys.swing.map.MapPanel;
-import com.revolsys.swing.map.layer.dataobject.style.panel.DataObjectLayerStylePanel;
+import com.revolsys.swing.map.ProjectFrame;
+import com.revolsys.swing.map.ProjectFramePanel;
 import com.revolsys.swing.map.layer.menu.TreeItemScaleMenu;
+import com.revolsys.swing.map.layer.record.style.panel.LayerStylePanel;
 import com.revolsys.swing.menu.MenuFactory;
-import com.revolsys.swing.tree.TreeItemPropertyEnableCheck;
-import com.revolsys.swing.tree.TreeItemRunnable;
-import com.revolsys.swing.tree.model.ObjectTreeModel;
-import com.revolsys.util.ExceptionUtil;
-import com.revolsys.util.JavaBeanUtil;
+import com.revolsys.swing.menu.Menus;
+import com.revolsys.swing.parallel.Invoke;
+import com.revolsys.swing.preferences.PreferencesDialog;
+import com.revolsys.util.Booleans;
+import com.revolsys.util.CaseConverter;
+import com.revolsys.util.OS;
 import com.revolsys.util.Property;
+import com.revolsys.value.ThreadBooleanValue;
 
-public abstract class AbstractLayer extends AbstractObjectWithProperties
-  implements Layer, PropertyChangeListener, PropertyChangeSupportProxy {
+public abstract class AbstractLayer extends BaseObjectWithProperties
+  implements Layer, PropertyChangeListener, PropertyChangeSupportProxy, ProjectFramePanel {
+  public static final Icon ICON_LAYER = Icons.getIcon("map");
+
   private static final AtomicLong ID_GEN = new AtomicLong();
 
+  public static final String PLUGIN_TABLE_VIEW = "tableView";
+
+  public static final String PREFERENCE_NEW_LAYERS_SHOW_TABLE_VIEW = "newLayersShowTableView";
+
+  public static final String PREFERENCE_NEW_LAYERS_VISIBLE = "newLayersVisible";
+
+  public static final String PREFERENCE_PATH = "/com/revolsys/gis/layer";
+
   static {
-    final MenuFactory menu = ObjectTreeModel.getMenu(AbstractLayer.class);
+    final MenuFactory menu = MenuFactory.getMenu(AbstractLayer.class);
 
-    final EnableCheck exists = new TreeItemPropertyEnableCheck("exists");
+    Menus.addMenuItem(menu, "zoom", "Zoom to Layer", "magnifier",
+      AbstractLayer::isZoomToLayerEnabled, AbstractLayer::zoomToLayer, true);
 
-    final EnableCheck hasGeometry = new TreeItemPropertyEnableCheck(
-      "hasGeometry");
-    menu.addMenuItem("zoom", TreeItemRunnable.createAction("Zoom to Layer",
-      "magnifier", new AndEnableCheck(exists, hasGeometry), "zoomToLayer"));
+    final Predicate<AbstractLayer> hasGeometry = AbstractLayer::isHasGeometry;
+    menu.addComponentFactory("scale", new TreeItemScaleMenu<>(true, hasGeometry,
+      AbstractLayer::getMinimumScale, AbstractLayer::setMinimumScale));
+    menu.addComponentFactory("scale", new TreeItemScaleMenu<>(false, hasGeometry,
+      AbstractLayer::getMaximumScale, AbstractLayer::setMaximumScale));
 
-    menu.addComponentFactory("scale", new TreeItemScaleMenu(true));
-    menu.addComponentFactory("scale", new TreeItemScaleMenu(false));
+    final Predicate<AbstractLayer> exists = AbstractLayer::isExists;
 
-    menu.addMenuItem(TreeItemRunnable.createAction("Refresh", "arrow_refresh",
-      exists, "refresh"));
+    Menus.<AbstractLayer> addMenuItem(menu, "refresh", "Refresh", "arrow_refresh",
+      AbstractLayer::refreshAll, true);
 
-    menu.addMenuItem("layer", TreeItemRunnable.createAction("Delete Layer",
-      "delete", "deleteWithConfirm"));
+    Menus.<AbstractLayer> addMenuItem(menu, "layer", "Delete", "delete",
+      AbstractLayer::deleteWithConfirm, false);
 
-    menu.addMenuItem("layer", TreeItemRunnable.createAction("Layer Properties",
-      "information", exists, "showProperties"));
+    Menus.<AbstractLayer> addMenuItem(menu, "layer", "Layer Properties", "information", exists,
+      AbstractLayer::showProperties, false);
+
+    final PreferencesDialog preferencesDialog = PreferencesDialog.get();
+    preferencesDialog.addPreference("Layers", "com.revolsys.gis", PREFERENCE_PATH,
+      PREFERENCE_NEW_LAYERS_VISIBLE, DataTypes.BOOLEAN, false);
+    preferencesDialog.addPreference("Layers", "com.revolsys.gis", PREFERENCE_PATH,
+      PREFERENCE_NEW_LAYERS_SHOW_TABLE_VIEW, DataTypes.BOOLEAN, false);
   }
 
-  private boolean exists = true;
+  private boolean open = false;
 
-  private PropertyChangeListener beanPropertyListener = new BeanPropertyListener(
-    this);
+  private PropertyChangeListener beanPropertyListener = new BeanPropertyListener(this);
+
+  private BoundingBox boundingBox = BoundingBox.empty();
 
   private boolean editable = false;
 
-  private Reference<LayerGroup> layerGroup;
+  private ThreadBooleanValue eventsEnabled = new ThreadBooleanValue(true);
 
-  private String name;
+  private boolean exists = true;
 
-  private PropertyChangeSupport propertyChangeSupport = new PropertyChangeSupport(
-    this);
+  private boolean deleted = false;
 
   private GeometryFactory geometryFactory;
 
-  private boolean readOnly = false;
+  private Icon icon = ICON_LAYER;
 
-  private boolean selectable = true;
+  private long id = ID_GEN.incrementAndGet();
 
-  private boolean selectSupported = true;
+  private boolean initialized;
+
+  private Reference<LayerGroup> layerGroup;
 
   private long maximumScale = 0;
 
   private long minimumScale = Long.MAX_VALUE;
 
-  private boolean visible = true;
+  private String name;
+
+  private Map<String, Map<String, Object>> pluginConfigByName = new TreeMap<>();
+
+  private PropertyChangeSupport propertyChangeSupport = new PropertyChangeSupport(this);
 
   private boolean queryable = true;
 
-  private final ThreadLocal<Boolean> eventsEnabled = new ThreadLocal<Boolean>();
-
   private boolean querySupported = true;
 
-  private final long id = ID_GEN.incrementAndGet();
+  private boolean readOnly = false;
 
   private LayerRenderer<AbstractLayer> renderer;
 
+  private boolean selectable = true;
+
+  private boolean selectSupported = true;
+
+  private Object sync = new Object();
+
   private String type;
 
-  private boolean initialized;
+  private boolean visible = OS.getPreferenceBoolean("com.revolsys.gis", PREFERENCE_PATH,
+    PREFERENCE_NEW_LAYERS_VISIBLE, false);
 
-  public AbstractLayer() {
+  protected AbstractLayer(final String type) {
+    this.type = type;
+    getSync();
   }
 
-  public AbstractLayer(final Map<String, ? extends Object> properties) {
-    // Don't use super constructor as fields will not have been populated
-    setProperties(properties);
-  }
-
-  public AbstractLayer(final String name) {
-    this.name = name;
-  }
-
-  public AbstractLayer(final String name,
-    final Map<String, ? extends Object> properties) {
-    this.name = name;
-    setProperties(properties);
+  @Override
+  public void activatePanelComponent(final Component component, final Map<String, Object> config) {
+    setProperty("bottomTabOpen", config);
   }
 
   protected void addParent(final List<Layer> path) {
@@ -160,138 +190,26 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
     }
   }
 
-  protected JPanel addPropertiesTabCoordinateSystem(
-    final TabbedValuePanel tabPanel) {
-    final com.revolsys.jts.geom.GeometryFactory geometryFactory = getGeometryFactory();
-    if (geometryFactory != null) {
-      final JPanel panel = new JPanel(new VerticalLayout(5));
-      tabPanel.addTab("Spatial", panel);
-
-      final JPanel extentPanel = new JPanel();
-      SwingUtil.setTitledBorder(extentPanel, "Extent");
-      final BoundingBox boundingBox = getBoundingBox();
-      if (boundingBox == null || boundingBox.isEmpty()) {
-        extentPanel.add(new JLabel("Unknown"));
-
-      } else {
-        extentPanel.add(new JLabel(
-          "<html><table cellspacing=\"3\" style=\"margin:0px\">"
-            + "<tr><td>&nbsp;</td><th style=\"text-align:left\">Top:</th><td style=\"text-align:right\">"
-            + boundingBox.getMaximum(1)
-            + "</td><td>&nbsp;</td></tr><tr>"
-            + "<td><b>Left</b>: "
-            + boundingBox.getMinimum(0)
-            + "</td><td>&nbsp;</td><td>&nbsp;</td>"
-            + "<td><b>Right</b>: "
-            + boundingBox.getMaximum(0)
-            + "</td></tr>"
-            + "<tr><td>&nbsp;</td><th>Bottom:</th><td style=\"text-align:right\">"
-            + boundingBox.getMinimum(1) + "</td><td>&nbsp;</td></tr><tr>"
-            + "</tr></table></html>"));
-
-      }
-      GroupLayoutUtil.makeColumns(extentPanel, 1, true);
-      panel.add(extentPanel);
-
-      final JPanel coordinateSystemPanel = new JPanel();
-      coordinateSystemPanel.setBorder(new TitledBorder("Coordinate System"));
-      final CoordinateSystem coordinateSystem = geometryFactory.getCoordinateSystem();
-      if (coordinateSystem == null) {
-        coordinateSystemPanel.add(new JLabel("Unknown"));
-      } else {
-        final int axisCount = geometryFactory.getAxisCount();
-        SwingUtil.addReadOnlyTextField(coordinateSystemPanel, "ID",
-          coordinateSystem.getId(), 10);
-        SwingUtil.addReadOnlyTextField(coordinateSystemPanel, "axisCount",
-          axisCount, 10);
-
-        final double scaleXY = geometryFactory.getScaleXY();
-        if (scaleXY > 0) {
-          SwingUtil.addReadOnlyTextField(coordinateSystemPanel, "scaleXy",
-            scaleXY, 10);
-        } else {
-          SwingUtil.addReadOnlyTextField(coordinateSystemPanel, "scaleXy",
-            "Floating", 10);
-        }
-
-        if (axisCount > 2) {
-          final double scaleZ = geometryFactory.getScaleZ();
-          if (scaleZ > 0) {
-            SwingUtil.addReadOnlyTextField(coordinateSystemPanel, "scaleZ",
-              scaleZ, 10);
-          } else {
-            SwingUtil.addReadOnlyTextField(coordinateSystemPanel, "scaleZ",
-              "Floating", 10);
-          }
-        }
-
-        final CoordinateSystem esriCoordinateSystem = EsriCoordinateSystems.getCoordinateSystem(coordinateSystem);
-        SwingUtil.addLabel(coordinateSystemPanel, "ESRI WKT");
-        final TextArea wktTextArea = new TextArea(
-          EsriCsWktWriter.toString(esriCoordinateSystem), 10, 80);
-        wktTextArea.setEditable(false);
-        wktTextArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
-        coordinateSystemPanel.add(wktTextArea);
-
-        GroupLayoutUtil.makeColumns(coordinateSystemPanel, 2, true);
-      }
-      panel.add(new JScrollPane(coordinateSystemPanel));
-
-      return panel;
-    }
-    return null;
+  public int addRenderer(final LayerRenderer<?> child) {
+    return addRenderer(child, 0);
   }
 
-  protected JPanel addPropertiesTabGeneral(final TabbedValuePanel tabPanel) {
-    final BasePanel generalPanel = new BasePanel(new VerticalLayout(5));
-    generalPanel.setScrollableHeightHint(ScrollableSizeHint.FIT);
-
-    tabPanel.addTab("General", generalPanel);
-
-    addPropertiesTabGeneralPanelGeneral(generalPanel);
-    final ValueField sourcePanel = addPropertiesTabGeneralPanelSource(generalPanel);
-    if (sourcePanel.getComponentCount() == 0) {
-      generalPanel.remove(sourcePanel);
-    }
-    return generalPanel;
+  public int addRenderer(final LayerRenderer<?> child, final int index) {
+    setRenderer(child);
+    return 0;
   }
 
-  protected ValueField addPropertiesTabGeneralPanelGeneral(
-    final BasePanel parent) {
-    final ValueField panel = new ValueField(this);
-    SwingUtil.setTitledBorder(panel, "General");
-    final Field nameField = (Field)SwingUtil.addObjectField(panel, this, "name");
-    Property.addListener(nameField, "name", this.beanPropertyListener);
-
-    final Field typeField = (Field)SwingUtil.addObjectField(panel, this, "type");
-    typeField.setEnabled(false);
-
-    GroupLayoutUtil.makeColumns(panel, 2, true);
-
-    parent.add(panel);
-    return panel;
-  }
-
-  protected ValueField addPropertiesTabGeneralPanelSource(final BasePanel parent) {
-    final ValueField panel = new ValueField(this);
-    SwingUtil.setTitledBorder(panel, "Source");
-
-    parent.add(panel);
-    return panel;
-  }
-
-  public boolean canSaveSettings(final File directory) {
+  public boolean canSaveSettings(final Path directory) {
     if (directory != null) {
-      final Logger log = LoggerFactory.getLogger(getClass());
-      if (!directory.exists()) {
-        log.error("Unable to save layer " + getPath()
-          + " directory does not exist " + directory);
-      } else if (!directory.isDirectory()) {
-        log.error("Unable to save layer " + getPath()
-          + " file is not a directory " + directory);
-      } else if (!directory.canWrite()) {
-        log.error("Unable to save layer " + getPath()
-          + " directory is not writable " + directory);
+      if (!Files.exists(directory)) {
+        Logs.error(this,
+          "Unable to save layer " + getPath() + " directory does not exist " + directory);
+      } else if (!Files.isDirectory(directory)) {
+        Logs.error(this,
+          "Unable to save layer " + getPath() + " file is not a directory " + directory);
+      } else if (!Files.isWritable(directory)) {
+        Logs.error(this,
+          "Unable to save layer " + getPath() + " directory is not writable " + directory);
       } else {
         return true;
       }
@@ -302,7 +220,7 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
   protected boolean checkShowProperties() {
     boolean show = true;
     synchronized (this) {
-      if (BooleanStringConverter.getBoolean(getProperty("INTERNAL_PROPERTIES_VISIBLE"))) {
+      if (Booleans.getBoolean(getProperty("INTERNAL_PROPERTIES_VISIBLE"))) {
         show = false;
       } else {
         setProperty("INTERNAL_PROPERTIES_VISIBLE", true);
@@ -311,86 +229,108 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
     return show;
   }
 
+  public void clearPluginConfig(final String pluginName) {
+    this.pluginConfigByName.remove(pluginName);
+  }
+
+  @Override
+  public AbstractLayer clone() {
+    final AbstractLayer clone = (AbstractLayer)super.clone();
+    clone.beanPropertyListener = new BeanPropertyListener(clone);
+    clone.eventsEnabled = new ThreadBooleanValue(true);
+    clone.id = this.id = ID_GEN.incrementAndGet();
+    clone.initialized = false;
+    clone.layerGroup = null;
+    clone.propertyChangeSupport = new PropertyChangeSupport(clone);
+    if (clone.renderer != null) {
+      clone.renderer = clone.renderer.clone();
+    }
+    clone.sync = new Object();
+    return clone;
+  }
+
   @Override
   public int compareTo(final Layer layer) {
     return getName().compareTo(layer.getName());
   }
 
   @Override
-  public TabbedValuePanel createPropertiesPanel() {
-    final TabbedValuePanel tabPanel = new TabbedValuePanel("Layer " + this
-      + " Properties", this);
-    addPropertiesTabGeneral(tabPanel);
-    addPropertiesTabCoordinateSystem(tabPanel);
-    return tabPanel;
-  }
-
-  @Override
   public void delete() {
+    this.deleted = true;
     setExists(false);
     this.beanPropertyListener = null;
-    final DefaultSingleCDockable dockable = getProperty("TableView");
-    if (dockable != null) {
-      // TODO all this should be done by listeners
-      dockable.setVisible(false);
+    final ProjectFrame projectFrame = ProjectFrame.get(this);
+    if (projectFrame != null) {
+      projectFrame.removeBottomTab(this);
     }
     firePropertyChange("deleted", false, true);
-    setEventsEnabled(false);
     final LayerGroup layerGroup = getLayerGroup();
     if (layerGroup != null) {
-      layerGroup.remove(this);
+      layerGroup.removeLayer(this);
+      this.layerGroup = new EmptyReference<>();
     }
+    this.eventsEnabled.closeable(false);
     final PropertyChangeSupport propertyChangeSupport = this.propertyChangeSupport;
     if (propertyChangeSupport != null) {
       Property.removeAllListeners(propertyChangeSupport);
       this.propertyChangeSupport = null;
     }
+    if (this.renderer != null) {
+      this.renderer.setLayer(null);
+    }
+  }
+
+  @Override
+  public void deletePanelComponent(final Component component) {
+    clearPluginConfig(AbstractLayer.PLUGIN_TABLE_VIEW);
   }
 
   public void deleteWithConfirm() {
-    final int confirm = JOptionPane.showConfirmDialog(MapPanel.get(this),
-      "Delete the layer and any child layers? This action cannot be undone.",
-      "Delete Layer", JOptionPane.OK_CANCEL_OPTION, JOptionPane.ERROR_MESSAGE);
+    final int confirm = JOptionPane.showConfirmDialog(getMapPanel(),
+      "Delete the layer and any child layers? This action cannot be undone.", "Delete Layer",
+      JOptionPane.OK_CANCEL_OPTION, JOptionPane.ERROR_MESSAGE);
     if (confirm == JOptionPane.OK_OPTION) {
       delete();
     }
   }
 
-  protected boolean doInitialize() {
-    return true;
+  public BaseCloseable eventsDisabled() {
+    return this.eventsEnabled.closeable(false);
   }
 
-  protected boolean doSaveChanges() {
-    return true;
+  public BaseCloseable eventsEnabled() {
+    return this.eventsEnabled.closeable(true);
   }
 
-  protected boolean doSaveSettings(final File directory) {
-    final String settingsFileName = getSettingsFileName();
-    final File settingsFile = new File(directory, settingsFileName);
-    MapObjectFactoryRegistry.write(settingsFile, this);
-    return true;
+  protected void fireGeometryFactoryChanged(final GeometryFactory oldGeometryFactory,
+    final GeometryFactory newGeometryFactory) {
+    firePropertyChange("geometryFactory", oldGeometryFactory, this.geometryFactory);
+    final int coordinateSystemId = newGeometryFactory.getCoordinateSystemId();
+    firePropertyChange("srid", -2, coordinateSystemId);
   }
 
-  protected void fireIndexedPropertyChange(final String propertyName,
-    final int index, final Object oldValue, final Object newValue) {
-    if (this.propertyChangeSupport != null) {
-      this.propertyChangeSupport.fireIndexedPropertyChange(propertyName, index,
-        oldValue, newValue);
-    }
-  }
-
-  public void firePropertyChange(final String propertyName,
+  protected void fireIndexedPropertyChange(final String propertyName, final int index,
     final Object oldValue, final Object newValue) {
-    if (this.propertyChangeSupport != null && isEventsEnabled()) {
-      this.propertyChangeSupport.firePropertyChange(propertyName, oldValue,
-        newValue);
+    if (this.propertyChangeSupport != null) {
+      this.propertyChangeSupport.fireIndexedPropertyChange(propertyName, index, oldValue, newValue);
     }
   }
 
   @Override
+  public void firePropertyChange(final String propertyName, final Object oldValue,
+    final Object newValue) {
+    if (this.propertyChangeSupport != null && this.eventsEnabled.isTrue()) {
+      this.propertyChangeSupport.firePropertyChange(propertyName, oldValue, newValue);
+    }
+  }
+
+  public PropertyChangeListener getBeanPropertyListener() {
+    return this.beanPropertyListener;
+  }
+
+  @Override
   public BoundingBox getBoundingBox() {
-    final GeometryFactory geometryFactory = getGeometryFactory();
-    return new Envelope(geometryFactory);
+    return this.boundingBox;
   }
 
   @Override
@@ -399,11 +339,16 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
       return getBoundingBox();
     } else {
       final GeometryFactory geometryFactory = getGeometryFactory();
-      return new Envelope(geometryFactory);
+      return geometryFactory.newBoundingBoxEmpty();
     }
   }
 
-  public File getDirectory() {
+  @Override
+  public Collection<Class<?>> getChildClasses() {
+    return Collections.emptySet();
+  }
+
+  public Path getDirectory() {
     final LayerGroup layerGroup = getLayerGroup();
     if (layerGroup == null) {
       return null;
@@ -414,12 +359,12 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
 
   @Override
   public GeometryFactory getGeometryFactory() {
-    final LayerGroup layerGroup = getLayerGroup();
-    if (this.geometryFactory == null && layerGroup != null) {
-      return layerGroup.getGeometryFactory();
-    } else {
-      return this.geometryFactory;
-    }
+    return this.geometryFactory;
+  }
+
+  @Override
+  public Icon getIcon() {
+    return this.icon;
   }
 
   @Override
@@ -474,10 +419,19 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
 
   @Override
   public List<Layer> getPathList() {
-    final List<Layer> path = new ArrayList<Layer>();
+    final List<Layer> path = new ArrayList<>();
     path.add(this);
     addParent(path);
     return path;
+  }
+
+  public Map<String, Object> getPluginConfig(final String pluginName) {
+    final Map<String, Object> pluginConfig = this.pluginConfigByName.get(pluginName);
+    if (pluginConfig == null) {
+      return Collections.emptyMap();
+    } else {
+      return new LinkedHashMap<>(pluginConfig);
+    }
   }
 
   @Override
@@ -504,12 +458,23 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
   @Override
   public BoundingBox getSelectedBoundingBox() {
     final GeometryFactory geometryFactory = getGeometryFactory();
-    return new Envelope(geometryFactory);
+    if (geometryFactory == null) {
+      return BoundingBox.empty();
+    } else {
+      return geometryFactory.newBoundingBoxEmpty();
+    }
   }
 
   protected String getSettingsFileName() {
     final String name = getName();
     return FileUtil.getSafeFileName(name) + ".rgobject";
+  }
+
+  public Object getSync() {
+    if (this.sync == null) {
+      this.sync = new Object();
+    }
+    return this.sync;
   }
 
   @Override
@@ -520,15 +485,48 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
   @Override
   public final synchronized void initialize() {
     if (!isInitialized()) {
-      try {
-        final boolean exists = doInitialize();
-        setExists(exists);
-      } catch (final Throwable e) {
-        ExceptionUtil.log(getClass(), "Unable to initialize layer: "
-          + getPath(), e);
-        setExists(false);
-      } finally {
-        setInitialized(true);
+      initializeForce();
+    }
+  }
+
+  protected boolean initializeDo() {
+    return true;
+  }
+
+  private void initializeForce() {
+    try {
+      final boolean exists;
+      try (
+        BaseCloseable eventsDisabled = eventsDisabled()) {
+        exists = initializeDo();
+      }
+      setExists(exists);
+      if (exists && Property.getBoolean(this, "showTableView")) {
+        Invoke.later(this::showTableView);
+      }
+    } catch (final Throwable e) {
+      Logs.error(this, "Unable to initialize layer: " + getPath(), e);
+      setExists(false);
+    } finally {
+      setInitialized(true);
+    }
+  }
+
+  @Override
+  public boolean isClonable() {
+    return false;
+  }
+
+  @Override
+  public boolean isDeleted() {
+    if (this.deleted) {
+      return true;
+    } else {
+      final LayerGroup parent = getLayerGroup();
+      if (parent == null) {
+        return false;
+      } else {
+        return parent.isDeleted();
       }
     }
   }
@@ -544,36 +542,27 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
   }
 
   public boolean isEventsEnabled() {
-    if (eventsEnabled.get() != Boolean.FALSE) {
-      final LayerGroup layerGroup = getLayerGroup();
-      if (layerGroup == null || layerGroup == this) {
-        return true;
-      } else {
-        return layerGroup.isEventsEnabled();
-      }
-    } else {
-      return false;
-    }
+    return this.eventsEnabled.isTrue();
   }
 
   @Override
   public boolean isExists() {
-    return isInitialized() && exists;
+    return isInitialized() && this.exists;
   }
 
   @Override
-  public boolean isHasChanges() {
+  public boolean isHasSelectedRecords() {
     return false;
   }
 
   @Override
-  public boolean isHasGeometry() {
-    return true;
+  public boolean isInitialized() {
+    return this.initialized;
   }
 
   @Override
-  public boolean isInitialized() {
-    return initialized;
+  public boolean isOpen() {
+    return this.open;
   }
 
   @Override
@@ -593,13 +582,12 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
 
   @Override
   public boolean isSelectable() {
-    return isExists() && isVisible()
-      && (isSelectSupported() && this.selectable || isEditable());
+    return isExists() && isVisible() && (isSelectSupported() && this.selectable || isEditable());
   }
 
   @Override
   public boolean isSelectable(final double scale) {
-    return isVisible(scale) && isSelectable();
+    return isSelectable() && isVisible(scale);
   }
 
   @Override
@@ -609,14 +597,27 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
 
   @Override
   public boolean isVisible() {
-    return this.visible;
+    final LayerGroup parent = getParent();
+    return this.visible && (parent == null || parent.isVisible());
   }
 
   @Override
   public boolean isVisible(final double scale) {
-    if (isExists() && isVisible()) {
+    final LayerGroup parent = getParent();
+    if (isExists() && isVisible() && (parent == null || parent.isVisible(scale))) {
       final long longScale = (long)scale;
-      if (getMinimumScale() >= longScale && longScale >= getMaximumScale()) {
+      final long minimumScale = getMinimumScale();
+      final long maximumScale = getMaximumScale();
+      if (minimumScale >= longScale && longScale >= maximumScale) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public boolean isZoomToLayerEnabled() {
+    if (isHasGeometry()) {
+      if (!getBoundingBox().isEmpty()) {
         return true;
       }
     }
@@ -624,14 +625,186 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
   }
 
   @Override
+  public Component newPanelComponent(final Map<String, Object> config) {
+    if (isInitialized()) {
+      return newTableViewComponent(config);
+    } else {
+      final BasePanel basePanel = new BasePanel();
+      addPropertyChangeListener("initialized", (event) -> {
+        basePanel.add(newTableViewComponent(config));
+        removePropertyChangeListener("initialized", this);
+      });
+      if (isInitialized()) {
+        firePropertyChange("initialized", false, true);
+      }
+      return basePanel;
+    }
+  }
+
+  @Override
+  public TabbedValuePanel newPropertiesPanel() {
+    final TabbedValuePanel tabPanel = new TabbedValuePanel("Layer " + this + " Properties", this);
+    newPropertiesTabGeneral(tabPanel);
+    newPropertiesTabCoordinateSystem(tabPanel);
+    return tabPanel;
+  }
+
+  protected JPanel newPropertiesTabCoordinateSystem(final TabbedValuePanel tabPanel) {
+    final GeometryFactory geometryFactory = getGeometryFactory();
+    if (geometryFactory != null) {
+      final JPanel panel = new JPanel(new VerticalLayout(5));
+      tabPanel.addTab("Spatial", "world", panel);
+
+      final JPanel extentPanel = Panels.titledTransparent("Extent");
+      final BoundingBox boundingBox = getBoundingBox();
+      if (boundingBox == null || boundingBox.isEmpty()) {
+        extentPanel.add(new JLabel("Unknown"));
+
+      } else {
+        final JLabel extentLabel = new JLabel("<html><table cellspacing=\"3\" style=\"margin:0px\">"
+          + "<tr><td>&nbsp;</td><th style=\"text-align:left\">Top:</th><td style=\"text-align:right\">"
+          + DataTypes.toString(boundingBox.getMaximum(1)) + "</td><td>&nbsp;</td></tr><tr>"
+          + "<td><b>Left</b>: " + DataTypes.toString(boundingBox.getMinimum(0))
+          + "</td><td>&nbsp;</td><td>&nbsp;</td>" + "<td><b>Right</b>: "
+          + DataTypes.toString(boundingBox.getMaximum(0)) + "</td></tr>"
+          + "<tr><td>&nbsp;</td><th>Bottom:</th><td style=\"text-align:right\">"
+          + DataTypes.toString(boundingBox.getMinimum(1)) + "</td><td>&nbsp;</td></tr><tr>"
+          + "</tr></table></html>");
+        extentLabel.setFont(SwingUtil.FONT);
+        extentPanel.add(extentLabel);
+
+      }
+      GroupLayouts.makeColumns(extentPanel, 1, true);
+      panel.add(extentPanel);
+
+      final JPanel coordinateSystemPanel = Panels.titledTransparent("Coordinate System");
+      final CoordinateSystem coordinateSystem = geometryFactory.getCoordinateSystem();
+      if (coordinateSystem == null) {
+        coordinateSystemPanel.add(new JLabel("Unknown"));
+      } else {
+        final int axisCount = geometryFactory.getAxisCount();
+        SwingUtil.addLabelledReadOnlyTextField(coordinateSystemPanel, "ID",
+          coordinateSystem.getCoordinateSystemId(), 10);
+        SwingUtil.addLabelledReadOnlyTextField(coordinateSystemPanel, "axisCount", axisCount, 10);
+
+        final double scaleXY = geometryFactory.getScaleXY();
+        if (scaleXY > 0) {
+          SwingUtil.addLabelledReadOnlyTextField(coordinateSystemPanel, "scaleXy", scaleXY, 10);
+        } else {
+          SwingUtil.addLabelledReadOnlyTextField(coordinateSystemPanel, "scaleXy", "Floating", 10);
+        }
+
+        if (axisCount > 2) {
+          final double scaleZ = geometryFactory.getScaleZ();
+          if (scaleZ > 0) {
+            SwingUtil.addLabelledReadOnlyTextField(coordinateSystemPanel, "scaleZ", scaleZ, 10);
+          } else {
+            SwingUtil.addLabelledReadOnlyTextField(coordinateSystemPanel, "scaleZ", "Floating", 10);
+          }
+        }
+
+        final CoordinateSystem esriCoordinateSystem = EsriCoordinateSystems
+          .getCoordinateSystem(coordinateSystem);
+        SwingUtil.addLabel(coordinateSystemPanel, "ESRI WKT");
+        final TextArea wktTextArea = new TextArea(EsriCsWktWriter.toString(esriCoordinateSystem),
+          10, 80);
+        wktTextArea.setEditable(false);
+        wktTextArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
+        coordinateSystemPanel.add(wktTextArea);
+
+        GroupLayouts.makeColumns(coordinateSystemPanel, 2, true);
+      }
+      panel.add(coordinateSystemPanel);
+
+      return panel;
+    }
+    return null;
+  }
+
+  protected BasePanel newPropertiesTabGeneral(final TabbedValuePanel tabPanel) {
+    final BasePanel generalPanel = new BasePanel(new VerticalLayout(5));
+    generalPanel.setScrollableHeightHint(ScrollableSizeHint.FIT);
+
+    tabPanel.addTab("General", generalPanel);
+
+    newPropertiesTabGeneralPanelGeneral(generalPanel);
+    final ValueField sourcePanel = newPropertiesTabGeneralPanelSource(generalPanel);
+    if (sourcePanel.getComponentCount() == 0) {
+      generalPanel.remove(sourcePanel);
+    }
+    return generalPanel;
+  }
+
+  protected ValueField newPropertiesTabGeneralPanelGeneral(final BasePanel parent) {
+    final ValueField panel = new ValueField(this);
+    Borders.titled(panel, "General");
+    final Field nameField = (Field)SwingUtil.addObjectField(panel, this, "name");
+    Property.addListener(nameField, "name", this.beanPropertyListener);
+
+    final String type = Property.get(this, "type");
+    final String typeLabel = CaseConverter.toCapitalizedWords(type);
+    SwingUtil.addLabelledReadOnlyTextField(panel, "Type", typeLabel);
+
+    GroupLayouts.makeColumns(panel, 2, true);
+
+    parent.add(panel);
+    return panel;
+  }
+
+  protected ValueField newPropertiesTabGeneralPanelSource(final BasePanel parent) {
+    final ValueField panel = new ValueField(this);
+    Borders.titled(panel, "Source");
+
+    parent.add(panel);
+    return panel;
+  }
+
+  protected Component newTableViewComponent(final Map<String, Object> config) {
+    return null;
+  }
+
+  @Override
   public void propertyChange(final PropertyChangeEvent event) {
-    if (propertyChangeSupport != null && isEventsEnabled()) {
+    if (this.propertyChangeSupport != null && this.eventsEnabled.isTrue()) {
       this.propertyChangeSupport.firePropertyChange(event);
     }
   }
 
   @Override
-  public void refresh() {
+  public final void refresh() {
+    Invoke.background("Refresh Layer " + getName(), () -> {
+      try {
+        refreshDo();
+      } catch (final Throwable e) {
+        Logs.error(this, "Unable to refresh layer: " + getName(), e);
+      } finally {
+        refreshPostDo();
+      }
+    });
+  }
+
+  @Override
+  public final void refreshAll() {
+    if (isInitialized() && isExists()) {
+      try {
+        refreshAllDo();
+      } catch (final Throwable e) {
+        Logs.error(this, "Unable to refresh layer: " + getName(), e);
+      }
+      refreshPostDo();
+    } else {
+      initializeForce();
+    }
+  }
+
+  protected void refreshAllDo() {
+    refreshDo();
+  }
+
+  protected void refreshDo() {
+  }
+
+  protected void refreshPostDo() {
     firePropertyChange("refresh", false, true);
   }
 
@@ -639,22 +812,39 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
   public boolean saveChanges() {
     boolean saved = true;
     if (isHasChanges()) {
-      saved &= doSaveChanges();
+      saved &= saveChangesDo();
     }
     return saved;
   }
 
+  protected boolean saveChangesDo() {
+    return true;
+  }
+
   public boolean saveSettings() {
-    final File directory = getDirectory();
+    final Path directory = getDirectory();
     return saveSettings(directory);
   }
 
   @Override
-  public boolean saveSettings(final File directory) {
-    if (canSaveSettings(directory)) {
-      return doSaveSettings(directory);
+  public boolean saveSettings(final Path directory) {
+    if (directory != null) {
+      if (canSaveSettings(directory)) {
+        return saveSettingsDo(directory);
+      }
     }
     return false;
+  }
+
+  protected boolean saveSettingsDo(final java.nio.file.Path directory) {
+    final String settingsFileName = getSettingsFileName();
+    final java.nio.file.Path settingsFile = directory.resolve(settingsFileName);
+    MapObjectFactory.write(settingsFile, this);
+    return true;
+  }
+
+  protected void setBoundingBox(final BoundingBox boundingBox) {
+    this.boundingBox = boundingBox;
   }
 
   @Override
@@ -664,16 +854,6 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
     firePropertyChange("editable", old, isEditable());
   }
 
-  public boolean setEventsEnabled(final boolean eventsEnabled) {
-    final boolean oldValue = this.eventsEnabled.get() != Boolean.FALSE;
-    if (eventsEnabled) {
-      this.eventsEnabled.set(null);
-    } else {
-      this.eventsEnabled.set(Boolean.FALSE);
-    }
-    return oldValue;
-  }
-
   public void setExists(final boolean exists) {
     final boolean old = this.exists;
     this.exists = exists;
@@ -681,11 +861,35 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
   }
 
   protected void setGeometryFactory(final GeometryFactory geometryFactory) {
-    if (geometryFactory != this.geometryFactory && geometryFactory != null) {
-      final GeometryFactory old = this.geometryFactory;
-      this.geometryFactory = geometryFactory;
-      firePropertyChange("geometryFactory", old, this.geometryFactory);
+    final GeometryFactory oldGeometryFactory = this.geometryFactory;
+    if (setGeometryFactoryDo(geometryFactory)) {
+      fireGeometryFactoryChanged(oldGeometryFactory, geometryFactory);
     }
+  }
+
+  protected boolean setGeometryFactoryDo(final GeometryFactory geometryFactory) {
+    if (geometryFactory == null) {
+      return false;
+    } else if (geometryFactory.equals(this.geometryFactory)) {
+      return false;
+    } else {
+      this.geometryFactory = geometryFactory;
+      if (Property.isEmpty(this.boundingBox)) {
+        final CoordinateSystem coordinateSystem = geometryFactory.getCoordinateSystem();
+        if (coordinateSystem != null) {
+          this.boundingBox = coordinateSystem.getAreaBoundingBox();
+        }
+      } else if (this.boundingBox != null
+        && !this.boundingBox.getGeometryFactory().isHasCoordinateSystem()
+        && geometryFactory.isHasCoordinateSystem()) {
+        this.boundingBox = this.boundingBox.convert(geometryFactory);
+      }
+      return true;
+    }
+  }
+
+  public void setIcon(final Icon icon) {
+    this.icon = icon;
   }
 
   protected void setInitialized(final boolean initialized) {
@@ -700,20 +904,30 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
       if (old != null) {
         Property.removeListener(this, old);
       }
-      this.layerGroup = new WeakReference<LayerGroup>(layerGroup);
+      this.layerGroup = new WeakReference<>(layerGroup);
       Property.addListener(this, layerGroup);
       firePropertyChange("layerGroup", old, layerGroup);
     }
   }
 
   @Override
-  public void setMaximumScale(final long maximumScale) {
+  public void setMaximumScale(long maximumScale) {
+    if (maximumScale < 0) {
+      maximumScale = 0;
+    }
+    final long oldValue = this.maximumScale;
     this.maximumScale = maximumScale;
+    firePropertyChange("maximumScale", oldValue, this.minimumScale);
   }
 
   @Override
-  public void setMinimumScale(final long minimumScale) {
+  public void setMinimumScale(long minimumScale) {
+    if (minimumScale <= 0) {
+      minimumScale = Long.MAX_VALUE;
+    }
+    final long oldValue = this.minimumScale;
     this.minimumScale = minimumScale;
+    firePropertyChange("minimumScale", oldValue, this.minimumScale);
   }
 
   @Override
@@ -733,6 +947,25 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
   }
 
   @Override
+  public void setOpen(final boolean open) {
+    final boolean oldValue = this.open;
+    this.open = open;
+    firePropertyChange("open", oldValue, this.open);
+  }
+
+  public void setPluginConfig(final Map<String, Map<String, Object>> pluginConfig) {
+    this.pluginConfigByName = pluginConfig;
+  }
+
+  public void setPluginConfig(final String pluginName, final Map<String, Object> config) {
+    this.pluginConfigByName.put(pluginName, config);
+  }
+
+  public void setPluginConfig(final String pluginName, final MapSerializer serializer) {
+    setPluginConfig(pluginName, new MapSerializerMap(serializer));
+  }
+
+  @Override
   public void setProperties(final Map<String, ? extends Object> properties) {
     if (properties == null || !this.getProperties().equals(properties)) {
       super.setProperties(properties);
@@ -747,22 +980,23 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
     if (name.equals("type")) {
     } else if (name.equals("minimumScale")) {
       setMinimumScale(((Number)value).longValue());
+    } else if (name.equals("open")) {
+      setOpen((Boolean)value);
     } else if (name.equals("maximumScale")) {
       setMaximumScale(((Number)value).longValue());
     } else {
       final Object oldValue = getProperty(name);
-      if (!EqualsInstance.INSTANCE.equals(oldValue, value)) {
-        final KeyedPropertyChangeEvent event = new KeyedPropertyChangeEvent(
-          this, "property", oldValue, value, name);
-        if (propertyChangeSupport != null) {
+
+      try {
+        super.setProperty(name, value);
+      } catch (final Throwable e) {
+        Logs.error(this, "Unable to set property:" + name, e);
+      }
+      if (!DataType.equal(oldValue, value)) {
+        final KeyedPropertyChangeEvent event = new KeyedPropertyChangeEvent(this, "property",
+          oldValue, value, name);
+        if (this.propertyChangeSupport != null) {
           this.propertyChangeSupport.firePropertyChange(event);
-        }
-        try {
-          JavaBeanUtil.setProperty(this, name, value);
-          super.setProperty(name, value);
-        } catch (final Throwable e) {
-          LoggerFactory.getLogger(getClass()).error(
-            "Unable to set property:" + name, e);
         }
       }
     }
@@ -829,13 +1063,13 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
 
   @Override
   public void showProperties(final String tabName) {
-    final MapPanel map = MapPanel.get(this);
+    final MapPanel map = getMapPanel();
     if (map != null) {
-      if (exists) {
+      if (this.exists) {
         if (checkShowProperties()) {
           try {
             final Window window = SwingUtilities.getWindowAncestor(map);
-            final TabbedValuePanel panel = createPropertiesPanel();
+            final TabbedValuePanel panel = newPropertiesPanel();
             panel.setSelectdTab(tabName);
             panel.showDialog(window);
             refresh();
@@ -849,15 +1083,15 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
 
   @Override
   public void showRendererProperties(final LayerRenderer<?> renderer) {
-    final MapPanel map = MapPanel.get(this);
+    final MapPanel map = getMapPanel();
     if (map != null) {
-      if (exists) {
+      if (this.exists) {
         if (checkShowProperties()) {
           try {
             final Window window = SwingUtilities.getWindowAncestor(map);
-            final TabbedValuePanel panel = createPropertiesPanel();
+            final TabbedValuePanel panel = newPropertiesPanel();
             panel.setSelectdTab("Style");
-            final DataObjectLayerStylePanel stylePanel = panel.getTab("Style");
+            final LayerStylePanel stylePanel = panel.getTab("Style");
             stylePanel.setSelectedRenderer(renderer);
             panel.showDialog(window);
             refresh();
@@ -869,6 +1103,21 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
     }
   }
 
+  @Override
+  public void showTableView() {
+    showTableView(Collections.emptyMap());
+  }
+
+  @Override
+  public <C extends Component> C showTableView(final Map<String, Object> config) {
+    final ProjectFrame projectFrame = ProjectFrame.get(this);
+    if (projectFrame == null) {
+      return null;
+    } else {
+      return projectFrame.addBottomTab(this, config);
+    }
+  }
+
   public void toggleEditable() {
     final boolean editable = isEditable();
     setEditable(!editable);
@@ -876,27 +1125,29 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
 
   @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> toMap() {
-    final Map<String, Object> map = new LinkedHashMap<String, Object>();
-    MapSerializerUtil.add(map, "type", this.type);
-    MapSerializerUtil.add(map, "name", this.name);
-    MapSerializerUtil.add(map, "visible", this.visible);
-    MapSerializerUtil.add(map, "querySupported", this.querySupported);
+  public MapEx toMap() {
+    final MapEx map = new LinkedHashMapEx();
+    addTypeToMap(map, this.type);
+    addToMap(map, "name", this.name);
+    addToMap(map, "visible", this.visible);
+    addToMap(map, "open", this.open);
+    addToMap(map, "querySupported", this.querySupported);
     if (this.querySupported) {
-      MapSerializerUtil.add(map, "queryable", this.queryable);
+      addToMap(map, "queryable", this.queryable);
     }
-    MapSerializerUtil.add(map, "readOnly", this.readOnly);
+    addToMap(map, "readOnly", this.readOnly);
     if (!this.readOnly) {
-      MapSerializerUtil.add(map, "editable", this.editable);
+      addToMap(map, "editable", this.editable);
     }
     if (this.selectSupported) {
-      MapSerializerUtil.add(map, "selectable", this.selectable);
+      addToMap(map, "selectable", this.selectable);
     }
-    MapSerializerUtil.add(map, "selectSupported", this.selectSupported);
-    MapSerializerUtil.add(map, "maximumScale", this.maximumScale);
-    MapSerializerUtil.add(map, "minimumScale", this.minimumScale);
-    MapSerializerUtil.add(map, "style", this.renderer);
-    final Map<String, Object> properties = (Map<String, Object>)MapSerializerUtil.getValue(getProperties());
+    addToMap(map, "selectSupported", this.selectSupported);
+    addToMap(map, "maximumScale", this.maximumScale);
+    addToMap(map, "minimumScale", this.minimumScale);
+    addToMap(map, "style", this.renderer);
+    addToMap(map, "pluginConfig", this.pluginConfigByName);
+    final Map<String, Object> properties = (Map<String, Object>)toMapValue(getProperties());
     if (properties != null) {
       for (final Entry<String, Object> entry : properties.entrySet()) {
         final String name = entry.getKey();
@@ -908,6 +1159,7 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
         }
       }
     }
+    map.remove("showTableView");
     return map;
   }
 
@@ -918,12 +1170,13 @@ public abstract class AbstractLayer extends AbstractObjectWithProperties
 
   public void zoomToLayer() {
     final Project project = getProject();
-    final GeometryFactory geometryFactory = project.getGeometryFactory();
-    final BoundingBox layerBoundingBox = getBoundingBox();
-    final BoundingBox boundingBox = layerBoundingBox.convert(geometryFactory)
-      .expandPercent(0.1)
-      .clipToCoordinateSystem();
-
-    project.setViewBoundingBox(boundingBox);
+    if (project != null) {
+      final GeometryFactory geometryFactory = project.getGeometryFactory();
+      final BoundingBox layerBoundingBox = getBoundingBox();
+      final BoundingBox boundingBox = layerBoundingBox.convert(geometryFactory)
+        .clipToCoordinateSystem()
+        .expandPercent(0.1);
+      project.setViewBoundingBox(boundingBox);
+    }
   }
 }

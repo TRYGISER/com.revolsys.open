@@ -1,34 +1,30 @@
 package com.revolsys.gis.wms.capabilities;
 
+import org.w3c.dom.Element;
+
 public class Dimension {
-  private String name;
+  private final String name;
 
-  private String units;
+  private final String units;
 
-  private String unitSymbol;
+  private final String unitSymbol;
+
+  public Dimension(final Element dimensionElement) {
+    this.name = dimensionElement.getAttribute("name");
+    this.units = dimensionElement.getAttribute("units");
+    this.unitSymbol = dimensionElement.getAttribute("unitSymbol");
+  }
 
   public String getName() {
-    return name;
+    return this.name;
   }
 
   public String getUnits() {
-    return units;
+    return this.units;
   }
 
   public String getUnitSymbol() {
-    return unitSymbol;
-  }
-
-  public void setName(final String name) {
-    this.name = name;
-  }
-
-  public void setUnits(final String units) {
-    this.units = units;
-  }
-
-  public void setUnitSymbol(final String unitSymbol) {
-    this.unitSymbol = unitSymbol;
+    return this.unitSymbol;
   }
 
 }

@@ -1,42 +1,51 @@
 package com.revolsys.swing.map.overlay;
 
+import java.awt.Container;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 
 import javax.swing.JComponent;
 
-import com.revolsys.jts.geom.BoundingBox;
+import com.revolsys.geometry.model.BoundingBox;
+import com.revolsys.raster.BufferedGeoreferencedImage;
+import com.revolsys.raster.GeoreferencedImage;
 import com.revolsys.swing.map.MapPanel;
 import com.revolsys.swing.map.Viewport2D;
+import com.revolsys.swing.map.layer.BaseMapLayerGroup;
 import com.revolsys.swing.map.layer.Layer;
 import com.revolsys.swing.map.layer.LayerRenderer;
 import com.revolsys.swing.map.layer.NullLayer;
 import com.revolsys.swing.map.layer.Project;
-import com.revolsys.swing.map.layer.raster.GeoReferencedImage;
-import com.revolsys.swing.map.layer.raster.GeoReferencedImageLayerRenderer;
+import com.revolsys.swing.map.layer.raster.GeoreferencedImageLayerRenderer;
+import com.revolsys.swing.map.layer.raster.TiledImageLayerRenderer;
 import com.revolsys.swing.parallel.Invoke;
 import com.revolsys.util.Property;
 
 /**
  * <p>A lightweight component that users the {@link Layer}'s {@link LayerRenderer} to render the layer.</p>
  */
-public class LayerRendererOverlay extends JComponent implements
-  PropertyChangeListener {
+public class LayerRendererOverlay extends JComponent implements PropertyChangeListener {
+  private static final Collection<String> IGNORE_PROPERTY_NAMES = new HashSet<>(Arrays
+    .asList("selectionCount", "hasHighlightedRecords", "highlightedCount", "scale", "loaded"));
+
   private static final long serialVersionUID = 1L;
 
-  private Layer layer;
-
-  private Viewport2D viewport;
-
-  private GeoReferencedImage image;
-
-  private final Object loadSync = new Object();
+  private GeoreferencedImage image;
 
   private LayerRendererOverlaySwingWorker imageWorker;
 
+  private Layer layer;
+
   private boolean loadImage = true;
+
+  private final Object loadSync = new Object();
+
+  private Viewport2D viewport;
 
   public LayerRendererOverlay(final MapPanel mapPanel) {
     this(mapPanel, null);
@@ -74,24 +83,24 @@ public class LayerRendererOverlay extends JComponent implements
 
   @Override
   public void paintComponent(final Graphics g) {
-    if (!(layer instanceof NullLayer)) {
-      GeoReferencedImage image;
+    if (!(this.layer instanceof NullLayer)) {
+      GeoreferencedImage image;
       synchronized (this.loadSync) {
         image = this.image;
 
-        if ((image == null || this.loadImage) && imageWorker == null) {
+        if ((image == null || this.loadImage) && this.imageWorker == null) {
           final BoundingBox boundingBox = this.viewport.getBoundingBox();
           final int viewWidthPixels = this.viewport.getViewWidthPixels();
           final int viewHeightPixels = this.viewport.getViewHeightPixels();
-          final GeoReferencedImage loadImage = new GeoReferencedImage(
-            boundingBox, viewWidthPixels, viewHeightPixels);
-          this.imageWorker = new LayerRendererOverlaySwingWorker(this,
-            loadImage);
+          final GeoreferencedImage loadImage = new BufferedGeoreferencedImage(boundingBox,
+            viewWidthPixels, viewHeightPixels);
+          this.imageWorker = new LayerRendererOverlaySwingWorker(this, loadImage);
           Invoke.worker(this.imageWorker);
         }
       }
-      GeoReferencedImageLayerRenderer.render(this.viewport, (Graphics2D)g,
-        image);
+      if (image != null) {
+        render((Graphics2D)g);
+      }
     }
   }
 
@@ -99,31 +108,43 @@ public class LayerRendererOverlay extends JComponent implements
   public void propertyChange(final PropertyChangeEvent e) {
     if (!(e.getSource() instanceof MapPanel)) {
       final String propertyName = e.getPropertyName();
-      if (!propertyName.equals("selectionCount")
-        && !propertyName.equals("hasHighlightedRecords")
-        && !propertyName.equals("highlightedCount")) {
+      if (!IGNORE_PROPERTY_NAMES.contains(propertyName)) {
+        if (this.layer instanceof Project) {
+          if (TiledImageLayerRenderer.TILES_LOADED.equals(propertyName)) {
+            return;
+          }
+        }
         redraw();
       }
     }
   }
 
   public void redraw() {
-    if (isValid() && layer.isExists() && layer.isVisible()) {
-      synchronized (this.loadSync) {
-        this.loadImage = true;
-        if (this.imageWorker != null) {
-          this.imageWorker.cancel(true);
-          this.imageWorker = null;
+    final Container parent = getParent();
+    if (getWidth() > 0 && getHeight() > 0) {
+      if (parent != null && parent.isVisible()) {
+        if (this.layer != null && this.layer.isExists() && this.layer.isVisible()) {
+          synchronized (this.loadSync) {
+            this.loadImage = true;
+            if (this.imageWorker != null) {
+              this.imageWorker.cancel(true);
+              this.imageWorker = null;
+            }
+            firePropertyChange("imageLoaded", true, false);
+          }
         }
-        firePropertyChange("imageLoaded", true, false);
       }
     }
   }
 
   public void refresh() {
-    if (layer != null) {
-      layer.refresh();
+    if (this.layer != null) {
+      this.layer.refresh();
     }
+  }
+
+  private void render(final Graphics2D graphics) {
+    GeoreferencedImageLayerRenderer.render(this.viewport, graphics, this.image, false);
   }
 
   public void setImage(final LayerRendererOverlaySwingWorker imageWorker) {
@@ -143,15 +164,21 @@ public class LayerRendererOverlay extends JComponent implements
     final Layer old = this.layer;
     if (old != layer) {
       if (old != null) {
-        old.setVisible(false);
-        Property.addListener(old, this);
+        if (old.getParent() instanceof BaseMapLayerGroup) {
+          old.setVisible(false);
+        }
+        Property.removeListener(old, this);
+
       }
       this.layer = layer;
       if (layer != null) {
         Property.addListener(layer, this);
+        if (layer.getParent() instanceof BaseMapLayerGroup) {
+          layer.setVisible(true);
+        }
         layer.refresh();
-        layer.setVisible(true);
       }
+      this.image = null;
       redraw();
       firePropertyChange("layer", old, layer);
     }

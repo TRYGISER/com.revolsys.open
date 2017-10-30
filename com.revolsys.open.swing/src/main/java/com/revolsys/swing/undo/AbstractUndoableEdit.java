@@ -7,13 +7,12 @@ import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoableEdit;
 
-public abstract class AbstractUndoableEdit implements UndoableEdit,
-  Serializable {
+public abstract class AbstractUndoableEdit implements UndoableEdit, Serializable {
   private static final long serialVersionUID = 1L;
 
-  private boolean hasBeenDone = false;
-
   private boolean alive = true;
+
+  private boolean hasBeenDone = false;
 
   public AbstractUndoableEdit() {
   }
@@ -36,12 +35,6 @@ public abstract class AbstractUndoableEdit implements UndoableEdit,
   @Override
   public void die() {
     this.alive = false;
-  }
-
-  protected void doRedo() {
-  }
-
-  protected void doUndo() {
   }
 
   @Override
@@ -92,7 +85,10 @@ public abstract class AbstractUndoableEdit implements UndoableEdit,
       throw new CannotRedoException();
     }
     this.hasBeenDone = true;
-    doRedo();
+    redoDo();
+  }
+
+  protected void redoDo() {
   }
 
   @Override
@@ -106,8 +102,7 @@ public abstract class AbstractUndoableEdit implements UndoableEdit,
 
   @Override
   public String toString() {
-    return super.toString() + " hasBeenDone: " + this.hasBeenDone + " alive: "
-      + this.alive;
+    return super.toString() + " hasBeenDone: " + this.hasBeenDone + " alive: " + this.alive;
   }
 
   @Override
@@ -116,6 +111,9 @@ public abstract class AbstractUndoableEdit implements UndoableEdit,
       throw new CannotUndoException();
     }
     this.hasBeenDone = false;
-    doUndo();
+    undoDo();
+  }
+
+  protected void undoDo() {
   }
 }

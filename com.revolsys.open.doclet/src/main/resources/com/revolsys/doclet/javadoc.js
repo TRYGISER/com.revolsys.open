@@ -50,18 +50,12 @@ $(document).ready(function() {
     var pre = $('<pre class="prettyprint language-html"/>').text(text);
     var source = $('<div id="' + id +'-source"/>');
     source.append(pre);
-    $(tabDiv).append(source);
+    $(tabDiv).append(source); 
     $(tabDiv).tabs({ heightStyle: "content" });
-  });
-
-  $('div.simpleDataTable table').dataTable({
-    "bInfo" : false,
-    "bJQueryUI" : true,
-    "bPaginate" : false,
-    "bSort" : false,
-    "bFilter" : false,
-    "bAutoWidth": false,
-    "bRetrieve": true
+    
+    if (typeof prettyPrint == 'function') { 
+      prettyPrint(); 
+    }
   });
   
   createAccordion('div.javaMethod');

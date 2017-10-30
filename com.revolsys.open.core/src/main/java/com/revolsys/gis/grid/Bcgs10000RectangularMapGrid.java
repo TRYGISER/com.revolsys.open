@@ -4,8 +4,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Bcgs10000RectangularMapGrid extends Bcgs20000RectangularMapGrid {
-  private static final Pattern NAME_PATTERN = Pattern.compile("^"
-    + BcgsConstants.REGEX_10000 + ".*");
+  private static final Pattern NAME_PATTERN = Pattern
+    .compile("^" + BcgsConstants.REGEX_10000 + ".*");
 
   public Bcgs10000RectangularMapGrid() {
     this(BcgsConstants.WIDTH_10000, BcgsConstants.HEIGHT_10000);
@@ -24,17 +24,16 @@ public class Bcgs10000RectangularMapGrid extends Bcgs20000RectangularMapGrid {
       final String letter = matcher.group(2);
       final String number20k = matcher.group(3);
       final String number10k = matcher.group(4);
-      final double latitude = getLatitude(blockName, letter, number20k,
-        number10k);
+      final double latitude = getLatitude(blockName, letter, number20k, number10k);
       return latitude;
     } else {
-      throw new IllegalArgumentException(mapTileName
-        + " does not start with a valid BCGS 1:10,000 tile name");
+      throw new IllegalArgumentException(
+        mapTileName + " does not start with a valid BCGS 1:10,000 tile name");
     }
   }
 
-  protected double getLatitude(final String blockName, final String letter,
-    final String number20k, final String number10k) {
+  protected double getLatitude(final String blockName, final String letter, final String number20k,
+    final String number10k) {
     double latitude = getLatitude(blockName, letter, number20k);
     final int numberRow = GridUtil.getNumberRow4(number10k);
     latitude += numberRow * BcgsConstants.HEIGHT_10000;
@@ -49,17 +48,16 @@ public class Bcgs10000RectangularMapGrid extends Bcgs20000RectangularMapGrid {
       final String letter = matcher.group(2);
       final String number20k = matcher.group(3);
       final String number10k = matcher.group(4);
-      final double longitude = getLongitude(blockName, letter, number20k,
-        number10k);
+      final double longitude = getLongitude(blockName, letter, number20k, number10k);
       return longitude;
     } else {
-      throw new IllegalArgumentException(mapTileName
-        + " does not start with a valid BCGS 1:10,000 tile name");
+      throw new IllegalArgumentException(
+        mapTileName + " does not start with a valid BCGS 1:10,000 tile name");
     }
   }
 
-  protected double getLongitude(final String blockName, final String letter,
-    final String number20k, final String number10k) {
+  protected double getLongitude(final String blockName, final String letter, final String number20k,
+    final String number10k) {
     double longitude = getLongitude(blockName, letter, number20k);
     final int numberCol = GridUtil.getNumberCol4(number10k);
     longitude -= numberCol * BcgsConstants.WIDTH_10000;
@@ -71,7 +69,7 @@ public class Bcgs10000RectangularMapGrid extends Bcgs20000RectangularMapGrid {
     final String letterBlock = super.getMapTileName(x, y);
 
     final double xSheet = (x + 180) * 10;
-    final int col = (int)((Math.ceil(xSheet - 0.000000000001)) % 2);
+    final int col = (int)(Math.ceil(xSheet - 0.000000000001) % 2);
 
     final double ySheet = (y + 90) * 20;
     final int row = (int)Math.floor(ySheet + 0.000000000001) % 2;

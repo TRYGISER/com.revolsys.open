@@ -1,53 +1,28 @@
 package com.revolsys.swing.field;
 
-import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 import javax.swing.JCheckBox;
-import javax.swing.JTextField;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.converter.string.BooleanStringConverter;
-import com.revolsys.swing.menu.PopupMenu;
-import com.revolsys.swing.undo.CascadingUndoManager;
-import com.revolsys.swing.undo.UndoManager;
+import com.revolsys.swing.menu.MenuFactory;
+import com.revolsys.util.Booleans;
 
 public class CheckBox extends JCheckBox implements Field, ActionListener {
 
   private static final long serialVersionUID = 1L;
 
-  private final String fieldName;
-
-  private boolean fieldValue;
-
-  public static final Color DEFAULT_SELECTED_FOREGROUND = new JTextField().getSelectedTextColor();
-
-  public static final Color DEFAULT_BACKGROUND = new JTextField().getBackground();
-
-  public static final Color DEFAULT_FOREGROUND = new JTextField().getForeground();
-
-  private String errorMessage;
-
-  private String originalToolTip;
-
-  private final CascadingUndoManager undoManager = new CascadingUndoManager();
+  private final FieldSupport fieldSupport;
 
   public CheckBox(final String fieldName) {
     this(fieldName, "");
   }
 
   public CheckBox(final String fieldName, final Object fieldValue) {
-    if (StringUtils.hasText(fieldName)) {
-      this.fieldName = fieldName;
-    } else {
-      this.fieldName = "fieldValue";
-    }
-    setFieldValue(BooleanStringConverter.getBoolean(fieldValue));
+    this.fieldSupport = new FieldSupport(this, this, fieldName, fieldValue, true);
+    setFieldValue(Booleans.getBoolean(fieldValue));
     addActionListener(this);
-    this.undoManager.addKeyMap(this);
-    PopupMenu.getPopupMenuFactory(this);
+    MenuFactory.getPopupMenuFactory(this);
     setOpaque(false);
   }
 
@@ -57,19 +32,19 @@ public class CheckBox extends JCheckBox implements Field, ActionListener {
   }
 
   @Override
-  public void firePropertyChange(final String propertyName,
-    final Object oldValue, final Object newValue) {
+  public Field clone() {
+    return new CheckBox(getFieldName(), getFieldValue());
+  }
+
+  @Override
+  public void firePropertyChange(final String propertyName, final Object oldValue,
+    final Object newValue) {
     super.firePropertyChange(propertyName, oldValue, newValue);
   }
 
   @Override
-  public String getFieldName() {
-    return this.fieldName;
-  }
-
-  @Override
-  public String getFieldValidationMessage() {
-    return this.errorMessage;
+  public FieldSupport getFieldSupport() {
+    return this.fieldSupport;
   }
 
   @SuppressWarnings("unchecked")
@@ -79,76 +54,33 @@ public class CheckBox extends JCheckBox implements Field, ActionListener {
   }
 
   @Override
-  public boolean isFieldValid() {
-    return true;
-  }
-
-  @Override
-  public void setFieldBackgroundColor(Color color) {
-    if (color == null) {
-      color = DEFAULT_BACKGROUND;
-    }
-    setBackground(color);
-  }
-
-  @Override
-  public void setFieldForegroundColor(Color color) {
-    if (color == null) {
-      color = DEFAULT_FOREGROUND;
-    }
-    setForeground(color);
-  }
-
-  @Override
-  public void setFieldInvalid(final String message, final Color foregroundColor, Color backgroundColor) {
-    setForeground(foregroundColor);
-    setBackground(backgroundColor);
-    this.errorMessage = message;
-    super.setToolTipText(this.errorMessage);
+  public void setEditable(final boolean editable) {
+    setEnabled(editable);
   }
 
   @Override
   public void setFieldToolTip(final String toolTip) {
-    setToolTipText(toolTip);
+    super.setToolTipText(toolTip);
   }
 
   @Override
-  public void setFieldValid() {
-    setForeground(CheckBox.DEFAULT_FOREGROUND);
-    setBackground(CheckBox.DEFAULT_BACKGROUND);
-    this.errorMessage = null;
-    super.setToolTipText(this.originalToolTip);
-  }
-
-  @Override
-  public void setFieldValue(final Object value) {
-    final boolean newValue = BooleanStringConverter.getBoolean(value);
-    final boolean oldValue = this.fieldValue;
+  public boolean setFieldValue(final Object value) {
+    final boolean newValue = Booleans.getBoolean(value);
     final boolean selected = isSelected();
-    this.undoManager.discardAllEdits();
+    getUndoManager().discardAllEdits();
     if (newValue != selected) {
       setSelected(newValue);
-      this.undoManager.discardAllEdits();
+      getUndoManager().discardAllEdits();
     }
-    if (oldValue != newValue) {
-      this.fieldValue = newValue;
-      firePropertyChange(this.fieldName, oldValue, newValue);
-      SetFieldValueUndoableEdit.create(this.undoManager.getParent(), this,
-        oldValue, newValue);
-    }
+    return Field.super.setFieldValue(newValue);
   }
 
   @Override
   public void setToolTipText(final String text) {
-    this.originalToolTip = text;
-    if (!StringUtils.hasText(this.errorMessage)) {
+    final FieldSupport fieldSupport = getFieldSupport();
+    if (fieldSupport == null || fieldSupport.setOriginalTooltipText(text)) {
       super.setToolTipText(text);
     }
-  }
-
-  @Override
-  public void setUndoManager(final UndoManager undoManager) {
-    this.undoManager.setParent(undoManager);
   }
 
   @Override

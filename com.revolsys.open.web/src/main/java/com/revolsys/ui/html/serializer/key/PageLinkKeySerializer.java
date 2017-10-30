@@ -5,31 +5,47 @@ import java.util.Map;
 
 import org.apache.log4j.Logger;
 
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.io.xml.XmlWriter;
+import com.revolsys.datatype.DataTypes;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.builder.HtmlUiBuilder;
 import com.revolsys.ui.html.builder.HtmlUiBuilderAware;
 
-public class PageLinkKeySerializer extends AbstractKeySerializer implements
-  HtmlUiBuilderAware<HtmlUiBuilder<?>> {
+public class PageLinkKeySerializer extends AbstractKeySerializer
+  implements HtmlUiBuilderAware<HtmlUiBuilder<?>> {
   private String pageName;
 
-  private Map<String, String> parameterKeys = new LinkedHashMap<String, String>();
+  private final Map<String, String> parameterKeys = new LinkedHashMap<>();
 
   private HtmlUiBuilder<?> uiBuilder;
 
+  public PageLinkKeySerializer() {
+  }
+
+  public PageLinkKeySerializer(final String name, final String key, final String label,
+    final String pageName) {
+    super(name, label);
+    setKey(key);
+    setPageName(pageName);
+  }
+
+  public PageLinkKeySerializer addParameterKey(final String name, final String key) {
+    this.parameterKeys.put(name, key);
+    return this;
+  }
+
   public String getPageName() {
-    return pageName;
+    return this.pageName;
   }
 
   public Map<String, String> getParameterKeys() {
-    return parameterKeys;
+    return this.parameterKeys;
   }
 
   public HtmlUiBuilder<?> getUiBuilder() {
-    return uiBuilder;
+    return this.uiBuilder;
   }
 
+  @Override
   public void serialize(final XmlWriter out, final Object object) {
     try {
       HtmlUiBuilder<? extends Object> uiBuilder = this.uiBuilder;
@@ -45,15 +61,16 @@ public class PageLinkKeySerializer extends AbstractKeySerializer implements
 
         uiBuilder = uiBuilder.getBuilder(currentObject);
         if (uiBuilder == null) {
-          out.write(StringConverterRegistry.toString(currentObject));
+          final Object value = currentObject;
+          out.write(DataTypes.toString(value));
           return;
         }
         key = parts[i + 1];
 
       }
-      uiBuilder.serializeLink(out, currentObject, key, pageName, parameterKeys);
+      uiBuilder.serializeLink(out, currentObject, key, this.pageName, this.parameterKeys);
     } catch (final Throwable e) {
-      Logger.getLogger(getClass()).error("Unable to serialize " + pageName, e);
+      Logger.getLogger(getClass()).error("Unable to serialize " + this.pageName, e);
     }
   }
 
@@ -61,6 +78,7 @@ public class PageLinkKeySerializer extends AbstractKeySerializer implements
     out.text(getLabel());
   }
 
+  @Override
   public void setHtmlUiBuilder(final HtmlUiBuilder<?> uiBuilder) {
     if (this.uiBuilder == null) {
       this.uiBuilder = uiBuilder;
@@ -71,11 +89,13 @@ public class PageLinkKeySerializer extends AbstractKeySerializer implements
     this.pageName = pageName;
   }
 
-  public void setParameterKeys(final Map<String, String> parameterKeys) {
-    this.parameterKeys = parameterKeys;
+  public PageLinkKeySerializer setParameterKeys(final Map<String, String> parameterKeys) {
+    this.parameterKeys.putAll(parameterKeys);
+    return this;
   }
 
-  public void setUiBuilder(final HtmlUiBuilder<?> uiBuilder) {
+  public PageLinkKeySerializer setUiBuilder(final HtmlUiBuilder<?> uiBuilder) {
     this.uiBuilder = uiBuilder;
+    return this;
   }
 }

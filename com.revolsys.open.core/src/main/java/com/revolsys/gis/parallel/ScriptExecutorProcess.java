@@ -8,55 +8,50 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.jexl.Expression;
 import org.apache.commons.jexl.JexlContext;
 import org.apache.commons.jexl.context.HashMapContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
 
-import com.revolsys.collection.ThreadSharedAttributes;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectMap;
+import com.revolsys.collection.map.ThreadSharedProperties;
+import com.revolsys.logging.Logs;
 import com.revolsys.parallel.ThreadInterruptedException;
 import com.revolsys.parallel.ThreadUtil;
 import com.revolsys.parallel.channel.Channel;
 import com.revolsys.parallel.channel.ClosedException;
 import com.revolsys.parallel.process.BaseInProcess;
 import com.revolsys.parallel.tools.ScriptExecutorRunnable;
+import com.revolsys.record.Record;
 import com.revolsys.util.JexlUtil;
 
-public class ScriptExecutorProcess extends BaseInProcess<DataObject> implements
-  BeanFactoryAware {
-  private static final Logger LOG = LoggerFactory.getLogger(ScriptExecutorProcess.class);
-
-  private final Map<String, Object> attributes = new HashMap<String, Object>();
+public class ScriptExecutorProcess extends BaseInProcess<Record> implements BeanFactoryAware {
+  private final Map<String, Object> attributes = new HashMap<>();
 
   private ExecutorService executor;
 
-  private final Map<String, Expression> expressions = new HashMap<String, Expression>();
+  private final Map<String, Expression> expressions = new HashMap<>();
 
   private int maxConcurrentScripts = 1;
 
-  private Map<String, String> parameters = new HashMap<String, String>();
+  private Map<String, String> parameters = new HashMap<>();
 
   private String script;
 
-  private final Set<Future<?>> tasks = new LinkedHashSet<Future<?>>();
+  private final Set<Future<?>> tasks = new LinkedHashSet<>();
 
   @Override
   protected void destroy() {
     try {
-      while (!tasks.isEmpty()) {
+      while (!this.tasks.isEmpty()) {
         synchronized (this) {
           ThreadUtil.pause(this, 1000);
-          for (final Iterator<Future<?>> taskIter = tasks.iterator(); taskIter.hasNext();) {
+          for (final Iterator<Future<?>> taskIter = this.tasks.iterator(); taskIter.hasNext();) {
             final Future<?> task = taskIter.next();
             if (task.isDone()) {
               taskIter.remove();
@@ -65,34 +60,35 @@ public class ScriptExecutorProcess extends BaseInProcess<DataObject> implements
         }
       }
     } finally {
-      executor.shutdown();
+      this.executor.shutdown();
     }
   }
 
-  private void executeScript(final DataObject object) {
+  private void executeScript(final Record record) {
     try {
       final JexlContext context = new HashMapContext();
-      final Map<String, Object> vars = new HashMap<String, Object>(attributes);
-      vars.putAll(new DataObjectMap(object));
+      final Map<String, Object> vars = new HashMap<>(this.attributes);
+      vars.putAll(record);
       context.setVars(vars);
-      final Map<String, Object> scriptParams = new HashMap<String, Object>();
-      scriptParams.putAll(attributes);
-      for (final Entry<String, Expression> param : expressions.entrySet()) {
+      final Map<String, Object> scriptParams = new HashMap<>();
+      scriptParams.putAll(this.attributes);
+      for (final Entry<String, Expression> param : this.expressions.entrySet()) {
         final String key = param.getKey();
         final Expression expression = param.getValue();
         final Object value = JexlUtil.evaluateExpression(context, expression);
         scriptParams.put(key, value);
       }
-      final ScriptExecutorRunnable scriptRunner = new ScriptExecutorRunnable(
-        script, scriptParams);
-      if (executor == null) {
+      final ScriptExecutorRunnable scriptRunner = new ScriptExecutorRunnable(this.script,
+        scriptParams);
+      if (this.executor == null) {
         scriptRunner.run();
       } else {
-        while (tasks.size() >= maxConcurrentScripts) {
+        while (this.tasks.size() >= this.maxConcurrentScripts) {
           try {
             synchronized (this) {
               ThreadUtil.pause(1000);
-              for (final Iterator<Future<?>> taskIter = tasks.iterator(); taskIter.hasNext();) {
+              for (final Iterator<Future<?>> taskIter = this.tasks.iterator(); taskIter
+                .hasNext();) {
                 final Future<?> task = taskIter.next();
                 if (task.isDone()) {
                   taskIter.remove();
@@ -103,49 +99,48 @@ public class ScriptExecutorProcess extends BaseInProcess<DataObject> implements
             throw new ClosedException(e);
           }
         }
-        final Future<?> future = executor.submit(scriptRunner);
-        tasks.add(future);
+        final Future<?> future = this.executor.submit(scriptRunner);
+        this.tasks.add(future);
       }
     } catch (final ThreadDeath e) {
       throw e;
     } catch (final Throwable t) {
-      LOG.error(t.getMessage(), t);
+      Logs.error(this, t);
     }
   }
 
   public ExecutorService getExecutor() {
-    return executor;
+    return this.executor;
   }
 
   public int getMaxConcurrentScripts() {
-    return maxConcurrentScripts;
+    return this.maxConcurrentScripts;
   }
 
   public Map<String, String> getParameters() {
-    return parameters;
+    return this.parameters;
   }
 
   public String getScript() {
-    return script;
+    return this.script;
   }
 
   @Override
-  protected void postRun(final Channel<DataObject> in) {
-    tasks.clear();
-    if (executor != null) {
-      executor.shutdownNow();
+  protected void postRun(final Channel<Record> in) {
+    this.tasks.clear();
+    if (this.executor != null) {
+      this.executor.shutdownNow();
     }
   }
 
   @Override
-  protected void process(final Channel<DataObject> in, final DataObject object) {
+  protected void process(final Channel<Record> in, final Record object) {
     executeScript(object);
   }
 
   @Override
-  public void setBeanFactory(final BeanFactory beanFactory)
-    throws BeansException {
-    attributes.putAll(ThreadSharedAttributes.getAttributes());
+  public void setBeanFactory(final BeanFactory beanFactory) throws BeansException {
+    this.attributes.putAll(ThreadSharedProperties.getProperties());
   }
 
   public void setExecutor(final ExecutorService executor) {
@@ -154,10 +149,9 @@ public class ScriptExecutorProcess extends BaseInProcess<DataObject> implements
 
   public void setMaxConcurrentScripts(final int maxConcurrentScripts) {
     this.maxConcurrentScripts = maxConcurrentScripts;
-    if (executor == null) {
-      executor = new ThreadPoolExecutor(Math.min(maxConcurrentScripts, 10),
-        maxConcurrentScripts, 10, TimeUnit.SECONDS,
-        new LinkedBlockingQueue<Runnable>());
+    if (this.executor == null) {
+      this.executor = new ThreadPoolExecutor(Math.min(maxConcurrentScripts, 10),
+        maxConcurrentScripts, 10, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
     }
   }
 
@@ -167,12 +161,10 @@ public class ScriptExecutorProcess extends BaseInProcess<DataObject> implements
       final String key = param.getKey();
       final String value = param.getValue();
       try {
-        final Expression expression = JexlUtil.createExpression(value,
-          "#\\{([^\\}]+)\\}");
-        expressions.put(key, expression);
+        final Expression expression = JexlUtil.newExpression(value, "#\\{([^\\}]+)\\}");
+        this.expressions.put(key, expression);
       } catch (final Exception e) {
-        throw new IllegalArgumentException("Expression not valid " + key + "="
-          + value);
+        throw new IllegalArgumentException("Expression not valid " + key + "=" + value);
       }
     }
   }

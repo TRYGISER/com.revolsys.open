@@ -1,43 +1,90 @@
 package com.revolsys.swing.map.overlay;
 
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.jts.GeometryEditUtil;
-import com.revolsys.gis.jts.IndexedLineSegment;
-import com.revolsys.jts.geom.Geometry;
-import com.revolsys.jts.geom.GeometryFactory;
-import com.revolsys.jts.geom.Point;
-import com.revolsys.swing.map.layer.dataobject.AbstractDataObjectLayer;
-import com.revolsys.swing.map.layer.dataobject.LayerDataObject;
-import com.revolsys.util.CollectionUtil;
+import com.revolsys.collection.list.Lists;
+import com.revolsys.datatype.DataType;
+import com.revolsys.geometry.model.Geometry;
+import com.revolsys.geometry.model.GeometryFactory;
+import com.revolsys.geometry.model.Point;
+import com.revolsys.geometry.model.segment.Segment;
+import com.revolsys.geometry.model.vertex.Vertex;
+import com.revolsys.identifier.Identifier;
+import com.revolsys.record.schema.RecordDefinition;
+import com.revolsys.swing.map.layer.record.AbstractRecordLayer;
+import com.revolsys.swing.map.layer.record.LayerRecord;
+import com.revolsys.util.Property;
+import com.revolsys.util.Strings;
 
-public class CloseLocation {
+public class CloseLocation implements Comparable<CloseLocation> {
 
-  private final LayerDataObject object;
+  private final AbstractRecordLayer layer;
 
-  private final int[] vertexIndex;
+  private final Point viewportPoint;
 
-  private final IndexedLineSegment segment;
+  private final Point sourcePoint;
 
-  private final AbstractDataObjectLayer layer;
+  private final LayerRecord record;
 
-  private final Geometry geometry;
+  private Segment segment;
 
-  private final Point point;
+  private Vertex vertex;
 
-  public CloseLocation(final AbstractDataObjectLayer layer,
-    final LayerDataObject object, final Geometry geometry,
-    final int[] vertexIndex, final IndexedLineSegment segment, final Point point) {
-    this.object = object;
+  public CloseLocation(final AbstractRecordLayer layer, final LayerRecord record,
+    final Segment segment, final Point viewportPoint, final Point sourcePoint) {
     this.layer = layer;
-    this.geometry = geometry;
-    this.vertexIndex = vertexIndex;
+    this.record = record;
     this.segment = segment;
-    this.point = point;
+    this.viewportPoint = viewportPoint;
+    this.sourcePoint = sourcePoint;
   }
 
-  @SuppressWarnings("unchecked")
+  public CloseLocation(final AbstractRecordLayer layer, final LayerRecord record,
+    final Vertex vertex) {
+    this.layer = layer;
+    this.record = record;
+    this.vertex = vertex;
+    this.viewportPoint = vertex;
+    this.sourcePoint = vertex;
+  }
+
+  @Override
+  public int compareTo(final CloseLocation location) {
+    return 0;
+  }
+
+  @Override
+  public boolean equals(final Object other) {
+    if (other instanceof CloseLocation) {
+      final CloseLocation location = (CloseLocation)other;
+      final LayerRecord record1 = getRecord();
+      final LayerRecord record2 = location.getRecord();
+      if (record1 == null) {
+        if (record2 != null) {
+          return false;
+        }
+      } else if (record2 == null) {
+        return false;
+      } else if (!record2.isSame(record1)) {
+        return false;
+      }
+      if (!DataType.equal(getVertex(), location.getVertex())) {
+        return false;
+      } else if (!DataType.equal(getSegment(), location.getSegment())) {
+        return false;
+      } else if (location.getViewportPoint().equals(getViewportPoint())) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    return false;
+  }
+
   public <G extends Geometry> G getGeometry() {
-    return (G)this.geometry;
+    if (this.vertex == null) {
+      return this.segment.getGeometry();
+    } else {
+      return this.vertex.getGeometry();
+    }
   }
 
   public GeometryFactory getGeometryFactory() {
@@ -45,61 +92,80 @@ public class CloseLocation {
   }
 
   public Object getId() {
-    Object id = null;
-    if (this.object != null) {
-      id = this.object.getIdValue();
+    Identifier id = null;
+    if (this.record != null) {
+      id = this.record.getIdentifier();
     }
     if (id == null) {
-      id = "NEW";
+      id = Identifier.newIdentifier("NEW");
     }
     return id;
   }
 
-  public String getIdAttributeName() {
-    return getMetaData().getIdAttributeName();
+  public String getIdFieldName() {
+    final RecordDefinition recordDefinition = getRecordDefinition();
+    if (recordDefinition == null) {
+      return null;
+    } else {
+      return recordDefinition.getIdFieldName();
+    }
   }
 
   public String getIndexString() {
-    int[] index = this.vertexIndex;
-    if (index != null) {
+    int[] index;
+    if (this.vertex != null) {
+      index = this.vertex.getVertexId();
     } else {
-      index = this.segment.getIndex();
+      index = this.segment.getSegmentId();
     }
-    return CollectionUtil.toString(CollectionUtil.arrayToList(index));
+    return Strings.toString(Lists.arrayToList(index));
   }
 
-  public AbstractDataObjectLayer getLayer() {
+  public AbstractRecordLayer getLayer() {
     return this.layer;
   }
 
-  public DataObjectMetaData getMetaData() {
-    return this.layer.getMetaData();
+  public String getLayerPath() {
+    if (this.layer == null) {
+      return null;
+    } else {
+      return this.layer.getPath();
+    }
   }
 
-  public LayerDataObject getObject() {
-    return this.object;
+  public LayerRecord getRecord() {
+    return this.record;
   }
 
-  public Point getPoint() {
-    return this.point;
+  public RecordDefinition getRecordDefinition() {
+    if (this.layer == null) {
+      return null;
+    } else {
+      return this.layer.getRecordDefinition();
+    }
   }
 
-  public IndexedLineSegment getSegment() {
+  public Segment getSegment() {
     return this.segment;
   }
 
-  public int[] getSegmentIndex() {
-    return this.segment.getIndex();
+  public int[] getSegmentId() {
+    return this.segment.getSegmentId();
+  }
+
+  public Point getSourcePoint() {
+    return this.sourcePoint;
   }
 
   public String getType() {
+    final Geometry geometry = getGeometry();
     if (geometry instanceof Point) {
       return "Point";
-    } else if (segment != null) {
+    } else if (this.segment != null) {
       return "Edge";
     } else {
-      if (GeometryEditUtil.isFromPoint(geometry, vertexIndex)
-        || GeometryEditUtil.isToPoint(geometry, vertexIndex)) {
+      final Vertex vertex = geometry.getVertex(getVertexId());
+      if (vertex.isFrom() || vertex.isTo()) {
         return "End-Vertex";
       } else {
         return "Vertex";
@@ -107,35 +173,52 @@ public class CloseLocation {
     }
   }
 
-  public String getTypePath() {
-    final DataObjectMetaData metaData = getMetaData();
-    return metaData.getPath();
+  public Vertex getVertex() {
+    return this.vertex;
   }
 
-  public int[] getVertexIndex() {
-    return this.vertexIndex;
+  public int[] getVertexId() {
+    if (this.vertex == null) {
+      return null;
+    } else {
+      return this.vertex.getVertexId();
+    }
+  }
+
+  public Point getViewportPoint() {
+    return this.viewportPoint;
+  }
+
+  @Override
+  public int hashCode() {
+    return this.viewportPoint.hashCode();
   }
 
   @Override
   public String toString() {
-    final StringBuffer string = new StringBuffer();
-    string.append(getTypePath());
-    string.append(", ");
-    final DataObjectMetaData metaData = getMetaData();
-    string.append(metaData.getIdAttributeName());
-    string.append("=");
-    final Object id = getId();
-    string.append(id);
-    string.append(", ");
+    final StringBuilder string = new StringBuilder();
+    final String layerPath = getLayerPath();
+    if (Property.hasValue(layerPath)) {
+      string.append(layerPath);
+    }
+    if (getRecordDefinition() != null) {
+      string.append(", ");
+      final RecordDefinition recordDefinition = getRecordDefinition();
+      string.append(recordDefinition.getIdFieldName());
+      string.append("=");
+      final Object id = getId();
+      string.append(id);
+      string.append(", ");
+    }
     string.append(getType());
-    int[] index = this.vertexIndex;
+    int[] index = getVertexId();
     if (index != null) {
       string.append(", index=");
     } else {
       string.append(", index=");
-      index = this.segment.getIndex();
+      index = getSegmentId();
     }
-    final String indexString = CollectionUtil.toString(CollectionUtil.arrayToList(index));
+    final String indexString = Strings.toString(Lists.arrayToList(index));
     string.append(indexString);
     return string.toString();
   }

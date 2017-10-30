@@ -1,21 +1,38 @@
 package com.revolsys.swing.action.enablecheck;
 
-import java.beans.PropertyChangeListener;
-import java.beans.PropertyChangeSupport;
+@FunctionalInterface
+public interface EnableCheck {
+  EnableCheck ENABLED = () -> {
+    return true;
+  };
 
-import com.revolsys.beans.PropertyChangeSupportProxy;
+  EnableCheck DISABLED = () -> {
+    return false;
+  };
 
-public interface EnableCheck extends PropertyChangeSupportProxy {
-  void addListener(PropertyChangeListener listener);
+  default EnableCheck and(final EnableCheck enableCheck) {
+    if (enableCheck == null || enableCheck == this) {
+      return this;
+    } else if (enableCheck instanceof AndEnableCheck) {
+      final AndEnableCheck and = (AndEnableCheck)enableCheck;
+      and.addEnableCheck(enableCheck);
+      return and;
+    } else {
+      return new AndEnableCheck(this, enableCheck);
+    }
+  }
 
-  void addListener(String propertyName, final PropertyChangeListener listener);
+  default EnableCheck and(final Object object, final String propertyName) {
+    final ObjectPropertyEnableCheck enableCheck = new ObjectPropertyEnableCheck(object,
+      propertyName);
+    return and(enableCheck);
+  }
 
-  @Override
-  PropertyChangeSupport getPropertyChangeSupport();
+  default EnableCheck and(final Object object, final String propertyName, final Object value) {
+    final ObjectPropertyEnableCheck enableCheck = new ObjectPropertyEnableCheck(object,
+      propertyName, value);
+    return and(enableCheck);
+  }
 
   boolean isEnabled();
-
-  void removeListener(PropertyChangeListener listener);
-
-  void removeListener(String propertyName, PropertyChangeListener listener);
 }

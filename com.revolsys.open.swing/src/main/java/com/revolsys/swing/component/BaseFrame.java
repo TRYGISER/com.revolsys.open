@@ -1,57 +1,100 @@
 package com.revolsys.swing.component;
 
-import java.awt.GraphicsConfiguration;
+import java.awt.Font;
+import java.awt.FontFormatException;
+import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
+import java.io.IOException;
+import java.io.InputStream;
 
 import javax.swing.JFrame;
+import javax.swing.JMenuBar;
 
+import com.revolsys.logging.Logs;
+import com.revolsys.spring.resource.ClassPathResource;
 import com.revolsys.swing.WindowManager;
+import com.revolsys.swing.parallel.Invoke;
 
-@SuppressWarnings("serial")
 public class BaseFrame extends JFrame implements WindowListener {
-
-  public BaseFrame() throws HeadlessException {
-    super();
-    init();
+  private static final long serialVersionUID = 1L;
+  static {
+    try {
+      final GraphicsEnvironment environment = GraphicsEnvironment.getLocalGraphicsEnvironment();
+      final ClassPathResource resource = new ClassPathResource(
+        "com/revolsys/fonts/fontawesome-webfont.ttf");
+      final InputStream inputStream = resource.newInputStream();
+      final Font font = Font.createFont(Font.TRUETYPE_FONT, inputStream);
+      environment.registerFont(font);
+    } catch (IOException | FontFormatException e) {
+    }
   }
 
-  public BaseFrame(final GraphicsConfiguration gc) {
-    super(gc);
-    init();
+  public BaseFrame() throws HeadlessException {
+    this(true);
+  }
+
+  public BaseFrame(final boolean iniaitlize) throws HeadlessException {
+    if (iniaitlize) {
+      initUi();
+    }
   }
 
   public BaseFrame(final String title) throws HeadlessException {
-    super(title);
-    init();
+    this(title, true);
   }
 
-  public BaseFrame(final String title, final GraphicsConfiguration gc) {
-    super(title, gc);
-    init();
+  public BaseFrame(final String title, final boolean iniaitlize) throws HeadlessException {
+    super(title);
+    if (iniaitlize) {
+      initUi();
+    }
+  }
+
+  protected void close() {
+    setJMenuBar(null);
+    removeWindowListener(this);
+    WindowManager.removeWindow(this);
   }
 
   @Override
   public void dispose() {
-    removeWindowListener(this);
-    WindowManager.removeWindow(this);
-    super.dispose();
+    close();
+    try {
+      super.dispose();
+    } catch (final IllegalStateException e) {
+      Logs.debug(this, e);
+    }
   }
 
-  private void init() {
+  protected void initUi() {
     setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
     addWindowListener(this);
+    newMenuBar();
+  }
+
+  protected JMenuBar newMenuBar() {
+    final JMenuBar menuBar = new JMenuBar();
+    setJMenuBar(menuBar);
+    WindowManager.addMenu(menuBar);
+    return menuBar;
   }
 
   @Override
   public void setVisible(final boolean visible) {
-    if (visible) {
-      WindowManager.addWindow(this);
-    } else {
-      WindowManager.removeWindow(this);
-    }
-    super.setVisible(visible);
+    Invoke.later(() -> {
+      if (visible) {
+        WindowManager.addWindow(this);
+      } else {
+        WindowManager.removeWindow(this);
+      }
+      final boolean oldVisible = isVisible();
+      super.setVisible(visible);
+      if (!visible && oldVisible) {
+        close();
+      }
+    });
   }
 
   @Override
@@ -60,6 +103,7 @@ public class BaseFrame extends JFrame implements WindowListener {
 
   @Override
   public void windowClosed(final WindowEvent e) {
+    dispose();
   }
 
   @Override

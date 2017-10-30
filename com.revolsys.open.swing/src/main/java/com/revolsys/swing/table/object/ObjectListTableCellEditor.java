@@ -7,13 +7,12 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.table.TableCellEditor;
 
-import com.revolsys.converter.string.StringConverterRegistry;
+import com.revolsys.datatype.DataTypes;
 
-public class ObjectListTableCellEditor extends AbstractCellEditor implements
-  TableCellEditor {
+public class ObjectListTableCellEditor extends AbstractCellEditor implements TableCellEditor {
 
   /**
-   * 
+   *
    */
   private static final long serialVersionUID = 1L;
 
@@ -25,13 +24,12 @@ public class ObjectListTableCellEditor extends AbstractCellEditor implements
   }
 
   @Override
-  public Component getTableCellEditorComponent(final JTable table,
-    final Object value, final boolean isSelected, final int row,
-    final int column) {
+  public Component getTableCellEditorComponent(final JTable table, final Object value,
+    final boolean isSelected, final int row, final int column) {
     if (value == null) {
       this.editorComponent.setText(null);
     } else {
-      this.editorComponent.setText(StringConverterRegistry.toString(value));
+      this.editorComponent.setText(DataTypes.toString(value));
     }
     return this.editorComponent;
   }

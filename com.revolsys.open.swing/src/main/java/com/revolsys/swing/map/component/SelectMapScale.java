@@ -12,30 +12,28 @@ import java.lang.ref.WeakReference;
 import java.util.Vector;
 
 import javax.swing.JComboBox;
-import javax.swing.JLabel;
+import javax.swing.SwingConstants;
 
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.swing.field.InvokeMethodStringConverter;
+import com.revolsys.datatype.DataTypes;
+import com.revolsys.swing.field.FunctionStringConverter;
 import com.revolsys.swing.map.MapPanel;
 import com.revolsys.swing.parallel.Invoke;
 import com.revolsys.util.Property;
 
-public class SelectMapScale extends JComboBox implements ItemListener,
-  PropertyChangeListener, ActionListener {
+public class SelectMapScale extends JComboBox
+  implements ItemListener, PropertyChangeListener, ActionListener {
   private static final long serialVersionUID = 1L;
 
   private final Reference<MapPanel> map;
 
   public SelectMapScale(final MapPanel map) {
-    super(new Vector<Long>(map.getScales()));
-    this.map = new WeakReference<MapPanel>(map);
+    super(new Vector<>(map.getScales()));
+    this.map = new WeakReference<>(map);
 
     setEditable(true);
-    final InvokeMethodStringConverter renderer = new InvokeMethodStringConverter(
-      MapScale.class, "formatScale");
-    renderer.setHorizontalAlignment(JLabel.RIGHT);
-    final SelectMapScaleEditor editor = new SelectMapScaleEditor(getEditor(),
-      renderer);
+    final FunctionStringConverter renderer = new FunctionStringConverter(MapScale::formatScale);
+    renderer.setHorizontalAlignment(SwingConstants.RIGHT);
+    final SelectMapScaleEditor editor = new SelectMapScaleEditor(getEditor(), renderer);
     setEditor(editor);
     setRenderer(renderer);
     addItemListener(this);
@@ -53,7 +51,7 @@ public class SelectMapScale extends JComboBox implements ItemListener,
     if (map != null) {
       try {
         final Object item = getSelectedItem();
-        String string = StringConverterRegistry.toString(item);
+        String string = DataTypes.toString(item);
         string = string.replaceAll("((^1:)|([^0-9\\.])+)", "");
         final double scale = Double.parseDouble(string);
         map.setScale(scale);
@@ -63,7 +61,7 @@ public class SelectMapScale extends JComboBox implements ItemListener,
   }
 
   public MapPanel getMap() {
-    return map.get();
+    return this.map.get();
   }
 
   @Override
@@ -89,12 +87,26 @@ public class SelectMapScale extends JComboBox implements ItemListener,
 
       if ("scale".equals(propertyName)) {
         final double scale = map.getScale();
-        final Number currentScale = (Number)getSelectedItem();
+        double currentScale = 0;
+        final Object currentValue = getSelectedItem();
+        if (currentValue instanceof Number) {
+          currentScale = ((Number)currentValue).doubleValue();
+        } else if (Property.hasValue(currentValue)) {
+          final String scaleString = currentValue.toString()
+            .replaceAll("1:", "")
+            .replaceAll("[^0-9\\.]+", "");
+          if (Property.hasValue(scaleString)) {
+            try {
+              currentScale = Double.valueOf(scaleString);
+            } catch (final Throwable t) {
+            }
+          }
+        }
         final Number newValue = (Number)event.getNewValue();
 
         if (scale > 0 && !Double.isInfinite(scale) && !Double.isNaN(scale)) {
-          if (currentScale.doubleValue() != newValue.doubleValue()) {
-            Invoke.later(this, "setSelectedItem", scale);
+          if (currentScale != newValue.doubleValue()) {
+            Invoke.later(() -> setSelectedItem(scale));
           }
         }
       }

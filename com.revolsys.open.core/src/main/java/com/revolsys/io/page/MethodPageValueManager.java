@@ -1,8 +1,8 @@
 package com.revolsys.io.page;
 
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 
-import com.revolsys.io.FileUtil;
 import com.revolsys.util.JavaBeanUtil;
 
 public class MethodPageValueManager<T> implements PageValueManager<T> {
@@ -58,9 +58,9 @@ public class MethodPageValueManager<T> implements PageValueManager<T> {
     final int b6 = bytes[5] & 0xFF;
     final int b7 = bytes[6] & 0xFF;
     final int b8 = bytes[7] & 0xFF;
-    return (((long)b1 << 56) + ((long)(b2 & 255) << 48)
-      + ((long)(b3 & 255) << 40) + ((long)(b4 & 255) << 32)
-      + ((long)(b5 & 255) << 24) + ((b6 & 255) << 16) + ((b7 & 255) << 8) + ((b8 & 255) << 0));
+    return ((long)b1 << 56) + ((long)(b2 & 255) << 48) + ((long)(b3 & 255) << 40)
+      + ((long)(b4 & 255) << 32) + ((long)(b5 & 255) << 24) + ((b6 & 255) << 16) + ((b7 & 255) << 8)
+      + ((b8 & 255) << 0);
   }
 
   public static byte[] getShortBytes(final Page page) {
@@ -86,7 +86,7 @@ public class MethodPageValueManager<T> implements PageValueManager<T> {
     final int size = getIntValue(bytes);
     final byte[] stringBytes = new byte[size];
     System.arraycopy(bytes, 4, stringBytes, 0, size);
-    return new String(stringBytes, FileUtil.UTF8);
+    return new String(stringBytes, StandardCharsets.UTF_8);
   }
 
   public static byte[] getValueByteBytes(final Byte b) {
@@ -106,10 +106,10 @@ public class MethodPageValueManager<T> implements PageValueManager<T> {
   }
 
   public static byte[] getValueIntBytes(final Integer i) {
-    final byte b1 = (byte)((i >>> 24) & 0xFF);
-    final byte b2 = (byte)((i >>> 16) & 0xFF);
-    final byte b3 = (byte)((i >>> 8) & 0xFF);
-    final byte b4 = (byte)((i >>> 0) & 0xFF);
+    final byte b1 = (byte)(i >>> 24 & 0xFF);
+    final byte b2 = (byte)(i >>> 16 & 0xFF);
+    final byte b3 = (byte)(i >>> 8 & 0xFF);
+    final byte b4 = (byte)(i >>> 0 & 0xFF);
     return new byte[] {
       b1, b2, b3, b4
     };
@@ -130,29 +130,28 @@ public class MethodPageValueManager<T> implements PageValueManager<T> {
   }
 
   public static byte[] getValueShortBytes(final Short s) {
-    final byte b1 = (byte)((s >>> 8) & 0xFF);
-    final byte b2 = (byte)((s >>> 0) & 0xFF);
+    final byte b1 = (byte)(s >>> 8 & 0xFF);
+    final byte b2 = (byte)(s >>> 0 & 0xFF);
     return new byte[] {
       b1, b2,
     };
   }
 
   public static byte[] getValueStringBytes(final String s) {
-    final byte[] stringBytes = s.getBytes(FileUtil.UTF8);
+    final byte[] stringBytes = s.getBytes(StandardCharsets.UTF_8);
     final int size = stringBytes.length;
     final byte[] sizeBytes = getValueIntBytes(size);
     final byte[] bytes = new byte[stringBytes.length + sizeBytes.length];
     System.arraycopy(sizeBytes, 0, bytes, 0, sizeBytes.length);
-    System.arraycopy(stringBytes, 0, bytes, sizeBytes.length,
-      stringBytes.length);
+    System.arraycopy(stringBytes, 0, bytes, sizeBytes.length, stringBytes.length);
     return bytes;
   }
-
-  private Method getValueMethod;
 
   private Method byteArrayWriteMethod;
 
   private Method getBytesMethod;
+
+  private Method getValueMethod;
 
   private String typePath;
 
@@ -164,18 +163,17 @@ public class MethodPageValueManager<T> implements PageValueManager<T> {
       "get" + typePath + "Bytes");
   }
 
-  protected MethodPageValueManager(final String typePath,
-    final String byteArrayWriteMethodName,
+  protected MethodPageValueManager(final String typePath, final String byteArrayWriteMethodName,
     final String byteArrayReadMethodName, final String pageReadMethodName) {
     for (final Method method : getClass().getMethods()) {
       if (method.getName().equals(byteArrayWriteMethodName)) {
-        byteArrayWriteMethod = method;
+        this.byteArrayWriteMethod = method;
       }
       if (method.getName().equals(byteArrayReadMethodName)) {
-        getValueMethod = method;
+        this.getValueMethod = method;
       }
       if (method.getName().equals(pageReadMethodName)) {
-        getBytesMethod = method;
+        this.getBytesMethod = method;
       }
     }
     this.typePath = typePath;
@@ -188,18 +186,18 @@ public class MethodPageValueManager<T> implements PageValueManager<T> {
 
   @Override
   public byte[] getBytes(final Page page) {
-    return (byte[])JavaBeanUtil.method(getBytesMethod, getClass(), page);
+    return (byte[])JavaBeanUtil.method(this.getBytesMethod, getClass(), page);
   }
 
   @Override
   public byte[] getBytes(final T value) {
-    return JavaBeanUtil.method(byteArrayWriteMethod, getClass(), value);
+    return JavaBeanUtil.method(this.byteArrayWriteMethod, getClass(), value);
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public <V extends T> V getValue(final byte[] bytes) {
-    return (V)JavaBeanUtil.method(getValueMethod, getClass(), bytes);
+    return (V)JavaBeanUtil.method(this.getValueMethod, getClass(), bytes);
   }
 
   @Override
@@ -210,6 +208,6 @@ public class MethodPageValueManager<T> implements PageValueManager<T> {
 
   @Override
   public String toString() {
-    return typePath;
+    return this.typePath;
   }
 }

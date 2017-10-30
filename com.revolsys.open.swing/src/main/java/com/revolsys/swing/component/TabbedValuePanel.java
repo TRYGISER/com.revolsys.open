@@ -3,11 +3,12 @@ package com.revolsys.swing.component;
 import java.awt.BorderLayout;
 import java.awt.Component;
 
+import javax.swing.Icon;
 import javax.swing.JTabbedPane;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.gis.model.data.equals.EqualsRegistry;
+import com.revolsys.datatype.DataType;
+import com.revolsys.swing.Icons;
+import com.revolsys.util.Property;
 
 public class TabbedValuePanel extends ValueField {
   private static final long serialVersionUID = 1L;
@@ -15,7 +16,7 @@ public class TabbedValuePanel extends ValueField {
   private final JTabbedPane tabs = new JTabbedPane();
 
   public TabbedValuePanel() {
-    super(new BorderLayout());
+    setLayout(new BorderLayout());
     add(this.tabs, BorderLayout.CENTER);
   }
 
@@ -33,6 +34,11 @@ public class TabbedValuePanel extends ValueField {
     this.tabs.addTab(title, component);
   }
 
+  public void addTab(final String title, final String iconName, final Component component) {
+    final Icon icon = Icons.getIcon(iconName);
+    this.tabs.addTab(title, icon, component);
+  }
+
   public void addTab(final ValueField panel) {
     final String title = panel.getTitle();
     this.tabs.addTab(title, panel);
@@ -40,10 +46,10 @@ public class TabbedValuePanel extends ValueField {
 
   @SuppressWarnings("unchecked")
   public <V extends Component> V getTab(final String tabName) {
-    for (int i = 0; i < tabs.getTabCount(); i++) {
-      final String title = tabs.getTitleAt(i);
-      if (EqualsRegistry.equal(tabName, title)) {
-        return (V)tabs.getComponentAt(i);
+    for (int i = 0; i < this.tabs.getTabCount(); i++) {
+      final String title = this.tabs.getTitleAt(i);
+      if (DataType.equal(tabName, title)) {
+        return (V)this.tabs.getComponentAt(i);
       }
     }
     return null;
@@ -54,7 +60,7 @@ public class TabbedValuePanel extends ValueField {
   }
 
   public void setSelectdTab(final String tabName) {
-    if (StringUtils.hasText(tabName)) {
+    if (Property.hasValue(tabName)) {
       for (int i = 0; i < this.tabs.getTabCount(); i++) {
         final String name = this.tabs.getTitleAt(i);
         if (tabName.equals(name)) {

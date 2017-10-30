@@ -1,16 +1,16 @@
 package com.revolsys.ui.html.serializer.type;
 
-import com.revolsys.io.xml.XmlWriter;
+import com.revolsys.record.io.format.xml.XmlWriter;
 
 /**
  * Serialize a date with just the date fields.
- * 
+ *
  * @author Paul Austin
  */
 public class BooleanSerializer implements TypeSerializer {
   /**
    * Serialize the value to the XML writer.
-   * 
+   *
    * @param out The XML writer to serialize to.
    * @param value The object to get the value from.
    */

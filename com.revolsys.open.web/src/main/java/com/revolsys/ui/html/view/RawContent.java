@@ -1,9 +1,7 @@
 package com.revolsys.ui.html.view;
 
-import org.springframework.core.io.Resource;
-
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.spring.SpringUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
+import com.revolsys.spring.resource.Resource;
 
 /**
  * @author paustin
@@ -12,16 +10,16 @@ import com.revolsys.spring.SpringUtil;
 public class RawContent extends Element {
   private final String content;
 
+  public RawContent(final Resource resource) {
+    this(resource.contentsAsString());
+  }
+
   public RawContent(final String content) {
     this.content = content;
   }
 
-  public RawContent(final Resource resource) {
-    this(SpringUtil.getContents(resource));
-  }
-
   @Override
   public void serializeElement(final XmlWriter out) {
-    out.write(content);
+    out.write(this.content);
   }
 }

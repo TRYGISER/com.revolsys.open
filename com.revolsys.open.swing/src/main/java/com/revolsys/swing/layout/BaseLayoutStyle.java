@@ -14,13 +14,12 @@ public class BaseLayoutStyle extends LayoutStyle {
   @Override
   public int getContainerGap(final JComponent component, final int position,
     final Container parent) {
-    return containerGap;
+    return this.containerGap;
   }
 
   @Override
-  public int getPreferredGap(final JComponent component1,
-    final JComponent component2, final ComponentPlacement type,
-    final int position, final Container parent) {
+  public int getPreferredGap(final JComponent component1, final JComponent component2,
+    final ComponentPlacement type, final int position, final Container parent) {
     return 1;
   }
 

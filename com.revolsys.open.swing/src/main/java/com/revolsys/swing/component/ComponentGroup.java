@@ -15,11 +15,11 @@ import javax.swing.JToolBar;
 
 public class ComponentGroup {
 
-  private final Map<String, List<Component>> groups = new HashMap<String, List<Component>>();
+  private final Map<String, ButtonGroup> buttonGroups = new HashMap<>();
 
-  private final Map<String, ButtonGroup> buttonGroups = new HashMap<String, ButtonGroup>();
+  private final List<String> groupNames = new ArrayList<>();
 
-  private final List<String> groupNames = new ArrayList<String>();
+  private final Map<String, List<Component>> groups = new HashMap<>();
 
   public ComponentGroup() {
   }
@@ -35,8 +35,8 @@ public class ComponentGroup {
     updateComponents(container);
   }
 
-  public void addComponent(final JComponent container, final String groupName,
-    final int index, final Component component) {
+  public void addComponent(final JComponent container, final String groupName, final int index,
+    final Component component) {
     final List<Component> components = getGroup(groupName);
     if (index < 0) {
       components.add(component);
@@ -51,9 +51,9 @@ public class ComponentGroup {
   }
 
   public void clear() {
-    buttonGroups.clear();
-    groupNames.clear();
-    groups.clear();
+    this.buttonGroups.clear();
+    this.groupNames.clear();
+    this.groups.clear();
   }
 
   public ButtonGroup getButtonGroup(final String groupName) {
@@ -68,15 +68,14 @@ public class ComponentGroup {
   public List<Component> getGroup(final String groupName) {
     List<Component> components = this.groups.get(groupName);
     if (components == null) {
-      components = new ArrayList<Component>();
+      components = new ArrayList<>();
       this.groups.put(groupName, components);
       this.groupNames.add(groupName);
     }
     return components;
   }
 
-  public void removeComponent(final JComponent container,
-    final String groupName, final int index) {
+  public void removeComponent(final JComponent container, final String groupName, final int index) {
     final List<Component> components = getGroup(groupName);
     if (index < components.size()) {
       components.remove(index);

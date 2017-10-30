@@ -8,9 +8,10 @@ import java.util.Map.Entry;
 
 import javax.servlet.http.HttpServletRequest;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.form.Form;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
 
 public class SelectField extends Field {
   private Object defaultValue;
@@ -19,11 +20,11 @@ public class SelectField extends Field {
 
   private String onChange;
 
-  private final Map<String, FieldValue> optionMap = new HashMap<String, FieldValue>();
+  private final Map<String, FieldValue> optionMap = new HashMap<>();
 
-  private final List<FieldValue> options = new ArrayList<FieldValue>();
+  private final List<FieldValue> options = new ArrayList<>();
 
-  private final Map<Object, FieldValue> optionValueMap = new HashMap<Object, FieldValue>();
+  private final Map<Object, FieldValue> optionValueMap = new HashMap<>();
 
   private String stringValue;
 
@@ -31,84 +32,82 @@ public class SelectField extends Field {
   }
 
   public SelectField(final String name, final boolean required) {
-    this(name, required, ("(None)"));
+    this(name, required, "(None)");
   }
 
-  public SelectField(final String name, final boolean required,
-    final String nullValueLabel) {
+  public SelectField(final String name, final boolean required, final String nullValueLabel) {
     super(name, required);
     this.nullValueLabel = nullValueLabel;
   }
 
-  public SelectField(final String name, final String defaultValue,
-    final boolean required) {
-    this(name, required);
-    this.defaultValue = defaultValue;
-    this.stringValue = defaultValue;
-  }
-
-  public SelectField(final String name, final Object defaultValue,
-    final boolean required,
+  public SelectField(final String name, final Object defaultValue, final boolean required,
     final Map<? extends Object, ? extends Object> options) {
     this(name, required);
     this.defaultValue = defaultValue;
     if (defaultValue != null) {
       this.stringValue = defaultValue.toString();
     }
-    for (Entry<?, ?> entry : options.entrySet()) {
-      Object value = entry.getKey();
-      Object label = entry.getValue();
+    for (final Entry<?, ?> entry : options.entrySet()) {
+      final Object value = entry.getKey();
+      final Object label = entry.getValue();
       addOption(value, label);
     }
   }
 
-  public void addOption(final int index, final Object value,
-    final String stringValue, final String label) {
-    final FieldValue option = new FieldValue(value, stringValue, label);
-    options.add(index, option);
-    optionMap.put(stringValue, option);
-    optionValueMap.put(value, option);
+  public SelectField(final String name, final String defaultValue, final boolean required) {
+    this(name, required);
+    this.defaultValue = defaultValue;
+    this.stringValue = defaultValue;
   }
 
-  public void addOption(final Object value, final Object stringValue,
+  public SelectField addOption(final int index, final Object value, final String stringValue,
     final String label) {
-    addOption(value, stringValue.toString(), label);
+    final FieldValue option = new FieldValue(value, stringValue, label);
+    this.options.add(index, option);
+    this.optionMap.put(stringValue, option);
+    this.optionValueMap.put(value, option);
+    return this;
   }
 
-  public void addOption(final Object value, final String label) {
+  public SelectField addOption(final Object value, final Object label) {
+    return addOption(value, label.toString());
+  }
+
+  public SelectField addOption(final Object value, final Object stringValue, final String label) {
+    return addOption(value, stringValue.toString(), label);
+  }
+
+  public SelectField addOption(final Object value, final String label) {
     String stringValue = null;
     if (value != null) {
       stringValue = value.toString();
     }
-    addOption(value, stringValue, label);
+    return addOption(value, stringValue, label);
   }
 
-  public void addOption(final Object value, final Object label) {
-    addOption(value, label.toString());
-  }
-
-  public void addOption(final Object value, final String stringValue,
-    final String label) {
+  public SelectField addOption(final Object value, final String stringValue, final String label) {
     final FieldValue option = new FieldValue(value, stringValue, label);
-    options.add(option);
-    optionMap.put(stringValue, option);
-    optionValueMap.put(value, option);
+    this.options.add(option);
+    this.optionMap.put(stringValue, option);
+    this.optionValueMap.put(value, option);
+    return this;
   }
 
-  public void addOption(final String label) {
-    addOption(label, label);
+  public SelectField addOption(final String label) {
+    return addOption(label, label);
   }
 
-  public void addOption(final String value, final String label) {
-    addOption(value, value, label);
+  public SelectField addOption(final String value, final String label) {
+    return addOption(value, value, label);
   }
 
-  public void addOptions(final Map<Object, String> options) {
+  public SelectField addOptions(final Map<Object, String> options) {
     for (final Entry<Object, String> entry : options.entrySet()) {
       final Object key = entry.getKey();
       final String label = entry.getValue();
       addOption(key, label);
     }
+    return this;
   }
 
   @Override
@@ -119,7 +118,7 @@ public class SelectField extends Field {
     field.setRequired(isRequired());
     field.setReadOnly(isReadOnly());
     field.setNullValueLabel(getNullValueLabel());
-    for (final FieldValue fieldValue : options) {
+    for (final FieldValue fieldValue : this.options) {
       final Object value = fieldValue.getValue();
       final String stringValue = fieldValue.getStringValue();
       final String label = fieldValue.getLabel();
@@ -129,34 +128,34 @@ public class SelectField extends Field {
   }
 
   public Object getDefaultValue() {
-    return defaultValue;
+    return this.defaultValue;
   }
 
   public String getNullValueLabel() {
-    return nullValueLabel;
+    return this.nullValueLabel;
   }
 
   public FieldValue getSelectedOption() {
-    return optionMap.get(stringValue);
+    return this.optionMap.get(this.stringValue);
   }
 
   public String getStringValue() {
-    return stringValue;
+    return this.stringValue;
   }
 
   @Override
   public boolean hasValue() {
-    return stringValue != null && !stringValue.equals("");
+    return this.stringValue != null && !this.stringValue.equals("");
   }
 
   @Override
   public void initialize(final Form form, final HttpServletRequest request) {
     if (!isRequired()) {
-      addOption(0, null, null, nullValueLabel);
+      addOption(0, null, null, this.nullValueLabel);
     }
 
-    stringValue = request.getParameter(getName());
-    if (stringValue == null) {
+    this.stringValue = request.getParameter(getName());
+    if (this.stringValue == null) {
       setValue(getInitialValue(request));
     }
   }
@@ -181,32 +180,33 @@ public class SelectField extends Field {
 
   @Override
   public void serializeElement(final XmlWriter out) {
-    out.startTag(HtmlUtil.SELECT);
-    out.attribute(HtmlUtil.ATTR_NAME, getName());
-    if (onChange != null) {
-      out.attribute(HtmlUtil.ATTR_ON_CHANGE, onChange);
+    out.startTag(HtmlElem.SELECT);
+    out.attribute(HtmlAttr.NAME, getName());
+    out.attribute(HtmlAttr.CLASS, "form-control input-sm");
+    if (this.onChange != null) {
+      out.attribute(HtmlAttr.ON_CHANGE, this.onChange);
     }
     if (isRequired()) {
-      out.attribute(HtmlUtil.ATTR_CLASS, "required");
+      out.attribute(HtmlAttr.REQUIRED, true);
     }
     serializeOptions(out);
-    out.endTag(HtmlUtil.SELECT);
+    out.endTag(HtmlElem.SELECT);
   }
 
   private void serializeOptions(final XmlWriter out) {
-    if (options.size() == 0) {
+    if (this.options.size() == 0) {
       addOption(null, "(None)");
     }
-    for (final FieldValue option : options) {
-      out.startTag(HtmlUtil.OPTION);
-      if (option.getStringValue().equals(stringValue)) {
-        out.attribute(HtmlUtil.ATTR_SELECTED, "true");
+    for (final FieldValue option : this.options) {
+      out.startTag(HtmlElem.OPTION);
+      if (option.getStringValue().equals(this.stringValue)) {
+        out.attribute(HtmlAttr.SELECTED, "true");
       }
       if (!option.getStringValue().equals(option.getLabel())) {
-        out.attribute(HtmlUtil.ATTR_VALUE, option.getStringValue());
+        out.attribute(HtmlAttr.VALUE, option.getStringValue());
       }
       out.text(option.getLabel());
-      out.endTag(HtmlUtil.OPTION);
+      out.endTag(HtmlElem.OPTION);
     }
   }
 
@@ -237,12 +237,12 @@ public class SelectField extends Field {
   public void setValue(final Object value) {
     super.setValue(value);
     if (value != null) {
-      final FieldValue option = optionValueMap.get(value);
+      final FieldValue option = this.optionValueMap.get(value);
       if (option != null) {
-        stringValue = option.getStringValue();
+        this.stringValue = option.getStringValue();
       } else {
         super.setValue(null);
-        stringValue = null;
+        this.stringValue = null;
       }
     }
   }

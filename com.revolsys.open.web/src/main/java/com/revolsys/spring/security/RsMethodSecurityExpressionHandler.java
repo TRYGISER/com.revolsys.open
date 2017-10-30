@@ -22,8 +22,9 @@ import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
 
-public class RsMethodSecurityExpressionHandler implements
-  MethodSecurityExpressionHandler {
+public class RsMethodSecurityExpressionHandler implements MethodSecurityExpressionHandler {
+
+  private final ExpressionParser expressionParser = new SpelExpressionParser();
 
   protected final Log logger = LogFactory.getLog(getClass());
 
@@ -31,11 +32,9 @@ public class RsMethodSecurityExpressionHandler implements
 
   private PermissionEvaluator permissionEvaluator = new DenyAllPermissionEvaluator();
 
-  private AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
-
-  private final ExpressionParser expressionParser = new SpelExpressionParser();
-
   private RoleHierarchy roleHierarchy;
+
+  private AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
   public RsMethodSecurityExpressionHandler() {
   }
@@ -46,42 +45,38 @@ public class RsMethodSecurityExpressionHandler implements
    * {@link MethodSecurityExpressionRoot} instance as the expression root
    * object.
    */
-  public EvaluationContext createEvaluationContext(
-    final Authentication auth,
+  @Override
+  public EvaluationContext createEvaluationContext(final Authentication auth,
     final MethodInvocation mi) {
-    final MethodSecurityEvaluationContext ctx = new MethodSecurityEvaluationContext(
-      auth, mi, parameterNameDiscoverer);
-    final MethodSecurityExpressionRoot root = new MethodSecurityExpressionRoot(
-      auth);
-    root.setTrustResolver(trustResolver);
-    root.setPermissionEvaluator(permissionEvaluator);
-    root.setRoleHierarchy(roleHierarchy);
+    final MethodSecurityEvaluationContext ctx = new MethodSecurityEvaluationContext(auth, mi,
+      this.parameterNameDiscoverer);
+    final MethodSecurityExpressionRoot root = new MethodSecurityExpressionRoot(auth);
+    root.setTrustResolver(this.trustResolver);
+    root.setPermissionEvaluator(this.permissionEvaluator);
+    root.setRoleHierarchy(this.roleHierarchy);
     ctx.setRootObject(root);
 
     return ctx;
   }
 
+  @Override
   @SuppressWarnings("unchecked")
-  public Object filter(
-    final Object filterTarget,
-    final Expression filterExpression,
+  public Object filter(final Object filterTarget, final Expression filterExpression,
     final EvaluationContext ctx) {
-    final MethodSecurityExpressionRoot rootObject = (MethodSecurityExpressionRoot)ctx.getRootObject()
-      .getValue();
+    final MethodSecurityExpressionRoot rootObject = (MethodSecurityExpressionRoot)ctx
+      .getRootObject().getValue();
     List retainList;
 
-    if (logger.isDebugEnabled()) {
-      logger.debug("Filtering with expression: "
-        + filterExpression.getExpressionString());
+    if (this.logger.isDebugEnabled()) {
+      this.logger.debug("Filtering with expression: " + filterExpression.getExpressionString());
     }
 
     if (filterTarget instanceof Collection) {
       final Collection collection = (Collection)filterTarget;
       retainList = new ArrayList(collection.size());
 
-      if (logger.isDebugEnabled()) {
-        logger.debug("Filtering collection with " + collection.size()
-          + " elements");
+      if (this.logger.isDebugEnabled()) {
+        this.logger.debug("Filtering collection with " + collection.size() + " elements");
       }
       for (final Object filterObject : (Collection)filterTarget) {
         rootObject.setFilterObject(filterObject);
@@ -91,8 +86,8 @@ public class RsMethodSecurityExpressionHandler implements
         }
       }
 
-      if (logger.isDebugEnabled()) {
-        logger.debug("Retaining elements: " + retainList);
+      if (this.logger.isDebugEnabled()) {
+        this.logger.debug("Retaining elements: " + retainList);
       }
 
       collection.clear();
@@ -105,24 +100,24 @@ public class RsMethodSecurityExpressionHandler implements
       final Object[] array = (Object[])filterTarget;
       retainList = new ArrayList(array.length);
 
-      if (logger.isDebugEnabled()) {
-        logger.debug("Filtering collection with " + array.length + " elements");
+      if (this.logger.isDebugEnabled()) {
+        this.logger.debug("Filtering collection with " + array.length + " elements");
       }
 
-      for (int i = 0; i < array.length; i++) {
-        rootObject.setFilterObject(array[i]);
+      for (final Object element : array) {
+        rootObject.setFilterObject(element);
 
         if (ExpressionUtils.evaluateAsBoolean(filterExpression, ctx)) {
-          retainList.add(array[i]);
+          retainList.add(element);
         }
       }
 
-      if (logger.isDebugEnabled()) {
-        logger.debug("Retaining elements: " + retainList);
+      if (this.logger.isDebugEnabled()) {
+        this.logger.debug("Retaining elements: " + retainList);
       }
 
-      final Object[] filtered = (Object[])Array.newInstance(
-        filterTarget.getClass().getComponentType(), retainList.size());
+      final Object[] filtered = (Object[])Array
+        .newInstance(filterTarget.getClass().getComponentType(), retainList.size());
       for (int i = 0; i < retainList.size(); i++) {
         filtered[i] = retainList.get(i);
       }
@@ -131,27 +126,24 @@ public class RsMethodSecurityExpressionHandler implements
     }
 
     throw new IllegalArgumentException(
-      "Filter target must be a collection or array type, but was "
-        + filterTarget);
+      "Filter target must be a collection or array type, but was " + filterTarget);
   }
 
+  @Override
   public ExpressionParser getExpressionParser() {
-    return expressionParser;
+    return this.expressionParser;
   }
 
-  public void setParameterNameDiscoverer(
-    final ParameterNameDiscoverer parameterNameDiscoverer) {
+  public void setParameterNameDiscoverer(final ParameterNameDiscoverer parameterNameDiscoverer) {
     this.parameterNameDiscoverer = parameterNameDiscoverer;
   }
 
-  public void setPermissionEvaluator(
-    final PermissionEvaluator permissionEvaluator) {
+  public void setPermissionEvaluator(final PermissionEvaluator permissionEvaluator) {
     this.permissionEvaluator = permissionEvaluator;
   }
 
-  public void setReturnObject(
-    final Object returnObject,
-    final EvaluationContext ctx) {
+  @Override
+  public void setReturnObject(final Object returnObject, final EvaluationContext ctx) {
     ((MethodSecurityExpressionRoot)ctx.getRootObject().getValue()).setReturnObject(returnObject);
   }
 

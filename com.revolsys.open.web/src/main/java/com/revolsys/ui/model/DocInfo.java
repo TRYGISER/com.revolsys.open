@@ -3,21 +3,13 @@ package com.revolsys.ui.model;
 import java.util.Locale;
 
 public class DocInfo {
-  private Locale locale;
-
-  private String title;
-
   private String description;
 
   private boolean html = false;
 
-  public void setHtml(boolean html) {
-    this.html = html;
-  }
+  private Locale locale;
 
-  public boolean isHtml() {
-    return html;
-  }
+  private String title;
 
   public DocInfo() {
   }
@@ -28,8 +20,7 @@ public class DocInfo {
     this.description = docInfo.getDescription();
   }
 
-  public DocInfo(final Locale locale, final String title,
-    final String description) {
+  public DocInfo(final Locale locale, final String title, final String description) {
     this.locale = locale;
     this.title = title;
     this.description = description;
@@ -50,19 +41,27 @@ public class DocInfo {
   }
 
   public String getDescription() {
-    return description;
+    return this.description;
   }
 
   public Locale getLocale() {
-    return locale;
+    return this.locale;
   }
 
   public String getTitle() {
-    return title;
+    return this.title;
+  }
+
+  public boolean isHtml() {
+    return this.html;
   }
 
   public void setDescription(final String description) {
     this.description = description;
+  }
+
+  public void setHtml(final boolean html) {
+    this.html = html;
   }
 
   public void setTitle(final String title) {

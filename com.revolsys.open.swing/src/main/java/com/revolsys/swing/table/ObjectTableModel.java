@@ -3,21 +3,19 @@ package com.revolsys.swing.table;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.swing.table.AbstractTableModel;
-
-import com.revolsys.util.JavaBeanUtil;
+import com.revolsys.util.Property;
 
 public class ObjectTableModel<T> extends AbstractTableModel {
   /**
-   * 
+   *
    */
   private static final long serialVersionUID = -1243907349293763360L;
 
-  private final String[] propertyNames;
-
   private final String[] lables;
 
-  private final List<T> rows = new ArrayList<T>();
+  private final String[] propertyNames;
+
+  private final List<T> rows = new ArrayList<>();
 
   public ObjectTableModel(final String[] propertyNames, final String[] lables) {
     this.propertyNames = propertyNames;
@@ -51,7 +49,7 @@ public class ObjectTableModel<T> extends AbstractTableModel {
   public Object getValueAt(final int rowIndex, final int columnIndex) {
     final Object row = this.rows.get(rowIndex);
     final String propertyName = this.propertyNames[columnIndex];
-    return JavaBeanUtil.getProperty(row, propertyName);
+    return Property.getSimple(row, propertyName);
   }
 
   public void insertRow(final int rowIndex, final T row) {
@@ -76,11 +74,10 @@ public class ObjectTableModel<T> extends AbstractTableModel {
   }
 
   @Override
-  public void setValueAt(final Object value, final int rowIndex,
-    final int columnIndex) {
+  public void setValueAt(final Object value, final int rowIndex, final int columnIndex) {
     final Object row = this.rows.get(rowIndex);
     final String propertyName = this.propertyNames[columnIndex];
-    JavaBeanUtil.setProperty(row, propertyName, value);
+    Property.setSimple(row, propertyName, value);
   }
 
 }

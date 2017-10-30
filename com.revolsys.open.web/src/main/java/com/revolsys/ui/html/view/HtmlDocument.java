@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,11 +22,11 @@ import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.LoggerFactory;
-
 import com.revolsys.io.FileUtil;
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.logging.Logs;
+import com.revolsys.record.io.format.xml.XmlWriter;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
 
 /**
  * @author paustin
@@ -34,47 +34,47 @@ import com.revolsys.ui.html.HtmlUtil;
  */
 public class HtmlDocument extends ElementContainer {
 
-  private final List<BufferedReader> styles = new ArrayList<BufferedReader>();
+  private final List<BufferedReader> styles = new ArrayList<>();
 
   public void addStyle(final InputStream styleIn) {
-    styles.add(new BufferedReader(FileUtil.createUtf8Reader(styleIn)));
+    this.styles.add(new BufferedReader(FileUtil.newUtf8Reader(styleIn)));
   }
 
   public void addStyle(final Reader styleIn) {
-    styles.add(new BufferedReader(styleIn));
+    this.styles.add(new BufferedReader(styleIn));
   }
 
   @Override
   public void serializeElement(final XmlWriter out) {
-    out.startTag(HtmlUtil.HTML);
+    out.startTag(HtmlElem.HTML);
 
-    out.startTag(HtmlUtil.HEAD);
+    out.startTag(HtmlElem.HEAD);
     serializeStyles(out);
-    out.endTag(HtmlUtil.HEAD);
+    out.endTag(HtmlElem.HEAD);
 
-    out.startTag(HtmlUtil.BODY);
+    out.startTag(HtmlElem.BODY);
 
-    out.startTag(HtmlUtil.DIV);
-    out.attribute(HtmlUtil.ATTR_CLASS, "bodyContent");
+    out.startTag(HtmlElem.DIV);
+    out.attribute(HtmlAttr.CLASS, "bodyContent");
     super.serializeElement(out);
-    out.endTag(HtmlUtil.DIV);
+    out.endTag(HtmlElem.DIV);
 
-    out.endTag(HtmlUtil.BODY);
-    out.endTag(HtmlUtil.HTML);
+    out.endTag(HtmlElem.BODY);
+    out.endTag(HtmlElem.HTML);
   }
 
   private void serializeStyles(final XmlWriter out) {
     for (final BufferedReader reader : this.styles) {
-      out.startTag(HtmlUtil.STYLE);
+      out.startTag(HtmlElem.STYLE);
       try {
         for (String line = reader.readLine(); line != null; line = reader.readLine()) {
           out.text(line);
           out.write('\n');
         }
       } catch (final IOException e) {
-        LoggerFactory.getLogger(getClass()).error("Cannot read style", out);
+        Logs.error(this, "Cannot read style", e);
       }
-      out.endTag(HtmlUtil.STYLE);
+      out.endTag(HtmlElem.STYLE);
     }
   }
 }

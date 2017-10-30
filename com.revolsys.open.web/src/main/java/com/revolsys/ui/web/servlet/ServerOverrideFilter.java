@@ -22,13 +22,13 @@ public class ServerOverrideFilter extends SavedRequestFilter {
     if (request.getCharacterEncoding() == null) {
       request.setCharacterEncoding("UTF-8");
     }
-    final HttpServletRequest overrideRequest = new ServerOverrideHttpServletRequest(
-      serverUrl, request);
+    final HttpServletRequest overrideRequest = new ServerOverrideHttpServletRequest(this.serverUrl,
+      request);
     super.doFilterInternal(overrideRequest, response, filterChain);
   }
 
   public String getServerUrl() {
-    return serverUrl;
+    return this.serverUrl;
   }
 
   public void setServerUrl(final String serverUrl) {

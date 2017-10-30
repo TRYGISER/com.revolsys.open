@@ -7,7 +7,7 @@ import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.IOException;
 
-import org.slf4j.LoggerFactory;
+import com.revolsys.logging.Logs;
 
 public class ClipboardUtil {
 
@@ -32,9 +32,8 @@ public class ClipboardUtil {
         } catch (final UnsupportedFlavorException e) {
           return null;
         } catch (final IOException e) {
-          LoggerFactory.getLogger(ClipboardUtil.class).warn(
-            "Unable to be clipboard data for flavor="
-              + dataFlavor.getHumanPresentableName(), e);
+          Logs.warn(ClipboardUtil.class,
+            "Unable to be clipboard data for flavor=" + dataFlavor.getHumanPresentableName(), e);
         }
       }
     }

@@ -10,28 +10,38 @@ import java.util.Map.Entry;
 import org.apache.commons.jexl.Expression;
 import org.apache.commons.jexl.JexlContext;
 import org.apache.log4j.Logger;
+import org.springframework.beans.factory.BeanNameAware;
 
+import com.revolsys.properties.BaseObjectWithProperties;
 import com.revolsys.ui.web.controller.PathAliasController;
 import com.revolsys.ui.web.utils.HttpServletUtils;
 import com.revolsys.util.JexlUtil;
 import com.revolsys.util.UrlUtil;
 
-public class Menu implements Cloneable {
+public class Menu extends BaseObjectWithProperties implements Cloneable, BeanNameAware {
   private static final Logger LOG = Logger.getLogger(Menu.class);
 
   private String anchor;
 
-  private final Map<String, Expression> dynamicParameters = new HashMap<String, Expression>();
+  private final Map<String, Expression> dynamicParameters = new HashMap<>();
 
-  private List<Menu> menus = new ArrayList<Menu>();
+  private String iconName;
+
+  private String imageSrc;
+
+  private String id;
+
+  private List<Menu> menus = new ArrayList<>();
 
   private String name;
 
   private String onClick;
 
-  private Map<String, Object> parameters = new HashMap<String, Object>();
+  private Map<String, Object> parameters = new HashMap<>();
 
-  private final Map<String, Object> staticParameters = new HashMap<String, Object>();
+  private final Map<String, Object> staticParameters = new HashMap<>();
+
+  private String target;
 
   private String title;
 
@@ -42,8 +52,6 @@ public class Menu implements Cloneable {
   private Expression uriExpression;
 
   private boolean visible = true;
-
-  private String target;
 
   public Menu() {
   }
@@ -64,11 +72,12 @@ public class Menu implements Cloneable {
   }
 
   public void addMenuItem(final int index, final Menu menu) {
-    menus.add(index, menu);
+    this.menus.add(index, menu);
   }
 
-  public void addMenuItem(final Menu menu) {
-    menus.add(menu);
+  public Menu addMenuItem(final Menu menu) {
+    this.menus.add(menu);
+    return menu;
   }
 
   public void addMenuItem(final String title, final String uri) {
@@ -92,20 +101,19 @@ public class Menu implements Cloneable {
 
   public void addParameter(final String name, final Object value) {
     if (value != null) {
-      parameters.put(name, value);
+      this.parameters.put(name, value);
       Expression expression = null;
       try {
-        expression = JexlUtil.createExpression(value.toString());
+        expression = JexlUtil.newExpression(value.toString());
       } catch (final Exception e) {
-        LOG.error("Invalid Jexl Expression '" + value + "': " + e.getMessage(),
-          e);
+        LOG.error("Invalid Jexl Expression '" + value + "': " + e.getMessage(), e);
       }
       if (expression != null) {
-        dynamicParameters.put(name, expression);
-        staticParameters.remove(name);
+        this.dynamicParameters.put(name, expression);
+        this.staticParameters.remove(name);
       } else {
-        dynamicParameters.remove(name);
-        staticParameters.put(name, value);
+        this.dynamicParameters.remove(name);
+        this.staticParameters.put(name, value);
       }
     } else {
       removeParameter(name);
@@ -123,18 +131,18 @@ public class Menu implements Cloneable {
   @Override
   public Menu clone() {
     final Menu menu = new Menu();
-    menu.setAnchor(anchor);
-    menu.addMenuItems(menus);
-    menu.setName(name);
-    menu.addParameters(parameters);
-    menu.setTitle(title);
-    menu.setUri(uri);
-    menu.setVisible(visible);
+    menu.setAnchor(this.anchor);
+    menu.addMenuItems(this.menus);
+    menu.setName(this.name);
+    menu.addParameters(this.parameters);
+    menu.setTitle(this.title);
+    menu.setUri(this.uri);
+    menu.setVisible(this.visible);
     return menu;
   }
 
   public String getAnchor() {
-    return anchor;
+    return this.anchor;
   }
 
   public String getCssClass() {
@@ -142,22 +150,34 @@ public class Menu implements Cloneable {
     return null;
   }
 
+  public String getIconName() {
+    return this.iconName;
+  }
+
+  public String getId() {
+    return this.id;
+  }
+
+  public String getImageSrc() {
+    return this.imageSrc;
+  }
+
   public String getLink() {
     return getLink(null);
   }
 
   public String getLink(final JexlContext context) {
-    String baseUri = uri;
-    if (uriExpression != null) {
+    String baseUri = this.uri;
+    if (this.uriExpression != null) {
       if (context != null) {
-        baseUri = (String)JexlUtil.evaluateExpression(context, uriExpression);
+        baseUri = (String)JexlUtil.evaluateExpression(context, this.uriExpression);
       } else {
         baseUri = null;
       }
     }
     if (baseUri == null) {
-      if (anchor != null) {
-        return "#" + anchor;
+      if (this.anchor != null) {
+        return "#" + this.anchor;
       } else {
         return null;
       }
@@ -166,21 +186,21 @@ public class Menu implements Cloneable {
 
       Map<String, Object> params;
       if (context != null) {
-        params = new HashMap<String, Object>(staticParameters);
-        for (final Entry<String, Expression> param : dynamicParameters.entrySet()) {
+        params = new HashMap<>(this.staticParameters);
+        for (final Entry<String, Expression> param : this.dynamicParameters.entrySet()) {
           final String key = param.getKey();
           final Expression expression = param.getValue();
           final Object value = JexlUtil.evaluateExpression(context, expression);
           params.put(key, value);
         }
       } else {
-        params = staticParameters;
+        params = this.staticParameters;
       }
       final String link = UrlUtil.getUrl(baseUri, params);
-      if (anchor == null) {
+      if (this.anchor == null) {
         return link;
       } else {
-        return link + "#" + anchor;
+        return link + "#" + this.anchor;
       }
     }
   }
@@ -190,14 +210,14 @@ public class Menu implements Cloneable {
   }
 
   public String getLinkTitle(final JexlContext context) {
-    if (titleExpression != null) {
+    if (this.titleExpression != null) {
       if (context != null) {
-        return (String)JexlUtil.evaluateExpression(context, titleExpression);
+        return (String)JexlUtil.evaluateExpression(context, this.titleExpression);
       } else {
         return null;
       }
     } else {
-      return title;
+      return this.title;
     }
   }
 
@@ -205,58 +225,77 @@ public class Menu implements Cloneable {
    * @return Returns the menus.
    */
   public List<Menu> getMenus() {
-    return menus;
+    return this.menus;
   }
 
   /**
    * @return Returns the name.
    */
   public String getName() {
-    return name;
+    return this.name;
   }
 
   public String getOnClick() {
-    return onClick;
+    return this.onClick;
   }
 
   /**
    * @return Returns the parameters.
    */
   public Map<String, Object> getParameters() {
-    return parameters;
+    return this.parameters;
   }
 
   public String getTarget() {
-    return target;
+    return this.target;
   }
 
   /**
    * @return Returns the title.
    */
   public String getTitle() {
-    return title;
+    return this.title;
   }
 
   /**
    * @return Returns the uri.
    */
   public String getUri() {
-    return uri;
+    return this.uri;
   }
 
   public boolean isVisible() {
     // TODO Auto-generated method stub
-    return visible;
+    return this.visible;
   }
 
   public void removeParameter(final String name) {
-    parameters.remove(name);
-    dynamicParameters.remove(name);
-    staticParameters.remove(name);
+    this.parameters.remove(name);
+    this.dynamicParameters.remove(name);
+    this.staticParameters.remove(name);
   }
 
   public void setAnchor(final String anchor) {
     this.anchor = anchor;
+  }
+
+  @Override
+  public void setBeanName(final String name) {
+    if (this.id == null) {
+      this.id = name;
+    }
+  }
+
+  public void setIconName(final String iconName) {
+    this.iconName = iconName;
+  }
+
+  public void setId(final String id) {
+    this.id = id;
+  }
+
+  public void setImageSrc(final String imageSrc) {
+    this.imageSrc = imageSrc;
   }
 
   /**
@@ -299,12 +338,10 @@ public class Menu implements Cloneable {
     if (title != null) {
       this.title = title;
       try {
-        titleExpression = JexlUtil.createExpression(this.title);
+        this.titleExpression = JexlUtil.newExpression(this.title);
       } catch (final Exception e) {
-        LOG.error(
-          "Error creating expression '" + this.title + "': " + e.getMessage(),
-          e);
-        titleExpression = null;
+        LOG.error("Error creating expression '" + this.title + "': " + e.getMessage(), e);
+        this.titleExpression = null;
       }
     } else {
       this.title = null;
@@ -319,11 +356,10 @@ public class Menu implements Cloneable {
     if (uri != null) {
       this.uri = uri.replaceAll(" ", "%20");
       try {
-        uriExpression = JexlUtil.createExpression(this.uri);
+        this.uriExpression = JexlUtil.newExpression(this.uri);
       } catch (final Exception e) {
-        LOG.error(
-          "Error creating expression '" + this.uri + "': " + e.getMessage(), e);
-        uriExpression = null;
+        LOG.error("Error creating expression '" + this.uri + "': " + e.getMessage(), e);
+        this.uriExpression = null;
       }
     } else {
       this.uri = null;
@@ -337,7 +373,7 @@ public class Menu implements Cloneable {
 
   @Override
   public String toString() {
-    return title + "[" + uri + "]";
+    return this.title + "[" + this.uri + "]";
   }
 
 }

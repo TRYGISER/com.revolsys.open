@@ -1,24 +1,24 @@
 package com.revolsys.gis.wms.capabilities;
 
-public class ContactPersonPrimary {
-  private String contactPerson;
+import org.w3c.dom.Element;
 
-  private String contactOrganization;
+import com.revolsys.record.io.format.xml.XmlUtil;
+
+public class ContactPersonPrimary {
+  private final String contactOrganization;
+
+  private final String contactPerson;
+
+  public ContactPersonPrimary(final Element element) {
+    this.contactPerson = XmlUtil.getFirstElementText(element, "ContactPerson");
+    this.contactOrganization = XmlUtil.getFirstElementText(element, "ContactOrganization");
+  }
 
   public String getContactOrganization() {
-    return contactOrganization;
+    return this.contactOrganization;
   }
 
   public String getContactPerson() {
-    return contactPerson;
+    return this.contactPerson;
   }
-
-  public void setContactOrganization(final String contactOrganization) {
-    this.contactOrganization = contactOrganization;
-  }
-
-  public void setContactPerson(final String contactPerson) {
-    this.contactPerson = contactPerson;
-  }
-
 }

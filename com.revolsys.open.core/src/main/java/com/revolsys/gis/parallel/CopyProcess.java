@@ -6,96 +6,93 @@ import java.util.Map.Entry;
 
 import javax.annotation.PostConstruct;
 
-import com.revolsys.gis.data.model.ArrayDataObject;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.data.model.DataObjectMetaDataFactory;
 import com.revolsys.parallel.channel.Channel;
 import com.revolsys.parallel.process.BaseInOutProcess;
+import com.revolsys.record.ArrayRecord;
+import com.revolsys.record.Record;
+import com.revolsys.record.schema.RecordDefinition;
+import com.revolsys.record.schema.RecordDefinitionFactory;
 
-public class CopyProcess extends BaseInOutProcess<DataObject, DataObject> {
+public class CopyProcess extends BaseInOutProcess<Record, Record> {
+
+  private Map<String, String> attributeMap = new HashMap<>();
+
+  private RecordDefinition recordDefinition;
+
+  private RecordDefinitionFactory recordDefinitionFactory;
 
   private String typeName;
 
-  private DataObjectMetaDataFactory metaDataFactory;
-
-  private DataObjectMetaData metaData;
-
-  private Map<String, Map<Object, Object>> valueMaps = new HashMap<String, Map<Object, Object>>();
-
-  private Map<String, String> attributeMap = new HashMap<String, String>();
+  private Map<String, Map<Object, Object>> valueMaps = new HashMap<>();
 
   public CopyProcess() {
   }
 
-  protected DataObject copy(final DataObject object) {
-    DataObject targetObject;
-    if (metaData == null) {
+  protected Record copy(final Record object) {
+    Record targetObject;
+    if (this.recordDefinition == null) {
       targetObject = object;
     } else {
-      targetObject = new ArrayDataObject(metaData);
-      for (final String attributeName : metaData.getAttributeNames()) {
-        copyAttribute(object, attributeName, targetObject, attributeName);
+      targetObject = new ArrayRecord(this.recordDefinition);
+      for (final String fieldName : this.recordDefinition.getFieldNames()) {
+        copyAttribute(object, fieldName, targetObject, fieldName);
       }
-      if (attributeMap != null) {
-        for (final Entry<String, String> mapping : attributeMap.entrySet()) {
-          final String sourceAttributeName = mapping.getKey();
-          final String targetAttributeName = mapping.getValue();
-          copyAttribute(object, sourceAttributeName, targetObject,
-            targetAttributeName);
+      if (this.attributeMap != null) {
+        for (final Entry<String, String> mapping : this.attributeMap.entrySet()) {
+          final String sourceFieldName = mapping.getKey();
+          final String targetFieldName = mapping.getValue();
+          copyAttribute(object, sourceFieldName, targetObject, targetFieldName);
         }
       }
     }
     return targetObject;
   }
 
-  private void copyAttribute(final DataObject sourceObject,
-    final String sourceAttributeName, final DataObject targetObject,
-    final String targetAttributeName) {
-    Object value = sourceObject.getValueByPath(sourceAttributeName);
-    final Map<Object, Object> valueMap = valueMaps.get(targetAttributeName);
+  private void copyAttribute(final Record sourceObject, final String sourceFieldName,
+    final Record targetObject, final String targetFieldName) {
+    Object value = sourceObject.getValueByPath(sourceFieldName);
+    final Map<Object, Object> valueMap = this.valueMaps.get(targetFieldName);
     if (valueMap != null) {
       final Object mappedValue = valueMap.get(value);
       if (mappedValue != null) {
         value = mappedValue;
       }
     }
-    targetObject.setValue(targetAttributeName, value);
+    targetObject.setValue(targetFieldName, value);
   }
 
-  public Map<String, String> getAttributeMap() {
-    return attributeMap;
+  public Map<String, String> getFieldMap() {
+    return this.attributeMap;
   }
 
-  public DataObjectMetaData getMetaData() {
-    return metaData;
+  public RecordDefinition getRecordDefinition() {
+    return this.recordDefinition;
   }
 
-  public DataObjectMetaDataFactory getMetaDataFactory() {
-    return metaDataFactory;
+  public RecordDefinitionFactory getRecordDefinitionFactory() {
+    return this.recordDefinitionFactory;
   }
 
   public String getTypeName() {
-    return typeName;
+    return this.typeName;
   }
 
   public Map<String, Map<Object, Object>> getValueMaps() {
-    return valueMaps;
+    return this.valueMaps;
   }
 
   @Override
   @PostConstruct
   protected void init() {
     super.init();
-    if (metaData == null) {
-      metaData = metaDataFactory.getMetaData(typeName);
+    if (this.recordDefinition == null) {
+      this.recordDefinition = this.recordDefinitionFactory.getRecordDefinition(this.typeName);
     }
   }
 
   @Override
-  protected void process(final Channel<DataObject> in,
-    final Channel<DataObject> out, final DataObject object) {
-    final DataObject targetObject = copy(object);
+  protected void process(final Channel<Record> in, final Channel<Record> out, final Record object) {
+    final Record targetObject = copy(object);
     out.write(targetObject);
   }
 
@@ -103,12 +100,12 @@ public class CopyProcess extends BaseInOutProcess<DataObject, DataObject> {
     this.attributeMap = attributeMap;
   }
 
-  public void setMetaData(final DataObjectMetaData metaData) {
-    this.metaData = metaData;
+  public void setRecordDefinition(final RecordDefinition recordDefinition) {
+    this.recordDefinition = recordDefinition;
   }
 
-  public void setMetaDataFactory(final DataObjectMetaDataFactory metaDataFactory) {
-    this.metaDataFactory = metaDataFactory;
+  public void setRecordDefinitionFactory(final RecordDefinitionFactory recordDefinitionFactory) {
+    this.recordDefinitionFactory = recordDefinitionFactory;
   }
 
   public void setTypeName(final String typeName) {

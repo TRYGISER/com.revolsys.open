@@ -4,78 +4,69 @@ import java.awt.image.BufferedImage;
 import java.util.List;
 import java.util.Map;
 
-import com.revolsys.famfamfam.silk.SilkIconLoader;
-import com.revolsys.gis.algorithm.index.DataObjectQuadTree;
-import com.revolsys.gis.cs.CoordinateSystem;
-import com.revolsys.gis.cs.ProjectedCoordinateSystem;
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.io.map.InvokeMethodMapObjectFactory;
-import com.revolsys.io.map.MapObjectFactory;
-import com.revolsys.jts.geom.BoundingBox;
-import com.revolsys.jts.geom.GeometryFactory;
-import com.revolsys.jts.geom.Point;
-import com.revolsys.swing.map.layer.dataobject.DataObjectBoundingBoxLayer;
-import com.revolsys.swing.map.layer.dataobject.renderer.MarkerStyleRenderer;
-import com.revolsys.swing.map.layer.dataobject.style.MarkerStyle;
-import com.revolsys.swing.map.layer.dataobject.style.marker.ImageMarker;
+import com.revolsys.geometry.cs.CoordinateSystem;
+import com.revolsys.geometry.cs.ProjectedCoordinateSystem;
+import com.revolsys.geometry.model.BoundingBox;
+import com.revolsys.geometry.model.GeometryFactory;
+import com.revolsys.geometry.model.Point;
+import com.revolsys.record.Record;
+import com.revolsys.swing.Icons;
 import com.revolsys.swing.map.layer.geonames.GeoNamesService;
+import com.revolsys.swing.map.layer.record.BoundingBoxRecordLayer;
+import com.revolsys.swing.map.layer.record.LayerRecord;
+import com.revolsys.swing.map.layer.record.renderer.MarkerStyleRenderer;
+import com.revolsys.swing.map.layer.record.style.MarkerStyle;
+import com.revolsys.swing.map.layer.record.style.marker.ImageMarker;
 import com.revolsys.swing.parallel.AbstractSwingWorker;
 
-public class WikipediaBoundingBoxLayerWorker extends
-  AbstractSwingWorker<DataObjectQuadTree, Void> {
+public class WikipediaBoundingBoxLayerWorker extends AbstractSwingWorker<List<LayerRecord>, Void> {
 
-  public static final MapObjectFactory FACTORY = new InvokeMethodMapObjectFactory(
-    "wikipedia", "Wikipedia Articles", WikipediaBoundingBoxLayerWorker.class,
-    "create");
+  public static BoundingBoxRecordLayer newLayer(final Map<String, Object> properties) {
+    final GeometryFactory wgs84 = GeometryFactory.floating3(4326);
+    final BoundingBoxRecordLayer layer1 = new BoundingBoxRecordLayer("wikipedia",
+      "Wikipedia Articles", WikipediaBoundingBoxLayerWorker.class, wgs84);
 
-  public static DataObjectBoundingBoxLayer create(
-    final Map<String, Object> properties) {
-    final GeometryFactory wgs84 = GeometryFactory.getFactory(4326);
-    final DataObjectBoundingBoxLayer layer1 = new DataObjectBoundingBoxLayer(
-      "wikipedia", "Wikipedia Articles", WikipediaBoundingBoxLayerWorker.class,
-      wgs84);
-
-    final BufferedImage image = SilkIconLoader.getImage("wikipedia");
+    final BufferedImage image = Icons.getImage("wikipedia");
     final ImageMarker marker = new ImageMarker(image);
     final MarkerStyle style = new MarkerStyle();
     style.setMarker(marker);
     layer1.setRenderer(new MarkerStyleRenderer(layer1, style));
-    final DataObjectBoundingBoxLayer layer = layer1;
+    final BoundingBoxRecordLayer layer = layer1;
     layer.setProperties(properties);
     return layer;
   }
 
-  private final DataObjectBoundingBoxLayer layer;
-
   private final BoundingBox boundingBox;
-
-  private final GeoNamesService geoNamesService = new GeoNamesService();
 
   private final GeometryFactory geometryFactory;
 
-  public WikipediaBoundingBoxLayerWorker(
-    final DataObjectBoundingBoxLayer layer, final BoundingBox boundingBox) {
+  private final GeoNamesService geoNamesService = new GeoNamesService();
+
+  private final BoundingBoxRecordLayer layer;
+
+  public WikipediaBoundingBoxLayerWorker(final BoundingBoxRecordLayer layer,
+    final BoundingBox boundingBox) {
     this.layer = layer;
     this.boundingBox = boundingBox;
     this.geometryFactory = boundingBox.getGeometryFactory();
   }
 
   @Override
-  protected DataObjectQuadTree doInBackground() throws Exception {
+  protected List<LayerRecord> handleBackground() {
     BoundingBox boundingBox = this.boundingBox;
     GeometryFactory geometryFactory = this.geometryFactory;
     final CoordinateSystem coordinateSystem = geometryFactory.getCoordinateSystem();
     if (coordinateSystem instanceof ProjectedCoordinateSystem) {
       final ProjectedCoordinateSystem projCs = (ProjectedCoordinateSystem)coordinateSystem;
-      geometryFactory = GeometryFactory.getFactory(projCs.getGeographicCoordinateSystem());
+      geometryFactory = projCs.getGeographicCoordinateSystem().getGeometryFactory();
       boundingBox = boundingBox.convert(geometryFactory);
     }
-    final List<DataObject> results = this.geoNamesService.getWikipediaArticles(boundingBox);
-    for (final DataObject dataObject : results) {
-      final String title = dataObject.getValue("title");
-      final String wikipediaUrl = dataObject.getValue("wikipediaUrl");
-      final String thumbnailImage = dataObject.getValue("thumbnailImg");
-      final Point point = dataObject.getGeometryValue();
+    final List<LayerRecord> results = (List)this.geoNamesService.getWikipediaArticles(boundingBox);
+    for (final Record record : results) {
+      final String title = record.getValue("title");
+      final String wikipediaUrl = record.getValue("wikipediaUrl");
+      final String thumbnailImage = record.getValue("thumbnailImg");
+      final Point point = record.getGeometry();
       String text;
       if (thumbnailImage != null) {
         text = "<html><b>" + title + "</b><br /><img src=\"" + thumbnailImage
@@ -91,22 +82,31 @@ public class WikipediaBoundingBoxLayerWorker extends
       // + wikipediaUrl);
       // }
     }
-    final DataObjectQuadTree index = new DataObjectQuadTree(results);
-    return index;
+    return results;
+  }
+
+  @Override
+  protected void handleCancelled() {
+    this.layer.setIndexRecords(this.boundingBox, null);
+  }
+
+  @Override
+  protected void handleDone(final List<LayerRecord> records) {
+    try {
+      this.layer.setIndexRecords(this.boundingBox, records);
+    } catch (final Throwable e) {
+      this.layer.setIndexRecords(this.boundingBox, null);
+    }
+  }
+
+  @Override
+  protected void handleException(final Throwable exception) {
+    super.handleException(exception);
+    this.layer.setIndexRecords(this.boundingBox, null);
   }
 
   @Override
   public String toString() {
     return "Load Wikipedia Articles";
-  }
-
-  @Override
-  protected void uiTask() {
-    try {
-      final DataObjectQuadTree index = get();
-      this.layer.setIndex(this.boundingBox, index);
-    } catch (final Throwable e) {
-      this.layer.setIndex(this.boundingBox, null);
-    }
   }
 }

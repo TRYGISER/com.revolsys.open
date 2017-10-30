@@ -1,63 +1,63 @@
 package com.revolsys.gis.parallel;
 
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.io.Statistics;
 import com.revolsys.parallel.process.FilterProcess;
+import com.revolsys.record.Record;
+import com.revolsys.util.count.LabelCountMap;
 
-public class StatisticsFilterProcess extends FilterProcess<DataObject> {
+public class StatisticsFilterProcess extends FilterProcess<Record> {
 
-  private Statistics acceptStatistics;
+  private LabelCountMap acceptStatistics;
 
-  private Statistics rejectStatistics;
+  private LabelCountMap rejectStatistics;
 
   @Override
   protected void destroy() {
-    if (acceptStatistics != null) {
-      acceptStatistics.disconnect();
+    if (this.acceptStatistics != null) {
+      this.acceptStatistics.disconnect();
     }
-    if (rejectStatistics != null) {
-      rejectStatistics.disconnect();
+    if (this.rejectStatistics != null) {
+      this.rejectStatistics.disconnect();
     }
   }
 
-  public Statistics getAcceptStatistics() {
-    return acceptStatistics;
+  public LabelCountMap getAcceptStatistics() {
+    return this.acceptStatistics;
   }
 
-  public Statistics getRejectStatistics() {
-    return rejectStatistics;
+  public LabelCountMap getRejectStatistics() {
+    return this.rejectStatistics;
   }
 
   @Override
   protected void init() {
     super.init();
-    if (acceptStatistics != null) {
-      acceptStatistics.connect();
+    if (this.acceptStatistics != null) {
+      this.acceptStatistics.connect();
     }
-    if (rejectStatistics != null) {
-      rejectStatistics.connect();
-    }
-  }
-
-  @Override
-  protected void postAccept(final DataObject object) {
-    if (acceptStatistics != null) {
-      acceptStatistics.add(object);
+    if (this.rejectStatistics != null) {
+      this.rejectStatistics.connect();
     }
   }
 
   @Override
-  protected void postReject(final DataObject object) {
-    if (rejectStatistics != null) {
-      rejectStatistics.add(object);
+  protected void postAccept(final Record object) {
+    if (this.acceptStatistics != null) {
+      this.acceptStatistics.addCount(object);
     }
   }
 
-  public void setAcceptStatistics(final Statistics acceptStatistics) {
+  @Override
+  protected void postReject(final Record object) {
+    if (this.rejectStatistics != null) {
+      this.rejectStatistics.addCount(object);
+    }
+  }
+
+  public void setAcceptStatistics(final LabelCountMap acceptStatistics) {
     this.acceptStatistics = acceptStatistics;
   }
 
-  public void setRejectStatistics(final Statistics rejectStatistics) {
+  public void setRejectStatistics(final LabelCountMap rejectStatistics) {
     this.rejectStatistics = rejectStatistics;
   }
 

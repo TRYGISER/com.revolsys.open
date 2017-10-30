@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,22 +17,22 @@ package com.revolsys.ui.html.fields;
 
 import javax.servlet.http.HttpServletRequest;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.form.Form;
+import com.revolsys.util.HtmlUtil;
 
 public class MultiCheckBoxField extends Field {
-  private boolean selected = false;
-
-  private final Object trueValue = Boolean.TRUE;
+  private boolean defaultValue;
 
   private final Object falseValue = Boolean.FALSE;
 
-  private String selectedValue = "on";
-
   private String onClick = null;
 
-  private boolean defaultValue;
+  private boolean selected = false;
+
+  private String selectedValue = "on";
+
+  private final Object trueValue = Boolean.TRUE;
 
   public MultiCheckBoxField(final String name, final boolean required) {
     super(name, required);
@@ -49,15 +49,15 @@ public class MultiCheckBoxField extends Field {
     this.selectedValue = selectedValue;
     this.defaultValue = defaultValue;
     this.selected = true;
-    if (selected) {
-      setValue(trueValue);
+    if (this.selected) {
+      setValue(this.trueValue);
     } else {
-      setValue(falseValue);
+      setValue(this.falseValue);
     }
   }
 
   public String getOnClick() {
-    return onClick;
+    return this.onClick;
   }
 
   @Override
@@ -69,30 +69,29 @@ public class MultiCheckBoxField extends Field {
   public void initialize(final Form form, final HttpServletRequest request) {
     final String[] inputValues = request.getParameterValues(getName());
     if (inputValues != null) {
-      selected = false;
-      for (int i = 0; i < inputValues.length; i++) {
-        final String inputValue = inputValues[i];
-        if (inputValue.equals(selectedValue)) {
-          selected = true;
+      this.selected = false;
+      for (final String inputValue : inputValues) {
+        if (inputValue.equals(this.selectedValue)) {
+          this.selected = true;
         }
 
       }
     } else if (request.getMethod() == "GET" || !getForm().isMainFormTask()) {
-      if (defaultValue) {
-        selected = true;
-        setValue(trueValue);
+      if (this.defaultValue) {
+        this.selected = true;
+        setValue(this.trueValue);
       } else {
-        selected = false;
-        setValue(falseValue);
+        this.selected = false;
+        setValue(this.falseValue);
       }
     } else {
-      setValue(falseValue);
-      selected = false;
+      setValue(this.falseValue);
+      this.selected = false;
     }
   }
 
   public boolean isSelected() {
-    return selected;
+    return this.selected;
   }
 
   @Override
@@ -105,9 +104,9 @@ public class MultiCheckBoxField extends Field {
     }
     if (valid) {
       if (isSelected()) {
-        setValue(trueValue);
+        setValue(this.trueValue);
       } else {
-        setValue(falseValue);
+        setValue(this.falseValue);
       }
     }
     return valid;
@@ -115,8 +114,7 @@ public class MultiCheckBoxField extends Field {
 
   @Override
   public void serializeElement(final XmlWriter out) {
-    HtmlUtil.serializeCheckBox(out, getName(), selectedValue, isSelected(),
-      onClick);
+    HtmlUtil.serializeCheckBox(out, getName(), this.selectedValue, isSelected(), this.onClick);
   }
 
   public void setOnClick(final String onSelect) {

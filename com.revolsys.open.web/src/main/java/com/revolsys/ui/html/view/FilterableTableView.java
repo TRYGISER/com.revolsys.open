@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,14 +20,15 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.fields.Field;
 import com.revolsys.ui.html.fields.TextAreaField;
 import com.revolsys.ui.html.fields.TextField;
 import com.revolsys.ui.html.layout.TableBodyLayout;
 import com.revolsys.ui.html.serializer.KeySerializerTableSerializer;
 import com.revolsys.ui.html.serializer.key.KeySerializer;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
 
 public class FilterableTableView extends ElementContainer {
   private String cssClass = "table";
@@ -45,8 +46,7 @@ public class FilterableTableView extends ElementContainer {
     this.cssClass = cssClass;
   }
 
-  public FilterableTableView(final KeySerializerTableSerializer model,
-    final String cssClass) {
+  public FilterableTableView(final KeySerializerTableSerializer model, final String cssClass) {
     this.model = model;
     this.cssClass = cssClass;
   }
@@ -55,18 +55,18 @@ public class FilterableTableView extends ElementContainer {
    * @return Returns the noRecordsMessgae.
    */
   public String getNoRecordsMessgae() {
-    return noRecordsMessgae;
+    return this.noRecordsMessgae;
   }
 
   @Override
   public void initialize(final HttpServletRequest request) {
-    if (searchFields != null) {
+    if (this.searchFields != null) {
       final ElementContainer searchContainer = new ElementContainer(
-        new TableBodyLayout("search", model.getColumnCount()));
+        new TableBodyLayout("search", this.model.getColumnCount()));
       add(searchContainer);
-      for (final KeySerializer serializer : model.getSerializers()) {
+      for (final KeySerializer serializer : this.model.getSerializers()) {
         final String name = serializer.getName();
-        Element element = searchFields.get(name);
+        Element element = this.searchFields.get(name);
         if (element == null) {
           element = NbspElement.INSTANCE;
         } else {
@@ -93,45 +93,42 @@ public class FilterableTableView extends ElementContainer {
 
   @Override
   public void serializeElement(final XmlWriter out) {
-    final int rowCount = model.getBodyRowCount();
-    out.startTag(HtmlUtil.DIV);
-    out.attribute(HtmlUtil.ATTR_CLASS, cssClass);
+    final int rowCount = this.model.getBodyRowCount();
+    out.startTag(HtmlElem.DIV);
+    out.attribute(HtmlAttr.CLASS, this.cssClass);
 
-    out.startTag(HtmlUtil.TABLE);
-    out.attribute(HtmlUtil.ATTR_CELL_SPACING, "0");
-    out.attribute(HtmlUtil.ATTR_CELL_PADDING, "0");
-    out.attribute(HtmlUtil.ATTR_CLASS, "data");
+    out.startTag(HtmlElem.TABLE);
+    out.attribute(HtmlAttr.CELL_SPACING, "0");
+    out.attribute(HtmlAttr.CELL_PADDING, "0");
+    out.attribute(HtmlAttr.CLASS, "data");
 
     serializeHeadings(out);
     serializeFooter(out);
     serializeRows(out);
 
-    out.endTag(HtmlUtil.TABLE);
+    out.endTag(HtmlElem.TABLE);
     if (rowCount == 0) {
-      out.startTag(HtmlUtil.I);
-      out.text(noRecordsMessgae);
-      out.endTag(HtmlUtil.I);
+      out.startTag(HtmlElem.I);
+      out.text(this.noRecordsMessgae);
+      out.endTag(HtmlElem.I);
     }
-    out.endTag(HtmlUtil.DIV);
+    out.endTag(HtmlElem.DIV);
   }
 
   protected void serializeFooter(final XmlWriter out) {
-    final int rowCount = model.getFooterRowCount();
+    final int rowCount = this.model.getFooterRowCount();
     if (rowCount > 0) {
-      out.startTag(HtmlUtil.TFOOT);
+      out.startTag(HtmlElem.TFOOT);
       for (int row = 0; row < rowCount; row++) {
         serializeFooterRow(out, row, rowCount);
       }
-      out.endTag(HtmlUtil.TFOOT);
+      out.endTag(HtmlElem.TFOOT);
     }
   }
 
-  protected void serializeFooterRow(
-    final XmlWriter out,
-    final int row,
-    final int rowCount) {
-    final int colCount = model.getColumnCount();
-    out.startTag(HtmlUtil.TR);
+  protected void serializeFooterRow(final XmlWriter out, final int row, final int rowCount) {
+    final int colCount = this.model.getColumnCount();
+    out.startTag(HtmlElem.TR);
     String rowCss = "";
     if (row == 0) {
       rowCss += " firstRow";
@@ -140,11 +137,11 @@ public class FilterableTableView extends ElementContainer {
       rowCss += " lastRow";
     }
     if (rowCss.length() > 0) {
-      out.attribute(HtmlUtil.ATTR_CLASS, rowCss);
+      out.attribute(HtmlAttr.CLASS, rowCss);
     }
     for (int col = 0; col < colCount; col++) {
-      out.startTag(HtmlUtil.TD);
-      String colCssClass = model.getFooterCssClass(row, col);
+      out.startTag(HtmlElem.TD);
+      String colCssClass = this.model.getFooterCssClass(row, col);
       if (colCssClass == null) {
         colCssClass = "";
       }
@@ -153,20 +150,20 @@ public class FilterableTableView extends ElementContainer {
       } else if (col == colCount - 1) {
         colCssClass += " lastCol";
       }
-      out.attribute(HtmlUtil.ATTR_CLASS, colCssClass);
-      model.serializeFooterCell(out, row, col);
-      out.endTag(HtmlUtil.TD);
+      out.attribute(HtmlAttr.CLASS, colCssClass);
+      this.model.serializeFooterCell(out, row, col);
+      out.endTag(HtmlElem.TD);
     }
-    out.endTag(HtmlUtil.TR);
+    out.endTag(HtmlElem.TR);
   }
 
   protected void serializeHeadings(final XmlWriter out) {
-    final int colCount = model.getColumnCount();
-    out.startTag(HtmlUtil.THEAD);
-    out.startTag(HtmlUtil.TR);
+    final int colCount = this.model.getColumnCount();
+    out.startTag(HtmlElem.THEAD);
+    out.startTag(HtmlElem.TR);
     for (int col = 0; col < colCount; col++) {
-      out.startTag(HtmlUtil.TH);
-      String colCssClass = model.getHeaderCssClass(col);
+      out.startTag(HtmlElem.TH);
+      String colCssClass = this.model.getHeaderCssClass(col);
       if (colCssClass == null) {
         colCssClass = "";
       }
@@ -177,21 +174,18 @@ public class FilterableTableView extends ElementContainer {
         colCssClass += " lastCol";
       }
       if (colCssClass.length() > 0) {
-        out.attribute(HtmlUtil.ATTR_CLASS, colCssClass);
+        out.attribute(HtmlAttr.CLASS, colCssClass);
       }
-      model.serializeHeaderCell(out, col);
-      out.endTag(HtmlUtil.TH);
+      this.model.serializeHeaderCell(out, col);
+      out.endTag(HtmlElem.TH);
     }
-    out.endTag(HtmlUtil.TR);
-    out.endTag(HtmlUtil.THEAD);
+    out.endTag(HtmlElem.TR);
+    out.endTag(HtmlElem.THEAD);
   }
 
-  protected void serializeRow(
-    final XmlWriter out,
-    final int row,
-    final int rowCount) {
-    final int colCount = model.getColumnCount();
-    out.startTag(HtmlUtil.TR);
+  protected void serializeRow(final XmlWriter out, final int row, final int rowCount) {
+    final int colCount = this.model.getColumnCount();
+    out.startTag(HtmlElem.TR);
     String rowCss = "";
     if (row == 0) {
       rowCss += " firstRow";
@@ -203,11 +197,11 @@ public class FilterableTableView extends ElementContainer {
       rowCss += " even";
     }
     if (rowCss.length() > 0) {
-      out.attribute(HtmlUtil.ATTR_CLASS, rowCss);
+      out.attribute(HtmlAttr.CLASS, rowCss);
     }
     for (int col = 0; col < colCount; col++) {
-      out.startTag(HtmlUtil.TD);
-      String colCssClass = model.getBodyCssClass(row, col);
+      out.startTag(HtmlElem.TD);
+      String colCssClass = this.model.getBodyCssClass(row, col);
       if (colCssClass == null) {
         colCssClass = "";
       }
@@ -216,11 +210,11 @@ public class FilterableTableView extends ElementContainer {
       } else if (col == colCount - 1) {
         colCssClass += " lastCol";
       }
-      out.attribute(HtmlUtil.ATTR_CLASS, colCssClass);
-      model.serializeBodyCell(out, row, col);
-      out.endTag(HtmlUtil.TD);
+      out.attribute(HtmlAttr.CLASS, colCssClass);
+      this.model.serializeBodyCell(out, row, col);
+      out.endTag(HtmlElem.TD);
     }
-    out.endTag(HtmlUtil.TR);
+    out.endTag(HtmlElem.TR);
   }
 
   protected void serializeRows(final XmlWriter out) {
@@ -228,12 +222,12 @@ public class FilterableTableView extends ElementContainer {
       element.serialize(out);
     }
 
-    out.startTag(HtmlUtil.TBODY);
-    final int rowCount = model.getBodyRowCount();
+    out.startTag(HtmlElem.TBODY);
+    final int rowCount = this.model.getBodyRowCount();
     for (int row = 0; row < rowCount; row++) {
       serializeRow(out, row, rowCount);
     }
-    out.endTag(HtmlUtil.TBODY);
+    out.endTag(HtmlElem.TBODY);
   }
 
   /**
@@ -244,6 +238,6 @@ public class FilterableTableView extends ElementContainer {
   }
 
   public void setRows(final List<?> results) {
-    model.setRows(results);
+    this.model.setRows(results);
   }
 }

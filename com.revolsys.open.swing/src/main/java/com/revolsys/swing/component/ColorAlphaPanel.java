@@ -14,12 +14,10 @@ import javax.swing.colorchooser.ColorSelectionModel;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
-import org.jdesktop.swingx.color.ColorUtil;
+import com.revolsys.awt.WebColors;
+import com.revolsys.swing.layout.GroupLayouts;
 
-import com.revolsys.swing.layout.GroupLayoutUtil;
-
-public class ColorAlphaPanel extends AbstractColorChooserPanel implements
-  ChangeListener {
+public class ColorAlphaPanel extends AbstractColorChooserPanel implements ChangeListener {
   private static final long serialVersionUID = 3533569797414988165L;
 
   private final JSlider alphaSlider;
@@ -33,7 +31,7 @@ public class ColorAlphaPanel extends AbstractColorChooserPanel implements
     this.alphaSlider.setToolTipText("Alpha");
     this.alphaSlider.addChangeListener(this);
     this.alphaSlider.setPaintLabels(true);
-    final Hashtable<Integer, JComponent> labels = new Hashtable<Integer, JComponent>();
+    final Hashtable<Integer, JComponent> labels = new Hashtable<>();
     labels.put(0, new JLabel("0"));
     labels.put(64, new JLabel("64"));
     labels.put(128, new JLabel("128"));
@@ -44,7 +42,7 @@ public class ColorAlphaPanel extends AbstractColorChooserPanel implements
     add(new JLabel("Alpha (Opacity)"));
 
     add(this.alphaSlider);
-    GroupLayoutUtil.makeColumns(this, 2, true);
+    GroupLayouts.makeColumns(this, 2, true);
   }
 
   @Override
@@ -69,8 +67,7 @@ public class ColorAlphaPanel extends AbstractColorChooserPanel implements
   @Override
   public void stateChanged(final ChangeEvent e) {
     final Color color = getColorFromModel();
-    final Color newColor = ColorUtil.setAlpha(color,
-      this.alphaSlider.getValue());
+    final Color newColor = WebColors.newAlpha(color, this.alphaSlider.getValue());
     final ColorSelectionModel colorSelectionModel = getColorSelectionModel();
     colorSelectionModel.setSelectedColor(newColor);
   }
@@ -78,7 +75,7 @@ public class ColorAlphaPanel extends AbstractColorChooserPanel implements
   @Override
   public void updateChooser() {
     final Color color = getColorFromModel();
-    int alpha = color.getAlpha();
+    final int alpha = color.getAlpha();
     this.alphaSlider.setValue(alpha);
   }
 }

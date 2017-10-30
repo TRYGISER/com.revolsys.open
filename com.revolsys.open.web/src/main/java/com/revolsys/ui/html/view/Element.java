@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,7 +21,7 @@ import java.io.Writer;
 import javax.servlet.http.HttpServletRequest;
 
 import com.revolsys.io.FileUtil;
-import com.revolsys.io.xml.XmlWriter;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.decorator.Decorator;
 import com.revolsys.ui.html.form.Form;
 
@@ -40,18 +40,18 @@ public class Element implements Cloneable {
   }
 
   public ElementContainer getContainer() {
-    return container;
+    return this.container;
   }
 
   public Decorator getDecorator() {
-    return decorator;
+    return this.decorator;
   }
 
   public Form getForm() {
-    if (container == null) {
+    if (this.container == null) {
       return null;
     } else {
-      return container.getForm();
+      return this.container.getForm();
     }
   }
 
@@ -59,7 +59,7 @@ public class Element implements Cloneable {
   }
 
   public void serialize(final OutputStream outputStream) {
-    serialize(FileUtil.createUtf8Writer(outputStream));
+    serialize(FileUtil.newUtf8Writer(outputStream));
   }
 
   public final void serialize(final Writer out) {
@@ -76,8 +76,8 @@ public class Element implements Cloneable {
   }
 
   public final void serialize(final XmlWriter out) {
-    if (decorator != null) {
-      decorator.serialize(out, this);
+    if (this.decorator != null) {
+      this.decorator.serialize(out, this);
     } else {
       serializeElement(out);
     }

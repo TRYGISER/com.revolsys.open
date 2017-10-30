@@ -10,12 +10,12 @@ public class WeakFocusListener implements FocusListener {
   private final Reference<FocusListener> reference;
 
   public WeakFocusListener(final FocusListener listener) {
-    this.reference = new WeakReference<FocusListener>(listener);
+    this.reference = new WeakReference<>(listener);
   }
 
   @Override
   public void focusGained(final FocusEvent e) {
-    final FocusListener listener = reference.get();
+    final FocusListener listener = this.reference.get();
     if (listener != null) {
       listener.focusGained(e);
     }
@@ -23,7 +23,7 @@ public class WeakFocusListener implements FocusListener {
 
   @Override
   public void focusLost(final FocusEvent e) {
-    final FocusListener listener = reference.get();
+    final FocusListener listener = this.reference.get();
     if (listener != null) {
       listener.focusLost(e);
     }

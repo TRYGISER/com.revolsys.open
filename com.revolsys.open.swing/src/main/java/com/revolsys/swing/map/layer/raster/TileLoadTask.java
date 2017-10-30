@@ -1,33 +1,33 @@
 package com.revolsys.swing.map.layer.raster;
 
-import org.slf4j.LoggerFactory;
-
+import com.revolsys.geometry.model.GeometryFactory;
+import com.revolsys.logging.Logs;
 import com.revolsys.swing.map.layer.MapTile;
 
 public class TileLoadTask implements Runnable {
-  private final MapTile mapTile;
+  private final GeometryFactory geometryFactory;
 
-  private final com.revolsys.jts.geom.GeometryFactory geometryFactory;
+  private final MapTile mapTile;
 
   private final TiledImageLayerRenderer renderer;
 
-  public TileLoadTask(final TiledImageLayerRenderer renderer,
-    final com.revolsys.jts.geom.GeometryFactory geometryFactory, final MapTile mapTile) {
+  public TileLoadTask(final TiledImageLayerRenderer renderer, final GeometryFactory geometryFactory,
+    final MapTile mapTile) {
     this.renderer = renderer;
     this.geometryFactory = geometryFactory;
     this.mapTile = mapTile;
   }
 
-  public com.revolsys.jts.geom.GeometryFactory getGeometryFactory() {
-    return geometryFactory;
+  public GeometryFactory getGeometryFactory() {
+    return this.geometryFactory;
   }
 
   public MapTile getMapTile() {
-    return mapTile;
+    return this.mapTile;
   }
 
   public TiledImageLayerRenderer getRenderer() {
-    return renderer;
+    return this.renderer;
   }
 
   @Override
@@ -36,8 +36,7 @@ public class TileLoadTask implements Runnable {
       this.mapTile.loadImage(this.geometryFactory);
       this.renderer.setLoaded(this);
     } catch (final Throwable e) {
-      LoggerFactory.getLogger(getClass()).error(
-        "Unable to load " + this.mapTile, e);
+      Logs.error(this, "Unable to load " + this.mapTile, e);
     }
   }
 

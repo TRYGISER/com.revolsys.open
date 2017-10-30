@@ -2,35 +2,20 @@ package com.revolsys.swing.map.layer;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
-import org.slf4j.LoggerFactory;
-
+import com.revolsys.collection.map.MapEx;
+import com.revolsys.logging.Logs;
 import com.revolsys.swing.map.Viewport2D;
 import com.revolsys.swing.map.layer.raster.TiledImageLayerRenderer;
 
-public abstract class AbstractTiledImageLayer extends AbstractLayer {
-
+public abstract class AbstractTiledImageLayer extends AbstractLayer implements BaseMapLayer {
   private boolean hasError = false;
 
-  public AbstractTiledImageLayer() {
-    this(null, true, false, false);
-  }
-
-  public AbstractTiledImageLayer(final Map<String, ? extends Object> properties) {
-    super(properties);
+  public AbstractTiledImageLayer(final String type) {
+    super(type);
     setReadOnly(true);
     setSelectSupported(false);
     setQuerySupported(false);
-    setRenderer(new TiledImageLayerRenderer(this));
-  }
-
-  public AbstractTiledImageLayer(final String name, final boolean readOnly,
-    final boolean selectSupported, final boolean querySupported) {
-    super(name);
-    setReadOnly(readOnly);
-    setSelectSupported(selectSupported);
-    setQuerySupported(querySupported);
     setRenderer(new TiledImageLayerRenderer(this));
   }
 
@@ -43,24 +28,22 @@ public abstract class AbstractTiledImageLayer extends AbstractLayer {
   }
 
   @Override
-  public void refresh() {
+  protected void refreshDo() {
     this.hasError = false;
-    super.refresh();
-    firePropertyChange("refresh", false, true);
+    super.refreshDo();
   }
 
   public void setError(final Throwable e) {
     if (!this.hasError) {
       this.hasError = true;
-      LoggerFactory.getLogger(getClass()).error("Unable to get map tiles", e);
+      Logs.error(this, "Unable to get map tiles", e);
     }
   }
 
   @Override
-  public Map<String, Object> toMap() {
-    final Map<String, Object> map = super.toMap();
-    map.keySet().removeAll(
-      Arrays.asList("readOnly", "querySupported", "selectSupported"));
+  public MapEx toMap() {
+    final MapEx map = super.toMap();
+    map.keySet().removeAll(Arrays.asList("readOnly", "querySupported", "selectSupported"));
     return map;
   }
 }

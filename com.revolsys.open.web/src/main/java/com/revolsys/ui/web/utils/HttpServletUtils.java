@@ -1,24 +1,33 @@
 package com.revolsys.ui.web.utils;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.springframework.util.StringUtils;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpOutputMessage;
+import org.springframework.http.MediaType;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.util.UrlPathHelper;
 import org.springframework.web.util.WebUtils;
 
-import com.revolsys.converter.string.StringConverterRegistry;
+import com.revolsys.datatype.DataTypes;
 import com.revolsys.ui.web.controller.PathAliasController;
+import com.revolsys.util.Property;
 
 public final class HttpServletUtils {
-  private static ThreadLocal<HttpServletRequest> REQUEST_LOCAL = new ThreadLocal<HttpServletRequest>();
+  private static ThreadLocal<HttpServletRequest> REQUEST_LOCAL = new ThreadLocal<>();
 
-  private static ThreadLocal<HttpServletResponse> RESPONSE_LOCAL = new ThreadLocal<HttpServletResponse>();
+  private static ThreadLocal<HttpServletResponse> RESPONSE_LOCAL = new ThreadLocal<>();
 
   private static final UrlPathHelper URL_PATH_HELPER = new UrlPathHelper();
 
@@ -28,7 +37,9 @@ public final class HttpServletUtils {
   }
 
   public static String getAbsoluteUrl(final String url) {
-    if (url.startsWith("/")) {
+    if (url == null) {
+      return null;
+    } else if (url.startsWith("/")) {
       final HttpServletRequest request = getRequest();
       final String serverUrl = getServerUrl(request);
       final String contextPath = URL_PATH_HELPER.getOriginatingContextPath(request);
@@ -38,10 +49,20 @@ public final class HttpServletUtils {
     }
   }
 
+  @SuppressWarnings("unchecked")
+  public static <T> T getAttribute(final String name) {
+    final HttpServletRequest request = getRequest();
+    if (request == null) {
+      return null;
+    } else {
+      return (T)request.getAttribute(name);
+    }
+  }
+
   public static boolean getBooleanParameter(final HttpServletRequest request,
     final String paramName) {
     final String value = request.getParameter(paramName);
-    if (StringUtils.hasText(value)) {
+    if (Property.hasValue(value)) {
       return Boolean.parseBoolean(value);
     }
     return false;
@@ -63,10 +84,9 @@ public final class HttpServletUtils {
     return getAbsoluteUrl(aliasUrl);
   }
 
-  public static int getIntegerParameter(final HttpServletRequest request,
-    final String paramName) {
+  public static int getIntegerParameter(final HttpServletRequest request, final String paramName) {
     final String value = request.getParameter(paramName);
-    if (StringUtils.hasText(value)) {
+    if (Property.hasValue(value)) {
       try {
         return Integer.parseInt(value);
       } catch (final NumberFormatException e) {
@@ -82,6 +102,10 @@ public final class HttpServletUtils {
 
   public static String getOriginatingRequestUri() {
     final HttpServletRequest request = getRequest();
+    return getOriginatingRequestUri(request);
+  }
+
+  public static String getOriginatingRequestUri(final HttpServletRequest request) {
     final String originatingRequestUri = new UrlPathHelper().getOriginatingRequestUri(request);
     return originatingRequestUri;
   }
@@ -89,6 +113,23 @@ public final class HttpServletUtils {
   public static String getParameter(final String name) {
     final HttpServletRequest request = getRequest();
     return request.getParameter(name);
+  }
+
+  public static Map<String, Object> getParameterMap(final HttpServletRequest request) {
+    final Map<String, Object> parameters = new LinkedHashMap<>();
+    final Enumeration<String> parameterNames = request.getParameterNames();
+    while (parameterNames.hasMoreElements()) {
+      final String name = parameterNames.nextElement();
+      final String[] values = request.getParameterValues(name);
+      if (values.length == 0) {
+        parameters.put(name, null);
+      } else if (values.length == 1) {
+        parameters.put(name, values[0]);
+      } else if (values.length == 1) {
+        parameters.put(name, Arrays.asList(values));
+      }
+    }
+    return parameters;
   }
 
   public static String[] getParameterValues(final String name) {
@@ -104,30 +145,20 @@ public final class HttpServletUtils {
     final HttpServletRequest request = getRequest();
     if (request != null) {
       @SuppressWarnings("unchecked")
-      Map<String, String> pathVariables = (Map<String, String>)request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+      Map<String, String> pathVariables = (Map<String, String>)request
+        .getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
       if (pathVariables == null) {
-        pathVariables = new HashMap<String, String>();
-        request.setAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE,
-          pathVariables);
+        pathVariables = new HashMap<>();
+        request.setAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE, pathVariables);
       }
       return pathVariables;
     }
-    return new HashMap<String, String>();
+    return new HashMap<>();
   }
 
   public static HttpServletRequest getRequest() {
     final HttpServletRequest request = REQUEST_LOCAL.get();
     return request;
-  }
-
-  @SuppressWarnings("unchecked")
-  public static <T> T getAttribute(final String name) {
-    final HttpServletRequest request = getRequest();
-    if (request == null) {
-      return null;
-    } else {
-      return (T)request.getAttribute(name);
-    }
   }
 
   public static String getRequestBaseFileName() {
@@ -180,11 +211,11 @@ public final class HttpServletUtils {
 
   public static boolean isApiCall(final HttpServletRequest request) {
     final String requestedWith = request.getHeader("x-requested-with");
-    if (StringUtils.hasText(requestedWith)) {
+    if (Property.hasValue(requestedWith)) {
       return true;
     } else {
       final String referrer = request.getHeader("referrer");
-      if (StringUtils.hasText(referrer)) {
+      if (Property.hasValue(referrer)) {
         return false;
       } else {
         final String accept = request.getHeader("accept");
@@ -235,11 +266,28 @@ public final class HttpServletUtils {
     request.setAttribute(name, value);
   }
 
+  public static Charset setContentTypeWithCharset(final HttpHeaders headers, MediaType mediaType) {
+    Charset charset = mediaType.getCharSet();
+    if (charset == null) {
+      charset = StandardCharsets.UTF_8;
+      final Map<String, String> params = Collections.singletonMap("charset", "utf-8");
+      mediaType = new MediaType(mediaType, params);
+    }
+    headers.setContentType(mediaType);
+    return charset;
+  }
+
+  public static Charset setContentTypeWithCharset(final HttpOutputMessage outputMessage,
+    final MediaType mediaType) {
+    final HttpHeaders headers = outputMessage.getHeaders();
+    return setContentTypeWithCharset(headers, mediaType);
+  }
+
   public static void setPathVariable(final String name, final Object value) {
     if (value == null) {
       setPathVariable(name, null);
     } else {
-      setPathVariable(name, StringConverterRegistry.toString(value));
+      setPathVariable(name, DataTypes.toString(value));
     }
   }
 

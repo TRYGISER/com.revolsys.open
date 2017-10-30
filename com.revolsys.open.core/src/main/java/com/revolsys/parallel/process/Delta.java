@@ -10,18 +10,34 @@ import com.revolsys.parallel.channel.ChannelOutput;
 
 public final class Delta<T> extends AbstractInProcess<T> {
 
-  private List<ChannelOutput<T>> out = new ArrayList<ChannelOutput<T>>();
+  private boolean clone = true;
+
+  private List<ChannelOutput<T>> out = new ArrayList<>();
 
   private boolean running;
-
-  private boolean clone = true;
 
   public Delta() {
   }
 
+  public Delta(final InProcess<T>... processes) {
+    if (processes != null) {
+      for (final InProcess<T> process : processes) {
+        final Channel<T> channel = process.getIn();
+        addOut(channel);
+      }
+    }
+  }
+
+  private void addOut(final ChannelOutput<T> channel) {
+    if (channel != null) {
+      channel.writeConnect();
+      this.out.add(channel);
+    }
+  }
+
   @SuppressWarnings("unchecked")
   private T clone(final T value) {
-    if (clone && (value instanceof Cloneable)) {
+    if (this.clone && value instanceof Cloneable) {
       try {
         final Class<? extends Object> valueClass = value.getClass();
         final Method method = valueClass.getMethod("clone", new Class[0]);
@@ -67,18 +83,18 @@ public final class Delta<T> extends AbstractInProcess<T> {
   }
 
   public List<ChannelOutput<T>> getOut() {
-    return out;
+    return this.out;
   }
 
   public boolean isClone() {
-    return clone;
+    return this.clone;
   }
 
   @Override
   protected void run(final Channel<T> in) {
-    running = true;
+    this.running = true;
     try {
-      while (running) {
+      while (this.running) {
         final T record = in.read();
         if (record != null) {
           for (final ChannelOutput<T> out : this.out) {
@@ -90,7 +106,7 @@ public final class Delta<T> extends AbstractInProcess<T> {
     } finally {
       try {
       } finally {
-        running = false;
+        this.running = false;
       }
     }
 
@@ -104,10 +120,7 @@ public final class Delta<T> extends AbstractInProcess<T> {
     disconnectOut();
     this.out = new ArrayList<>();
     for (final ChannelOutput<T> channel : out) {
-      if (channel != null) {
-        channel.writeConnect();
-        this.out.add(channel);
-      }
+      addOut(channel);
     }
   }
 

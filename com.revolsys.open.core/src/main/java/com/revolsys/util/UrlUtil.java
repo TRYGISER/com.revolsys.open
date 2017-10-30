@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,6 +15,7 @@
  */
 package com.revolsys.util;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -23,54 +24,150 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.regex.Pattern;
 
-import org.springframework.util.StringUtils;
-
+import com.revolsys.collection.map.LinkedHashMapEx;
+import com.revolsys.collection.map.MapEx;
+import com.revolsys.datatype.DataTypes;
 import com.revolsys.io.FileUtil;
+import com.revolsys.spring.resource.Resource;
 
 /**
  * The UrlUtil class is a utility class for processing and create URL strings.
- * 
+ *
  * @author Paul Austin
  */
 public final class UrlUtil {
 
-  private static final String DOMAIN_PART = "\\p{Alpha}[\\p{Alpha}0-9\\-]*\\.";
-
   private static final String TLD = "\\p{Alpha}+";
-
-  private static final String DOMAIN_NAME = "(?:" + DOMAIN_PART + ")+" + TLD;
 
   private static final String IP4_ADDRESS = "\\d{1,3}.\\d{1,3}.\\d{1,3}.\\d{1,3}";
 
-  private static final String DOMAIN = "(?:" + IP4_ADDRESS + "|" + DOMAIN_NAME
-    + ")";
+  private static final String DOMAIN_PART = "\\p{Alpha}[\\p{Alpha}0-9\\-]*\\.";
+
+  private static final String DOMAIN_NAME = "(?:" + DOMAIN_PART + ")+" + TLD;
+
+  private static final String DOMAIN = "(?:" + IP4_ADDRESS + "|" + DOMAIN_NAME + ")";
 
   private static final String WORD_CHARACTERS = "a-zA-Z0-9\\+!#$%&'*+-/=?^_`{}|~";
 
-  private static final String LOCAL_PART = "[" + WORD_CHARACTERS + "]["
-    + WORD_CHARACTERS + "\\.]*[" + WORD_CHARACTERS + "]?";
+  private static final String LOCAL_PART = "[" + WORD_CHARACTERS + "][" + WORD_CHARACTERS + "\\.]*["
+    + WORD_CHARACTERS + "]?";
 
-  private static final String EMAIL_RE = "^(" + LOCAL_PART + ")@(" + DOMAIN
-    + ")$";
+  private static final String EMAIL_RE = "^(" + LOCAL_PART + ")@(" + DOMAIN + ")$";
 
   private static final Pattern EMAIL_PATTERN = Pattern.compile(EMAIL_RE);
 
+  public static void appendQuery(final StringBuilder query,
+    final Map<String, ? extends Object> parameters) throws Error {
+    if (parameters != null) {
+      boolean firstParameter = true;
+      for (final Entry<String, ? extends Object> parameter : parameters.entrySet()) {
+        final String name = parameter.getKey();
+        final Object value = parameter.getValue();
+        if (name != null && value != null) {
+          if (!firstParameter) {
+            query.append('&');
+          } else {
+            firstParameter = false;
+          }
+          try {
+            if (value instanceof String[]) {
+              final String[] values = (String[])value;
+              for (int i = 0; i < values.length; i++) {
+                query.append(name).append('=').append(URLEncoder.encode(values[i], "US-ASCII"));
+                if (i < values.length - 1) {
+                  query.append('&');
+                }
+              }
+            } else if (value instanceof Collection) {
+              boolean first = true;
+              final Collection<?> values = (Collection<?>)value;
+              for (final Object childValue : values) {
+                if (childValue != null) {
+                  if (first == true) {
+                    first = false;
+                  } else {
+                    query.append('&');
+                  }
+                  query.append(name)
+                    .append('=')
+                    .append(URLEncoder.encode(childValue.toString(), "US-ASCII"));
+                }
+              }
+
+            } else {
+              query.append(name)
+                .append('=')
+                .append(URLEncoder.encode(value.toString(), "US-ASCII"));
+            }
+          } catch (final UnsupportedEncodingException e) {
+            throw new Error(e);
+          }
+
+        }
+      }
+    }
+  }
+
+  public static void appendQuery(final StringBuilder query, final String name, final Object value) {
+    final boolean firstParameter = query.length() == 0;
+    if (name != null && value != null) {
+      if (!firstParameter) {
+        query.append('&');
+      }
+      try {
+        if (value instanceof String[]) {
+          final String[] values = (String[])value;
+          for (int i = 0; i < values.length; i++) {
+            query.append(name).append('=').append(URLEncoder.encode(values[i], "US-ASCII"));
+            if (i < values.length - 1) {
+              query.append('&');
+            }
+          }
+        } else if (value instanceof Collection) {
+          boolean first = true;
+          final Collection<?> values = (Collection<?>)value;
+          for (final Object childValue : values) {
+            if (childValue != null) {
+              if (first == true) {
+                first = false;
+              } else {
+                query.append('&');
+              }
+              query.append(name)
+                .append('=')
+                .append(URLEncoder.encode(childValue.toString(), "US-ASCII"));
+            }
+          }
+
+        } else {
+          query.append(name).append('=').append(URLEncoder.encode(value.toString(), "US-ASCII"));
+        }
+      } catch (final UnsupportedEncodingException e) {
+        throw new Error(e);
+      }
+
+    }
+  }
+
   /**
    * Clean repeated // characters from the URL path.
-   * 
+   *
    * @param url
    * @return
    */
   public static String cleanPath(final String url) {
-    return url.replaceAll("/+", "/")
-      .replaceAll("^((\\w)+:)/", "$1//")
-      .replaceAll("^file://", "file:///");
+    return url.replaceAll("/+", "/").replaceAll("^((\\w)+:)/", "$1//").replaceAll("^file://",
+      "file:///");
   }
 
   public static String getContent(final String urlString) {
@@ -95,6 +192,16 @@ public final class UrlUtil {
 
   public static String getFileName(final String url) {
     return getFileName(getUrl(url));
+  }
+
+  public static String getFileName(final URI url) {
+    final String path = url.getPath();
+    final int index = path.lastIndexOf('/');
+    if (index != -1) {
+      return path.substring(index + 1);
+    } else {
+      return path;
+    }
   }
 
   public static String getFileName(final URL url) {
@@ -133,17 +240,60 @@ public final class UrlUtil {
   public static URL getParent(final URL url) {
     final String urlString = url.toString();
     final int index = urlString.lastIndexOf('/');
-    if (index != -1) {
-      final String parentPath = urlString.substring(0, index);
-      return getUrl(parentPath);
-    } else {
+    if (index == -1) {
       return url;
+    } else {
+      final String parentPath = urlString.substring(0, index + 1);
+      return getUrl(parentPath);
     }
   }
 
   public static String getParentString(final URL url) {
     final String urlString = url.toString();
     return getParent(urlString);
+  }
+
+  /**
+   * Construct a new new URL from the baseUrl with the additional query string
+   * parameters.
+   *
+   * @param baseUrl The baseUrl.
+   * @param parameters The additional parameters to add to the query string.
+   * @return The new URL.
+   */
+  public static String getQueryString(final Map<String, ? extends Object> parameters) {
+    final StringBuilder query = new StringBuilder();
+    appendQuery(query, parameters);
+    return query.toString();
+  }
+
+  @SuppressWarnings("unchecked")
+  public static Map<String, Object> getQueryStringMap(final String queryString) {
+    final MapEx map = new LinkedHashMapEx();
+    if (Property.hasValue(queryString)) {
+      for (final String part : queryString.split("\\&")) {
+        final int equalsIndex = part.indexOf("=");
+        if (equalsIndex > -1) {
+          final String name = part.substring(0, equalsIndex);
+          final String value = percentDecode(
+            part.substring(equalsIndex + 1).replaceAll("\\+", " "));
+          if (map.containsKey(name)) {
+            final Object existingValue = map.get(name);
+            if (existingValue instanceof List) {
+              final List<Object> list = (List<Object>)existingValue;
+              list.add(value);
+            } else {
+              final List<Object> list = new ArrayList<>();
+              list.add(existingValue);
+              list.add(value);
+            }
+          } else {
+            map.put(name, value);
+          }
+        }
+      }
+    }
+    return map;
   }
 
   public static URI getUri(final String uri) {
@@ -163,9 +313,9 @@ public final class UrlUtil {
   }
 
   /**
-   * Create a new URL from the baseUrl with the additional query string
+   * Construct a new new URL from the baseUrl with the additional query string
    * parameters.
-   * 
+   *
    * @param baseUrl The baseUrl.
    * @param parameters The additional parameters to add to the query string.
    * @return The new URL.
@@ -176,81 +326,34 @@ public final class UrlUtil {
   }
 
   public static URL getUrl(final String urlString) {
-    try {
-      return new URL(urlString);
-    } catch (final MalformedURLException e) {
-      throw new IllegalArgumentException("Unknown URL", e);
+    if (Property.isEmpty(urlString)) {
+      return null;
+    } else {
+      try {
+        return new URL(urlString);
+      } catch (final MalformedURLException e) {
+        throw new IllegalArgumentException("Unknown URL", e);
+      }
     }
   }
 
   /**
-   * Create a new URL from the baseUrl with the additional query string
+   * Construct a new new URL from the baseUrl with the additional query string
    * parameters.
-   * 
+   *
    * @param baseUrl The baseUrl.
    * @param parameters The additional parameters to add to the query string.
    * @return The new URL.
    */
-  public static String getUrl(String baseUrl,
-    final Map<String, ? extends Object> parameters) {
+  public static String getUrl(String baseUrl, final Map<String, ? extends Object> parameters) {
     final int fragmentIndex = baseUrl.indexOf('#');
     String fragment = null;
     if (fragmentIndex > -1 && fragmentIndex < baseUrl.length() - 1) {
       fragment = baseUrl.substring(fragmentIndex + 1);
       baseUrl = baseUrl.substring(0, fragmentIndex);
     }
-    final StringBuffer query = new StringBuffer();
-    if (parameters != null) {
-      boolean firstParameter = true;
-      for (final Entry<String, ? extends Object> parameter : parameters.entrySet()) {
-        final String name = parameter.getKey();
-        final Object value = parameter.getValue();
-        if (name != null && value != null) {
-          if (!firstParameter) {
-            query.append('&');
-          } else {
-            firstParameter = false;
-          }
-          try {
-            if (value instanceof String[]) {
-              final String[] values = (String[])value;
-              for (int i = 0; i < values.length; i++) {
-                query.append(name)
-                  .append('=')
-                  .append(URLEncoder.encode(values[i], "US-ASCII"));
-                if (i < values.length - 1) {
-                  query.append('&');
-                }
-              }
-            } else if (value instanceof Collection) {
-              boolean first = true;
-              final Collection values = (Collection)value;
-              for (final Object childValue : values) {
-                if (childValue != null) {
-                  if (first == true) {
-                    first = false;
-                  } else {
-                    query.append('&');
-                  }
-                  query.append(name)
-                    .append('=')
-                    .append(
-                      URLEncoder.encode(childValue.toString(), "US-ASCII"));
-                }
-              }
+    final String query = getQueryString(parameters);
 
-            } else {
-              query.append(name)
-                .append('=')
-                .append(URLEncoder.encode(value.toString(), "US-ASCII"));
-            }
-          } catch (final UnsupportedEncodingException e) {
-            throw new Error(e);
-          }
-
-        }
-      }
-    }
     String url;
     if (query.length() == 0) {
       url = baseUrl;
@@ -264,7 +367,7 @@ public final class UrlUtil {
         url = baseUrl + '?' + query;
       }
     }
-    if (StringUtils.hasText(fragment)) {
+    if (Property.hasValue(fragment)) {
       return url + "#" + fragment;
     } else {
       return url;
@@ -276,11 +379,31 @@ public final class UrlUtil {
       return null;
     } else {
       try {
-        final String encodedChild = percentEncode(child);
-        return new URL(parent, encodedChild);
+        // final String encodedChild = percentEncode(child);
+        final StringBuilder newUrl = new StringBuilder(parent.toExternalForm());
+        final String ref = parent.getRef();
+        if (ref != null) {
+          newUrl.setLength(newUrl.length() - ref.length() - 1);
+        }
+        final String query = parent.getQuery();
+        if (query != null) {
+          newUrl.setLength(newUrl.length() - query.length() - 1);
+        }
+        if (newUrl.charAt(newUrl.length() - 1) != '/') {
+          newUrl.append('/');
+        }
+        newUrl.append(child);
+        if (query != null) {
+          newUrl.append('?');
+          newUrl.append(query);
+        }
+        if (ref != null) {
+          newUrl.append('#');
+          newUrl.append(ref);
+        }
+        return new URL(newUrl.toString());
       } catch (final MalformedURLException e) {
-        throw new IllegalArgumentException("Cannot create child URL for "
-          + parent + " + " + child);
+        throw new IllegalArgumentException("Cannot create child URL for " + parent + " + " + child);
       }
     }
   }
@@ -299,7 +422,7 @@ public final class UrlUtil {
   }
 
   public static Map<String, String> parseMatrixParams(final String matrixParams) {
-    final Map<String, String> params = new LinkedHashMap<String, String>();
+    final Map<String, String> params = new LinkedHashMap<>();
     parseMatrixParams(matrixParams, params);
     return params;
   }
@@ -339,9 +462,12 @@ public final class UrlUtil {
     final StringBuilder encoded = new StringBuilder(len);
     for (int i = 0; i < len; i++) {
       final char ch = text.charAt(i);
-      if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
-        || (ch >= '0' && ch <= '9') || ch == '-' || ch == ',' || ch == '.'
-        || ch == '_' || ch == '~' || ch == '/') {
+      if (ch >= 'A' && ch <= 'Z' || //
+        ch >= 'a' && ch <= 'z' || //
+        ch >= '0' && ch <= '9' || //
+        ch == '-' || ch == '_' || ch == '.' || ch == '~' || //
+        ch == '?' || ch == '/' //
+      ) {
         encoded.append(ch);
       } else {
         encoded.append('%');
@@ -352,6 +478,61 @@ public final class UrlUtil {
       }
     }
     return encoded.toString();
+  }
+
+  public static File toFile(final URL url) {
+    try {
+      final URI uri = url.toURI();
+      final Path path = Paths.get(uri);
+      return path.toFile();
+    } catch (final URISyntaxException e) {
+      throw Exceptions.wrap(e);
+    }
+  }
+
+  public static URI toUri(final Object value) {
+    try {
+      if (value == null) {
+        return null;
+      } else if (value instanceof URL) {
+        final URL url = (URL)value;
+        return url.toURI();
+      } else if (value instanceof Resource) {
+        final Resource resource = (Resource)value;
+        return resource.getURI();
+      } else if (value instanceof File) {
+        final File file = (File)value;
+        return file.toURI();
+      } else if (value instanceof Path) {
+        final Path path = (Path)value;
+        return path.toUri();
+      } else {
+        final String string = DataTypes.toString(value);
+        return getUri(string);
+      }
+    } catch (final Throwable e) {
+      throw Exceptions.wrap(e);
+    }
+  }
+
+  public static URL toUrl(final Object value) {
+    if (value == null) {
+      return null;
+    } else if (value instanceof URL) {
+      return (URL)value;
+    } else if (value instanceof Resource) {
+      final Resource resource = (Resource)value;
+      return resource.getURL();
+    } else if (value instanceof File) {
+      final File file = (File)value;
+      return FileUtil.toUrl(file);
+    } else if (value instanceof Path) {
+      final Path path = (Path)value;
+      return com.revolsys.io.file.Paths.toUrl(path);
+    } else {
+      final String string = DataTypes.toString(value);
+      return UrlUtil.getUrl(string);
+    }
   }
 
   /**

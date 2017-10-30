@@ -1,54 +1,46 @@
 package com.revolsys.gis.wms.capabilities;
 
+import org.w3c.dom.Element;
+
 public class Extent {
-  private String name;
+  private boolean current = false;
 
-  private String defaultValue;
-
-  private boolean nearestValue = false;
+  private final String defaultValue;
 
   private boolean multipleValues = false;
 
-  private boolean current = false;
+  private final String name;
+
+  private boolean nearestValue = false;
+
+  public Extent(final Element extentElement) {
+    this.name = extentElement.getAttribute("name");
+    this.defaultValue = extentElement.getAttribute("default");
+    final String nearestValue = extentElement.getAttribute("nearestValue");
+    this.nearestValue = "1".equals(nearestValue);
+    final String multipleValues = extentElement.getAttribute("multipleValues");
+    this.multipleValues = "1".equals(multipleValues);
+    final String current = extentElement.getAttribute("current");
+    this.current = "1".equals(current);
+  }
 
   public String getDefaultValue() {
-    return defaultValue;
+    return this.defaultValue;
   }
 
   public String getName() {
-    return name;
+    return this.name;
   }
 
   public boolean isCurrent() {
-    return current;
+    return this.current;
   }
 
   public boolean isMultipleValues() {
-    return multipleValues;
+    return this.multipleValues;
   }
 
   public boolean isNearestValue() {
-    return nearestValue;
+    return this.nearestValue;
   }
-
-  public void setCurrent(final boolean current) {
-    this.current = current;
-  }
-
-  public void setDefaultValue(final String defaultValue) {
-    this.defaultValue = defaultValue;
-  }
-
-  public void setMultipleValues(final boolean multipleValues) {
-    this.multipleValues = multipleValues;
-  }
-
-  public void setName(final String name) {
-    this.name = name;
-  }
-
-  public void setNearestValue(final boolean nearestValue) {
-    this.nearestValue = nearestValue;
-  }
-
 }

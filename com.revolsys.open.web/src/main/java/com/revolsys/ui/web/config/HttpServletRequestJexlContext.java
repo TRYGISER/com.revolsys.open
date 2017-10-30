@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,18 +31,18 @@ import org.springframework.web.util.UrlPathHelper;
 
 public class HttpServletRequestJexlContext implements JexlContext {
 
-  private final UrlPathHelper urlPathHelper = new UrlPathHelper();
+  private final ThreadLocal<Map<String, Object>> localAttributes = new ThreadLocal<>();
 
   private final ServletContext servletContext;
 
-  private final ThreadLocal<Map<String, Object>> localAttributes = new ThreadLocal<Map<String, Object>>();
+  private final UrlPathHelper urlPathHelper = new UrlPathHelper();
 
   public HttpServletRequestJexlContext(final ServletContext servletContext) {
     this.servletContext = servletContext;
   }
 
   public void clearAttributes() {
-    localAttributes.remove();
+    this.localAttributes.remove();
   }
 
   public Object getAttribute(final String key) {
@@ -51,69 +51,51 @@ public class HttpServletRequestJexlContext implements JexlContext {
   }
 
   private Map<String, Object> getAttributes() {
-    Map<String, Object> attributes = localAttributes.get();
+    Map<String, Object> attributes = this.localAttributes.get();
     if (attributes == null) {
-      attributes = new HashMap<String, Object>();
-      localAttributes.set(attributes);
+      attributes = new HashMap<>();
+      this.localAttributes.set(attributes);
     }
     return attributes;
   }
 
   private HttpServletRequest getRequest() {
-    final ServletRequestAttributes requestAttributes = (ServletRequestAttributes)RequestContextHolder.getRequestAttributes();
+    final ServletRequestAttributes requestAttributes = (ServletRequestAttributes)RequestContextHolder
+      .getRequestAttributes();
     final HttpServletRequest request = requestAttributes.getRequest();
     return request;
   }
 
+  @Override
   public Map getVars() {
     return new AbstractMap<String, Object>() {
       @Override
       @SuppressWarnings("unchecked")
       public Set<Entry<String, Object>> entrySet() {
         final HttpServletRequest request = getRequest();
-        final Map<String, Object> map = new HashMap<String, Object>();
+        final Map<String, Object> map = new HashMap<>();
         map.putAll(request.getParameterMap());
-        for (final Enumeration<String> names = request.getAttributeNames(); names.hasMoreElements();) {
+        for (final Enumeration<String> names = request.getAttributeNames(); names
+          .hasMoreElements();) {
           final String name = names.nextElement();
           map.put(name, request.getAttribute(name));
         }
-        if (servletContext != null) {
-          for (final Enumeration<String> names = servletContext.getAttributeNames(); names.hasMoreElements();) {
+        if (HttpServletRequestJexlContext.this.servletContext != null) {
+          for (final Enumeration<String> names = HttpServletRequestJexlContext.this.servletContext
+            .getAttributeNames(); names.hasMoreElements();) {
             final String name = names.nextElement();
-            map.put(name, servletContext.getAttribute(name));
+            map.put(name, HttpServletRequestJexlContext.this.servletContext.getAttribute(name));
           }
         }
-        final Map<String, Object> attributes = localAttributes.get();
+        final Map<String, Object> attributes = HttpServletRequestJexlContext.this.localAttributes
+          .get();
         if (attributes != null) {
           map.putAll(attributes);
         }
         map.put("request", request);
-        map.put("requestURI", urlPathHelper.getOriginatingRequestUri(request));
+        map.put("requestURI",
+          HttpServletRequestJexlContext.this.urlPathHelper.getOriginatingRequestUri(request));
         return map.entrySet();
-      }
-
-      public Object get(final String key) {
-        final HttpServletRequest request = getRequest();
-        if (key.equals("request")) {
-          return request;
-        } else if (key.equals("requestURI")) {
-          return urlPathHelper.getOriginatingRequestUri(request);
-        }
-        Object value = getAttribute(key);
-        if (value == null && servletContext != null) {
-          value = servletContext.getAttribute(key);
-        }
-        if (value == null) {
-          value = request.getAttribute(key);
-          if (value == null) {
-            value = request.getParameter(key);
-          }
-        }
-        if (value == null) {
-          return "";
-        } else {
-          return value;
-        }
       }
     };
   }
@@ -127,6 +109,7 @@ public class HttpServletRequestJexlContext implements JexlContext {
     getAttributes().putAll(parameters);
   }
 
+  @Override
   public void setVars(final Map arg0) {
   }
 }

@@ -1,12 +1,19 @@
 package com.revolsys.io;
 
-public interface Writer<T> extends ObjectWithProperties, AutoCloseable {
+import java.io.Closeable;
+
+import com.revolsys.properties.ObjectWithProperties;
+
+public interface Writer<T> extends ObjectWithProperties, Closeable {
   @Override
-  void close() throws RuntimeException;
+  default void close() {
+  }
 
-  void flush();
+  default void flush() {
+  }
 
-  void open();
+  default void open() {
+  }
 
   void write(T object);
 }

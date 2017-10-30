@@ -3,84 +3,82 @@ package com.revolsys.gis.converter.process;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.data.model.DataObjectUtil;
-import com.revolsys.gis.data.model.codes.CodeTable;
+import com.revolsys.record.Record;
+import com.revolsys.record.Records;
+import com.revolsys.record.code.CodeTable;
+import com.revolsys.record.schema.RecordDefinition;
 
-public class MapValues extends
-  AbstractSourceToTargetProcess<DataObject, DataObject> {
-  private String sourceAttributeName;
+public class MapValues extends AbstractSourceToTargetProcess<Record, Record> {
+  private String sourceFieldName;
 
-  private String targetAttributeName;
+  private String targetFieldName;
 
-  private Map<Object, Object> valueMap = new LinkedHashMap<Object, Object>();
+  private Map<Object, Object> valueMap = new LinkedHashMap<>();
 
   public MapValues() {
   }
 
-  public MapValues(final String sourceAttributeName,
-    final String targetAttributeName) {
-    this.sourceAttributeName = sourceAttributeName;
-    this.targetAttributeName = targetAttributeName;
+  public MapValues(final String sourceFieldName, final String targetFieldName) {
+    this.sourceFieldName = sourceFieldName;
+    this.targetFieldName = targetFieldName;
   }
 
-  public MapValues(final String sourceAttributeName,
-    final String targetAttributeName, final Map<Object, Object> valueMap) {
-    this.sourceAttributeName = sourceAttributeName;
-    this.targetAttributeName = targetAttributeName;
+  public MapValues(final String sourceFieldName, final String targetFieldName,
+    final Map<Object, Object> valueMap) {
+    this.sourceFieldName = sourceFieldName;
+    this.targetFieldName = targetFieldName;
     this.valueMap = valueMap;
   }
 
   public void addValueMap(final Object sourceValue, final Object targetValue) {
-    valueMap.put(sourceValue, targetValue);
+    this.valueMap.put(sourceValue, targetValue);
   }
 
-  public String getSourceAttributeName() {
-    return sourceAttributeName;
+  public String getSourceFieldName() {
+    return this.sourceFieldName;
   }
 
-  public String getTargetAttributeName() {
-    return targetAttributeName;
+  public String getTargetFieldName() {
+    return this.targetFieldName;
   }
 
   public Map<Object, Object> getValueMap() {
-    return valueMap;
+    return this.valueMap;
   }
 
   @Override
-  public void process(final DataObject source, final DataObject target) {
-    final Object sourceValue = DataObjectUtil.getAttributeByPath(source,
-      sourceAttributeName);
+  public void process(final Record source, final Record target) {
+    final Object sourceValue = Records.getFieldByPath(source, this.sourceFieldName);
     if (sourceValue != null) {
-      final Object targetValue = valueMap.get(sourceValue);
+      final Object targetValue = this.valueMap.get(sourceValue);
       if (targetValue != null) {
-        final DataObjectMetaData targetMetaData = target.getMetaData();
-        final CodeTable codeTable = targetMetaData.getCodeTableByColumn(targetAttributeName);
+        final RecordDefinition targetRecordDefinition = target.getRecordDefinition();
+        final CodeTable codeTable = targetRecordDefinition
+          .getCodeTableByFieldName(this.targetFieldName);
         if (codeTable == null) {
-          target.setValue(targetAttributeName, targetValue);
+          target.setValue(this.targetFieldName, targetValue);
         } else {
-          final Object codeId = codeTable.getId(targetValue);
-          target.setValue(targetAttributeName, codeId);
+          final Object codeId = codeTable.getIdentifier(targetValue);
+          target.setValue(this.targetFieldName, codeId);
         }
       }
     }
   }
 
-  public void setSourceAttributeName(final String sourceAttributeName) {
-    this.sourceAttributeName = sourceAttributeName;
+  public void setSourceFieldName(final String sourceFieldName) {
+    this.sourceFieldName = sourceFieldName;
   }
 
-  public void setTargetAttributeName(final String targetAttributeName) {
-    this.targetAttributeName = targetAttributeName;
+  public void setTargetFieldName(final String targetFieldName) {
+    this.targetFieldName = targetFieldName;
   }
 
-  public void setValueMap(final Map<Object, Object> attributeNames) {
-    this.valueMap = attributeNames;
+  public void setValueMap(final Map<Object, Object> valueMap) {
+    this.valueMap = valueMap;
   }
 
   @Override
   public String toString() {
-    return "copy" + valueMap;
+    return "copy" + this.valueMap;
   }
 }

@@ -17,6 +17,10 @@ public class BaseInProcess<T> extends AbstractInProcess<T> {
     super(bufferSize);
   }
 
+  public BaseInProcess(final String processName) {
+    super(processName);
+  }
+
   protected void postRun(final Channel<T> in) {
   }
 
@@ -28,10 +32,10 @@ public class BaseInProcess<T> extends AbstractInProcess<T> {
 
   @Override
   protected final void run(final Channel<T> in) {
-    running = true;
+    this.running = true;
     try {
       preRun(in);
-      while (running) {
+      while (this.running) {
         if (ThreadUtil.isInterrupted()) {
           return;
         } else {
@@ -47,7 +51,7 @@ public class BaseInProcess<T> extends AbstractInProcess<T> {
       try {
         postRun(in);
       } finally {
-        running = false;
+        this.running = false;
       }
     }
   }

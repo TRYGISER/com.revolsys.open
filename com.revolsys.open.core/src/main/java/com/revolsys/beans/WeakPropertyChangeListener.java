@@ -1,27 +1,18 @@
 package com.revolsys.beans;
 
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 
-public class WeakPropertyChangeListener implements PropertyChangeListener {
-
+public class WeakPropertyChangeListener extends BaseProxyPropertyChangeListener {
   private final Reference<PropertyChangeListener> listenerReference;
 
   public WeakPropertyChangeListener(final PropertyChangeListener listener) {
-    this.listenerReference = new WeakReference<PropertyChangeListener>(listener);
-  }
-
-  public PropertyChangeListener getListener() {
-    return listenerReference.get();
+    this.listenerReference = new WeakReference<>(listener);
   }
 
   @Override
-  public void propertyChange(final PropertyChangeEvent event) {
-    final PropertyChangeListener listener = getListener();
-    if (listener != null) {
-      listener.propertyChange(event);
-    }
+  public PropertyChangeListener getPropertyChangeListener() {
+    return this.listenerReference.get();
   }
 }

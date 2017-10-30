@@ -27,41 +27,37 @@ public abstract class AbstractChannelInput<T> implements ChannelInput<T> {
   }
 
   public void close() {
-    closed = true;
+    this.closed = true;
   }
 
-  protected abstract T doRead();
-
-  protected abstract T doRead(long timeout);
-
   public String getName() {
-    return name;
+    return this.name;
   }
 
   public boolean isClosed() {
-    return closed;
+    return this.closed;
   }
 
   @Override
   public Iterator<T> iterator() {
-    return new ChannelInputIterator<T>(this);
+    return new ChannelInputIterator<>(this);
   }
 
   /**
    * Reads an Object from the Channel. This method also ensures only one of the
    * readers can actually be reading at any time. All other readers are blocked
    * until it completes the read.
-   * 
+   *
    * @return The object returned from the Channel.
    */
   @Override
   public T read() {
-    synchronized (readMonitor) {
-      synchronized (monitor) {
+    synchronized (this.readMonitor) {
+      synchronized (this.monitor) {
         if (isClosed()) {
           throw new ClosedException();
         }
-        return doRead();
+        return readDo();
       }
     }
   }
@@ -71,29 +67,29 @@ public abstract class AbstractChannelInput<T> implements ChannelInput<T> {
    * readers can actually be reading at any time. All other readers are blocked
    * until it completes the read. If no data is available to be read after the
    * timeout the method will return null.
-   * 
+   *
    * @param timeout The maximum time to wait in milliseconds.
    * @return The object returned from the Channel.
    */
   @Override
   public T read(final long timeout) {
-    synchronized (readMonitor) {
-      synchronized (monitor) {
+    synchronized (this.readMonitor) {
+      synchronized (this.monitor) {
         if (isClosed()) {
           throw new ClosedException();
         }
-        return doRead(timeout);
+        return readDo(timeout);
       }
     }
   }
 
   @Override
   public void readConnect() {
-    synchronized (monitor) {
+    synchronized (this.monitor) {
       if (isClosed()) {
         throw new IllegalStateException("Cannot connect to a closed channel");
       } else {
-        numReaders++;
+        this.numReaders++;
       }
 
     }
@@ -101,24 +97,28 @@ public abstract class AbstractChannelInput<T> implements ChannelInput<T> {
 
   @Override
   public void readDisconnect() {
-    synchronized (monitor) {
-      if (!closed) {
-        numReaders--;
-        if (numReaders <= 0) {
+    synchronized (this.monitor) {
+      if (!this.closed) {
+        this.numReaders--;
+        if (this.numReaders <= 0) {
           close();
-          monitor.notifyAll();
+          this.monitor.notifyAll();
         }
       }
 
     }
   }
 
+  protected abstract T readDo();
+
+  protected abstract T readDo(long timeout);
+
   @Override
   public String toString() {
-    if (name == null) {
+    if (this.name == null) {
       return super.toString();
     } else {
-      return name;
+      return this.name;
     }
   }
 }

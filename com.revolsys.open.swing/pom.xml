@@ -14,6 +14,11 @@
   </parent>
   <licenses>
     <license>
+      <name>Apache License, Version 2.0</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
       <name>Creative Commons Attribution 2.5 License</name>
       <url>http://creativecommons.org/licenses/by/2.5/</url>
       <comments>Icons were developed by Mark James see http://http://famfamfam.com/</comments>
@@ -26,62 +31,14 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.dockingframes</groupId>
-      <artifactId>docking-frames-common</artifactId>
-      <version>1.1.0</version>
+      <groupId>com.revolsys.open</groupId>
+      <artifactId>com.revolsys.open.gdal</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.swinglabs</groupId>
-      <artifactId>swingx</artifactId>
-      <version>1.6.1</version>
-    </dependency>
-    <dependency>
-      <groupId>com.kitfox.svg</groupId>
-      <artifactId>svg-salamander</artifactId>
-      <version>1.0</version>
-    </dependency>
-    <dependency>
-      <groupId>javax.media</groupId>
-      <artifactId>jai_core</artifactId>
-      <version>1.1.3</version>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>javax.media</groupId>
-      <artifactId>jai_codec</artifactId>
-      <version>1.1.3</version>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>xtiff-jai</groupId>
-      <artifactId>xtiff-jai</artifactId>
-      <version>beta-0.3</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>jai-core</artifactId>
-          <groupId>jai</groupId>
-        </exclusion>
-        <exclusion>
-          <artifactId>jai-codec</artifactId>
-          <groupId>jai</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.pdfbox</groupId>
-      <artifactId>pdfbox</artifactId>
-      <version>1.8.2</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>commons-logging</artifactId>
-          <groupId>commons-logging</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>java3d</groupId>
-      <artifactId>vecmath</artifactId>
-      <version>1.3.1</version>
+      <groupId>org.swinglabs.swingx</groupId>
+      <artifactId>swingx-all</artifactId>
+      <version>1.6.5-1</version>
     </dependency>
     <dependency>
       <groupId>de.sciss</groupId>
@@ -89,14 +46,53 @@
       <version>1.0.0</version>
     </dependency>
     <dependency>
-      <groupId>org.jpedal</groupId>
-      <artifactId>jbig2</artifactId>
-      <version>1.0.0</version>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-jsr223</artifactId>
+      <version>${org.codehaus.groovy.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.codehaus.groovy</groupId>
-      <artifactId>groovy</artifactId>
-      <version>2.2.1</version>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.revolsys.open</groupId>
+      <artifactId>com.revolsys.open.fgdb</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>xmlgraphics-commons</artifactId>
+      <version>2.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-swing</artifactId>
+      <version>1.8</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-rasterizer</artifactId>
+      <version>1.8</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-svg-dom</artifactId>
+      <version>1.8</version>
     </dependency>
   </dependencies>
+<<<<<<< HEAD
+=======
+
+  <repositories>
+    <repository>
+      <id>geo-solutions</id>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <url>http://maven.geo-solutions.it/</url>
+    </repository>
+  </repositories>
+>>>>>>> refs/tags/GEOMARK-SNAPSHOT
 </project>

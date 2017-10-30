@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,14 +16,13 @@
 package com.revolsys.ui.html.fields;
 
 public class FieldValue {
-  private Object value = null;
+  private String label = "";
 
   private String stringValue = "";
 
-  private String label = "";
+  private Object value = null;
 
-  public FieldValue(final Object value, final String stringValue,
-    final String label) {
+  public FieldValue(final Object value, final String stringValue, final String label) {
     this.value = value;
     if (stringValue != null) {
       this.stringValue = stringValue;
@@ -38,20 +37,20 @@ public class FieldValue {
    * @return Returns the label.
    */
   public String getLabel() {
-    return label;
+    return this.label;
   }
 
   /**
    * @return Returns the stringValue.
    */
   public String getStringValue() {
-    return stringValue;
+    return this.stringValue;
   }
 
   /**
    * @return Returns the value.
    */
   public <T> T getValue() {
-    return (T)value;
+    return (T)this.value;
   }
 }

@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -28,15 +28,11 @@ import com.revolsys.util.UrlUtil;
 public class MenuItem implements Cloneable, Comparable {
   private static final Logger log = Logger.getLogger(MenuItem.class);
 
-  private String title;
-
-  private String name;
-
   private String anchor;
 
-  private String uri;
+  private Expression condition;
 
-  private Expression uriExpression;
+  private String name;
 
   private final Map parameters = new HashMap();
 
@@ -44,9 +40,13 @@ public class MenuItem implements Cloneable, Comparable {
 
   private Map staticParameters = new HashMap();
 
-  private Expression condition;
+  private String title;
 
   private Expression titleExpression;
+
+  private String uri;
+
+  private Expression uriExpression;
 
   public MenuItem() {
   }
@@ -61,8 +61,8 @@ public class MenuItem implements Cloneable, Comparable {
     setUri(uri);
   }
 
-  public MenuItem(final String name, final String title, final String uri,
-    final String anchor, final String condition) {
+  public MenuItem(final String name, final String title, final String uri, final String anchor,
+    final String condition) {
     this(name, title, uri);
     this.anchor = anchor;
     setCondition(condition);
@@ -72,27 +72,26 @@ public class MenuItem implements Cloneable, Comparable {
     addParameter(parameter.getName(), parameter.getValue());
   }
 
-  public void addParameter(final String name, final Object value)
-    throws Exception {
+  public void addParameter(final String name, final Object value) throws Exception {
     if (value instanceof String) {
       final String stringValue = (String)value;
-      final Expression expression = JexlUtil.createExpression(stringValue);
+      final Expression expression = JexlUtil.newExpression(stringValue);
       if (expression != null) {
-        parameters.put(name, expression);
+        this.parameters.put(name, expression);
       } else {
-        staticParameters.put(name, value);
+        this.staticParameters.put(name, value);
       }
     } else {
-      staticParameters.put(name, value);
+      this.staticParameters.put(name, value);
     }
   }
 
-  public void addProperty(final Property property) {
-    addProperty(property.getName(), property.getValue());
+  public void addProperty(final String name, final String value) {
+    this.properties.put(name, value);
   }
 
-  public void addProperty(final String name, final String value) {
-    properties.put(name, value);
+  public void addProperty(final WebProperty webProperty) {
+    addProperty(webProperty.getName(), webProperty.getValue());
   }
 
   @Override
@@ -104,10 +103,11 @@ public class MenuItem implements Cloneable, Comparable {
     }
   }
 
+  @Override
   public int compareTo(final Object o) {
     if (o instanceof MenuItem) {
       final MenuItem menuItem = (MenuItem)o;
-      return title.compareTo(menuItem.getTitle());
+      return this.title.compareTo(menuItem.getTitle());
     }
     return 1;
   }
@@ -116,42 +116,42 @@ public class MenuItem implements Cloneable, Comparable {
    * @return Returns the anchor.
    */
   public String getAnchor() {
-    return anchor;
+    return this.anchor;
   }
 
   /**
    * @return Returns the condition.
    */
   public Expression getCondition() {
-    return condition;
+    return this.condition;
   }
 
   public String getName() {
-    return name;
+    return this.name;
   }
 
   public final Map getParameters() {
-    return parameters;
+    return this.parameters;
   }
 
   public Map getProperties() {
-    return properties;
+    return this.properties;
   }
 
   public String getProperty(final String name) {
-    return (String)properties.get(name);
+    return (String)this.properties.get(name);
   }
 
   public final Map getStaticParameters() {
-    return staticParameters;
+    return this.staticParameters;
   }
 
   public String getTitle() {
     final WebUiContext context = WebUiContext.get();
-    if (titleExpression != null) {
-      return (String)context.evaluateExpression(titleExpression);
+    if (this.titleExpression != null) {
+      return (String)context.evaluateExpression(this.titleExpression);
     } else {
-      return title;
+      return this.title;
     }
   }
 
@@ -161,43 +161,43 @@ public class MenuItem implements Cloneable, Comparable {
     if (uri != null) {
       // If this is the first call to getUri update the uri with any static
       // parameters
-      if (staticParameters != null) {
-        uri = UrlUtil.getUrl(uri, staticParameters);
+      if (this.staticParameters != null) {
+        uri = UrlUtil.getUrl(uri, this.staticParameters);
         this.uri = uri;
-        staticParameters = null;
+        this.staticParameters = null;
       }
-    } else if (uriExpression != null) {
-      uri = (String)context.evaluateExpression(uriExpression);
-      if (staticParameters != null) {
-        uri = UrlUtil.getUrl(uri, staticParameters);
+    } else if (this.uriExpression != null) {
+      uri = (String)context.evaluateExpression(this.uriExpression);
+      if (this.staticParameters != null) {
+        uri = UrlUtil.getUrl(uri, this.staticParameters);
       }
     }
-    if (uri != null && parameters.size() > 0) {
+    if (uri != null && this.parameters.size() > 0) {
       final Map qsParams = new HashMap();
-      for (final Iterator params = parameters.entrySet().iterator(); params.hasNext();) {
+      for (final Iterator params = this.parameters.entrySet().iterator(); params.hasNext();) {
         final Map.Entry param = (Map.Entry)params.next();
         final Object key = param.getKey();
         final Object value = context.evaluateExpression((Expression)param.getValue());
         qsParams.put(key, value);
       }
-      if (anchor == null) {
+      if (this.anchor == null) {
         return UrlUtil.getUrl(uri, qsParams);
       } else {
-        return UrlUtil.getUrl(uri, qsParams) + "#" + anchor;
+        return UrlUtil.getUrl(uri, qsParams) + "#" + this.anchor;
       }
     } else {
-      if (anchor == null) {
+      if (this.anchor == null) {
         return uri;
       } else {
-        return uri + "#" + anchor;
+        return uri + "#" + this.anchor;
       }
     }
   }
 
   public boolean isVisible() {
     final WebUiContext context = WebUiContext.get();
-    if (condition != null) {
-      return ((Boolean)context.evaluateExpression(condition)).booleanValue();
+    if (this.condition != null) {
+      return ((Boolean)context.evaluateExpression(this.condition)).booleanValue();
     } else {
       return true;
     }
@@ -216,7 +216,7 @@ public class MenuItem implements Cloneable, Comparable {
   public void setCondition(final String condition) {
     if (condition != null) {
       try {
-        this.condition = JexlUtil.createExpression(condition);
+        this.condition = JexlUtil.newExpression(condition);
       } catch (final Throwable e) {
         log.error("Invalid Condition", e);
       }
@@ -236,7 +236,7 @@ public class MenuItem implements Cloneable, Comparable {
     if (title != null) {
       Expression titleExpression = null;
       try {
-        titleExpression = JexlUtil.createExpression(title);
+        titleExpression = JexlUtil.newExpression(title);
       } catch (final Exception e) {
         log.error(e.getMessage(), e);
       }
@@ -257,7 +257,7 @@ public class MenuItem implements Cloneable, Comparable {
     if (uri != null) {
       Expression uriExpression = null;
       try {
-        uriExpression = JexlUtil.createExpression(uri.replaceAll(" ", "%20"));
+        uriExpression = JexlUtil.newExpression(uri.replaceAll(" ", "%20"));
       } catch (final Exception e) {
         log.error(e.getMessage(), e);
       }

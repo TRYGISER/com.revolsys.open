@@ -3,8 +3,8 @@ package com.revolsys.parallel.process;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -13,9 +13,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.BeanNameAware;
 
+import com.revolsys.logging.Logs;
 import com.revolsys.parallel.NamedThreadFactory;
 import com.revolsys.parallel.ThreadInterruptedException;
 import com.revolsys.parallel.ThreadUtil;
@@ -23,11 +23,10 @@ import com.revolsys.parallel.channel.Channel;
 import com.revolsys.parallel.channel.ClosedException;
 import com.revolsys.parallel.channel.MultiInputSelector;
 
-public class RunnableChannelExecutor extends ThreadPoolExecutor implements
-  Process, BeanNameAware {
+public class RunnableChannelExecutor extends ThreadPoolExecutor implements Process, BeanNameAware {
   private String beanName;
 
-  private List<Channel<Runnable>> channels = new ArrayList<Channel<Runnable>>();
+  private List<Channel<Runnable>> channels = new ArrayList<>();
 
   private final Object monitor = new Object();
 
@@ -36,20 +35,19 @@ public class RunnableChannelExecutor extends ThreadPoolExecutor implements
   private final AtomicInteger taskCount = new AtomicInteger();
 
   public RunnableChannelExecutor() {
-    super(0, 100, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(1),
-      new NamedThreadFactory());
+    super(0, 100, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new NamedThreadFactory());
   }
 
   @Override
   protected void afterExecute(final Runnable r, final Throwable t) {
-    taskCount.decrementAndGet();
-    synchronized (monitor) {
-      monitor.notifyAll();
+    this.taskCount.decrementAndGet();
+    synchronized (this.monitor) {
+      this.monitor.notifyAll();
     }
   }
 
   public void closeChannels() {
-    synchronized (monitor) {
+    synchronized (this.monitor) {
       final List<Channel<Runnable>> channels = this.channels;
       if (channels != null) {
         for (final Channel<Runnable> channel : channels) {
@@ -64,20 +62,20 @@ public class RunnableChannelExecutor extends ThreadPoolExecutor implements
   public void execute(final Runnable command) {
     if (command != null) {
       while (!isShutdown()) {
-        if (taskCount.get() >= getMaximumPoolSize()) {
-          ThreadUtil.pause(monitor);
+        if (this.taskCount.get() >= getMaximumPoolSize()) {
+          ThreadUtil.pause(this.monitor);
         }
-        taskCount.incrementAndGet();
+        this.taskCount.incrementAndGet();
         try {
           super.execute(command);
           return;
         } catch (final RejectedExecutionException e) {
-          taskCount.decrementAndGet();
+          this.taskCount.decrementAndGet();
         } catch (final RuntimeException e) {
-          taskCount.decrementAndGet();
+          this.taskCount.decrementAndGet();
           throw e;
         } catch (final Error e) {
-          taskCount.decrementAndGet();
+          this.taskCount.decrementAndGet();
           throw e;
         }
       }
@@ -86,11 +84,11 @@ public class RunnableChannelExecutor extends ThreadPoolExecutor implements
 
   @Override
   public String getBeanName() {
-    return beanName;
+    return this.beanName;
   }
 
   public List<Channel<Runnable>> getChannels() {
-    return channels;
+    return this.channels;
   }
 
   /**
@@ -98,12 +96,12 @@ public class RunnableChannelExecutor extends ThreadPoolExecutor implements
    */
   @Override
   public ProcessNetwork getProcessNetwork() {
-    return processNetwork;
+    return this.processNetwork;
   }
 
   @PostConstruct
   public void init() {
-    for (final Channel<Runnable> channel : channels) {
+    for (final Channel<Runnable> channel : this.channels) {
       channel.readConnect();
     }
   }
@@ -137,8 +135,9 @@ public class RunnableChannelExecutor extends ThreadPoolExecutor implements
           if (cause instanceof ThreadInterruptedException) {
             throw (ThreadInterruptedException)cause;
           }
-          synchronized (monitor) {
-            for (final Iterator<Channel<Runnable>> iterator = channels.iterator(); iterator.hasNext();) {
+          synchronized (this.monitor) {
+            for (final Iterator<Channel<Runnable>> iterator = channels.iterator(); iterator
+              .hasNext();) {
               final Channel<Runnable> channel = iterator.next();
               if (channel.isClosed()) {
                 iterator.remove();
@@ -154,7 +153,7 @@ public class RunnableChannelExecutor extends ThreadPoolExecutor implements
       throw e;
     } catch (final Throwable t) {
       if (!isShutdown()) {
-        LoggerFactory.getLogger(getClass()).error("Unexexpected error ", t);
+        Logs.error(this, "Unexexpected error ", t);
       }
     } finally {
       postRun();
@@ -195,14 +194,14 @@ public class RunnableChannelExecutor extends ThreadPoolExecutor implements
   public void stop() {
     shutdownNow();
     closeChannels();
-    processNetwork = null;
-    synchronized (monitor) {
-      monitor.notifyAll();
+    this.processNetwork = null;
+    synchronized (this.monitor) {
+      this.monitor.notifyAll();
     }
   }
 
   @Override
   public String toString() {
-    return beanName;
+    return this.beanName;
   }
 }

@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,15 +17,16 @@ package com.revolsys.ui.html.decorator;
 
 import java.util.Iterator;
 
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.fields.Field;
 import com.revolsys.ui.html.view.Element;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
 
 public class FieldLabelDecorator implements Decorator {
-  private String label = "";
-
   private String instructions = "";
+
+  private String label = "";
 
   public FieldLabelDecorator(final String label) {
     this.label = label;
@@ -37,71 +38,72 @@ public class FieldLabelDecorator implements Decorator {
   }
 
   public String getInstructions() {
-    return instructions;
+    return this.instructions;
   }
 
   public String getLabel() {
-    return label;
+    return this.label;
   }
 
+  @Override
   public void serialize(final XmlWriter out, final Element element) {
     final Field field = (Field)element;
-    out.startTag(HtmlUtil.DIV);
-    out.attribute(HtmlUtil.ATTR_CLASS, "field");
+    out.startTag(HtmlElem.DIV);
+    out.attribute(HtmlAttr.CLASS, "field");
     serializeLabel(out, field);
     serializeField(out, field);
     serializeInstructions(out);
     serializeErrors(out, field);
-    out.endTag(HtmlUtil.DIV);
+    out.endTag(HtmlElem.DIV);
   }
 
   protected void serializeErrors(final XmlWriter out, final Field field) {
     if (field.hasValidationErrors()) {
-      out.startTag(HtmlUtil.DIV);
-      out.attribute(HtmlUtil.ATTR_CLASS, "errors");
-      for (final Iterator validationErrors = field.getValidationErrors()
+      out.startTag(HtmlElem.DIV);
+      out.attribute(HtmlAttr.CLASS, "errors");
+      for (final Iterator<String> validationErrors = field.getValidationErrors()
         .iterator(); validationErrors.hasNext();) {
-        final String error = (String)validationErrors.next();
+        final String error = validationErrors.next();
         out.text(error);
         if (validationErrors.hasNext()) {
           out.text(", ");
         }
       }
-      out.endTag(HtmlUtil.DIV);
+      out.endTag(HtmlElem.DIV);
     }
   }
 
   protected void serializeField(final XmlWriter out, final Field field) {
-    out.startTag(HtmlUtil.DIV);
-    out.attribute(HtmlUtil.ATTR_CLASS, "contents");
+    out.startTag(HtmlElem.DIV);
+    out.attribute(HtmlAttr.CLASS, "contents");
     field.serializeElement(out);
-    out.endTag(HtmlUtil.DIV);
+    out.endTag(HtmlElem.DIV);
   }
 
   protected void serializeInstructions(final XmlWriter out) {
     final String instructions = getInstructions();
     if (instructions != null) {
-      out.startTag(HtmlUtil.DIV);
-      out.attribute(HtmlUtil.ATTR_CLASS, "instructions");
+      out.startTag(HtmlElem.DIV);
+      out.attribute(HtmlAttr.CLASS, "instructions");
       out.text(instructions);
-      out.endTag(HtmlUtil.DIV);
+      out.endTag(HtmlElem.DIV);
     }
   }
 
   protected void serializeLabel(final XmlWriter out, final Field field) {
     final String label = getLabel();
     if (label != null) {
-      out.startTag(HtmlUtil.DIV);
+      out.startTag(HtmlElem.DIV);
       if (field.isRequired()) {
-        out.attribute(HtmlUtil.ATTR_CLASS, "label required");
+        out.attribute(HtmlAttr.CLASS, "label required");
       } else {
-        out.attribute(HtmlUtil.ATTR_CLASS, "label");
+        out.attribute(HtmlAttr.CLASS, "label");
       }
-      out.startTag(HtmlUtil.LABEL);
-      out.attribute(HtmlUtil.ATTR_FOR, field.getName());
+      out.startTag(HtmlElem.LABEL);
+      out.attribute(HtmlAttr.FOR, field.getName());
       out.text(label);
-      out.endTag(HtmlUtil.LABEL);
-      out.endTag(HtmlUtil.DIV);
+      out.endTag(HtmlElem.LABEL);
+      out.endTag(HtmlElem.DIV);
     }
   }
 

@@ -1,24 +1,25 @@
 package com.revolsys.gis.wms.capabilities;
 
-public class ImageUrl extends FormatUrl {
-  private int width;
+import org.w3c.dom.Element;
 
-  private int height;
+import com.revolsys.record.io.format.xml.XmlUtil;
+
+public class ImageUrl extends FormatUrl {
+  private final int height;
+
+  private final int width;
+
+  public ImageUrl(final Element imageUrlElement) {
+    super(imageUrlElement);
+    this.width = XmlUtil.getAttributeInt(imageUrlElement, "width", 0);
+    this.height = XmlUtil.getAttributeInt(imageUrlElement, "height", 0);
+  }
 
   public int getHeight() {
-    return height;
+    return this.height;
   }
 
   public int getWidth() {
-    return width;
+    return this.width;
   }
-
-  public void setHeight(final int height) {
-    this.height = height;
-  }
-
-  public void setWidth(final int width) {
-    this.width = width;
-  }
-
 }

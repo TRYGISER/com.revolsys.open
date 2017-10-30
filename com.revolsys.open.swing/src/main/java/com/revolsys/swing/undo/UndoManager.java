@@ -15,47 +15,47 @@ import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoableEdit;
 
 import com.revolsys.beans.PropertyChangeSupportProxy;
-import com.revolsys.swing.action.InvokeMethodAction;
+import com.revolsys.io.BaseCloseable;
+import com.revolsys.swing.action.RunnableAction;
 import com.revolsys.util.OS;
+import com.revolsys.value.GlobalBooleanValue;
 
-@SuppressWarnings("serial")
-public class UndoManager extends javax.swing.undo.UndoManager implements
-  PropertyChangeSupportProxy {
+public class UndoManager extends javax.swing.undo.UndoManager
+  implements PropertyChangeSupportProxy {
 
-  /**
-   * 
-   */
   private static final long serialVersionUID = 1L;
 
-  private final PropertyChangeSupport propertyChangeSupport = new PropertyChangeSupport(
-    this);
+  private final GlobalBooleanValue eventsEnabled = new GlobalBooleanValue(true);
 
-  private boolean eventsEnabled = true;
+  private final PropertyChangeSupport propertyChangeSupport = new PropertyChangeSupport(this);
 
   @Override
   public synchronized boolean addEdit(final UndoableEdit edit) {
     if (edit == null) {
       return false;
     } else {
-      final boolean enabled = setEventsEnabled(false);
-      try {
-        if (edit instanceof AbstractUndoableEdit) {
-          final AbstractUndoableEdit abstractEdit = (AbstractUndoableEdit)edit;
-          if (!abstractEdit.isHasBeenDone()) {
-            if (abstractEdit.canRedo()) {
-              abstractEdit.redo();
-            } else {
-              return false;
+      final boolean enabled = isEventsEnabled();
+      if (enabled) {
+        try (
+          BaseCloseable c = setEventsEnabled(false)) {
+          if (edit instanceof AbstractUndoableEdit) {
+            final AbstractUndoableEdit abstractEdit = (AbstractUndoableEdit)edit;
+            if (!abstractEdit.isHasBeenDone()) {
+              if (abstractEdit.canRedo()) {
+                abstractEdit.redo();
+              } else {
+                return false;
+              }
             }
           }
         }
-      } finally {
-        setEventsEnabled(enabled);
-      }
-      if (this.eventsEnabled) {
-        final boolean added = super.addEdit(edit);
-        fireEvents();
-        return added;
+        if (isEventsEnabled()) {
+          final boolean added = super.addEdit(edit);
+          fireEvents();
+          return added;
+        } else {
+          return false;
+        }
       } else {
         return false;
       }
@@ -69,7 +69,8 @@ public class UndoManager extends javax.swing.undo.UndoManager implements
         final JTextComponent textComponent = (JTextComponent)jcomponent;
         textComponent.getDocument().addUndoableEditListener(this);
       }
-      final InputMap inputMap = jcomponent.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+      final InputMap inputMap = jcomponent
+        .getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
       final ActionMap actionMap = jcomponent.getActionMap();
 
       int modifiers;
@@ -79,14 +80,12 @@ public class UndoManager extends javax.swing.undo.UndoManager implements
         modifiers = Event.CTRL_MASK;
       }
       final KeyStroke undoKey = KeyStroke.getKeyStroke(KeyEvent.VK_Z, modifiers);
-      final InvokeMethodAction undoAction = new InvokeMethodAction("Undo",
-        this, "undo");
+      final RunnableAction undoAction = new RunnableAction("Undo", this::undo);
       actionMap.put("undo", undoAction);
       inputMap.put(undoKey, "undo");
 
       final KeyStroke redoKey = KeyStroke.getKeyStroke(KeyEvent.VK_Y, modifiers);
-      final InvokeMethodAction redoAction = new InvokeMethodAction("Redo",
-        this, "redo");
+      final RunnableAction redoAction = new RunnableAction("Redo", this::redo);
       actionMap.put("redo", redoAction);
       inputMap.put(redoKey, "redo");
 
@@ -120,41 +119,34 @@ public class UndoManager extends javax.swing.undo.UndoManager implements
   }
 
   public boolean isEventsEnabled() {
-    return this.eventsEnabled;
+    return this.eventsEnabled.isTrue();
   }
 
   @Override
   public synchronized void redo() throws CannotRedoException {
-    final boolean enabled = this.eventsEnabled;
-    try {
-      this.eventsEnabled = false;
+    try (
+      BaseCloseable c = setEventsEnabled(false)) {
       if (canRedo()) {
         super.redo();
       }
     } finally {
-      this.eventsEnabled = enabled;
       fireEvents();
     }
   }
 
-  public boolean setEventsEnabled(final boolean eventsEnabled) {
-    final boolean oldValue = this.eventsEnabled;
-    this.eventsEnabled = eventsEnabled;
-    return oldValue;
+  public BaseCloseable setEventsEnabled(final boolean eventsEnabled) {
+    return this.eventsEnabled.closeable(eventsEnabled);
   }
 
   @Override
   public synchronized void undo() throws CannotUndoException {
-    final boolean enabled = this.eventsEnabled;
-    try {
-      this.eventsEnabled = false;
+    try (
+      BaseCloseable c = setEventsEnabled(false)) {
       if (canUndo()) {
         super.undo();
       }
     } finally {
-      this.eventsEnabled = enabled;
       fireEvents();
     }
   }
-
 }

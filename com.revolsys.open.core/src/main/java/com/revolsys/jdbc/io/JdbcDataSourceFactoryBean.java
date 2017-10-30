@@ -14,46 +14,42 @@ import org.springframework.context.ApplicationContextAware;
 public class JdbcDataSourceFactoryBean extends AbstractFactoryBean<DataSource>
   implements ApplicationContextAware {
 
-  private Map<String, Object> config = new HashMap<String, Object>();
+  private Map<String, Object> config = new HashMap<>();
+
+  private JdbcDatabaseFactory databaseFactory;
+
+  private String password;
 
   private String url;
 
   private String username;
 
-  private String password;
-
-  private JdbcDatabaseFactory databaseFactory;
-
-  private ApplicationContext applicationContext;
-
   @Override
   protected DataSource createInstance() throws Exception {
-    final Map<String, Object> config = new HashMap<String, Object>(this.config);
-    config.put("url", url);
-    config.put("username", username);
-    config.put("password", password);
-    final JdbcFactoryRegistry jdbcFactoryRegistry = JdbcFactoryRegistry.getFactory(applicationContext);
-    databaseFactory = jdbcFactoryRegistry.getDatabaseFactory(config);
-    final DataSource dataSource = databaseFactory.createDataSource(config);
+    final Map<String, Object> config = new HashMap<>(this.config);
+    config.put("url", this.url);
+    config.put("user", this.username);
+    config.put("password", this.password);
+    this.databaseFactory = JdbcDatabaseFactory.databaseFactory(config);
+    final DataSource dataSource = this.databaseFactory.newDataSource(config);
     return dataSource;
   }
 
   @Override
   protected void destroyInstance(final DataSource dataSource) throws Exception {
     try {
-      databaseFactory.closeDataSource(dataSource);
+      JdbcDatabaseFactory.closeDataSource(dataSource);
     } finally {
-      config = null;
-      databaseFactory = null;
-      password = null;
-      url = null;
-      username = null;
-      applicationContext = null;
+      this.config = null;
+      this.databaseFactory = null;
+      this.password = null;
+      this.url = null;
+      this.username = null;
     }
   }
 
   public Map<String, Object> getConfig() {
-    return config;
+    return this.config;
   }
 
   @Override
@@ -62,15 +58,15 @@ public class JdbcDataSourceFactoryBean extends AbstractFactoryBean<DataSource>
   }
 
   public String getPassword() {
-    return password;
+    return this.password;
   }
 
   public String getUrl() {
-    return url;
+    return this.url;
   }
 
   public String getUsername() {
-    return username;
+    return this.username;
   }
 
   @Override
@@ -81,7 +77,6 @@ public class JdbcDataSourceFactoryBean extends AbstractFactoryBean<DataSource>
   @Override
   public void setApplicationContext(final ApplicationContext applicationContext)
     throws BeansException {
-    this.applicationContext = applicationContext;
   }
 
   public void setConfig(final Map<String, Object> config) {

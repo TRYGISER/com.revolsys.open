@@ -1,12 +1,11 @@
 package com.revolsys.visitor;
 
 import java.util.Comparator;
-
-import com.revolsys.collection.Visitor;
-import com.revolsys.filter.Filter;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 public class DelegatingVisitor<T> extends AbstractVisitor<T> {
-  private Visitor<T> visitor;
+  private Consumer<T> action;
 
   public DelegatingVisitor() {
   }
@@ -15,56 +14,52 @@ public class DelegatingVisitor<T> extends AbstractVisitor<T> {
     super(comparator);
   }
 
-  public DelegatingVisitor(final Comparator<T> comparator,
-    final Visitor<T> visitor) {
+  public DelegatingVisitor(final Comparator<T> comparator, final Consumer<T> action) {
     super(comparator);
-    this.visitor = visitor;
+    this.action = action;
   }
 
-  public DelegatingVisitor(final Filter<T> filter) {
+  public DelegatingVisitor(final Consumer<T> action) {
+    this.action = action;
+  }
+
+  public DelegatingVisitor(final Predicate<T> filter) {
     super(filter);
   }
 
-  public DelegatingVisitor(final Filter<T> filter,
-    final Comparator<T> comparator) {
+  public DelegatingVisitor(final Predicate<T> filter, final Comparator<T> comparator) {
     super(filter, comparator);
   }
 
-  public DelegatingVisitor(final Filter<T> filter,
-    final Comparator<T> comparator, final Visitor<T> visitor) {
+  public DelegatingVisitor(final Predicate<T> filter, final Comparator<T> comparator,
+    final Consumer<T> action) {
     super(filter, comparator);
-    this.visitor = visitor;
+    this.action = action;
   }
 
-  public DelegatingVisitor(final Filter<T> filter, final Visitor<T> visitor) {
+  public DelegatingVisitor(final Predicate<T> filter, final Consumer<T> action) {
     super(filter);
-    this.visitor = visitor;
+    this.action = action;
   }
 
-  public DelegatingVisitor(final Visitor<T> visitor) {
-    this.visitor = visitor;
+  @Override
+  public void accept(final T item) {
+    final Predicate<T> predicate = getPredicate();
+    if (predicate.test(item)) {
+      this.action.accept(item);
+    }
   }
 
-  public Visitor<T> getVisitor() {
-    return visitor;
+  public Consumer<T> getAction() {
+    return this.action;
   }
 
-  public void setVisitor(final Visitor<T> visitor) {
-    this.visitor = visitor;
+  public void setAction(final Consumer<T> action) {
+    this.action = action;
   }
 
   @Override
   public String toString() {
-    return visitor.toString();
-  }
-
-  @Override
-  public boolean visit(final T item) {
-    final Filter<T> filter = getFilter();
-    if (filter == null || filter.accept(item)) {
-      return visitor.visit(item);
-    } else {
-      return true;
-    }
+    return this.action.toString();
   }
 }

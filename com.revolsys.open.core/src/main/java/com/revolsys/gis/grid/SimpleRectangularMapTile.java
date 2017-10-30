@@ -1,8 +1,9 @@
 package com.revolsys.gis.grid;
 
-import com.revolsys.jts.geom.BoundingBox;
-import com.revolsys.jts.geom.GeometryFactory;
-import com.revolsys.jts.geom.Polygon;
+import com.revolsys.datatype.DataType;
+import com.revolsys.geometry.model.BoundingBox;
+import com.revolsys.geometry.model.GeometryFactory;
+import com.revolsys.geometry.model.Polygon;
 
 public class SimpleRectangularMapTile implements RectangularMapTile {
 
@@ -14,8 +15,8 @@ public class SimpleRectangularMapTile implements RectangularMapTile {
 
   private final String name;
 
-  public SimpleRectangularMapTile(final RectangularMapGrid grid,
-    final String formattedName, final String name, final BoundingBox boundingBox) {
+  public SimpleRectangularMapTile(final RectangularMapGrid grid, final String formattedName,
+    final String name, final BoundingBox boundingBox) {
     this.grid = grid;
     this.name = name;
     this.formattedName = formattedName;
@@ -23,50 +24,83 @@ public class SimpleRectangularMapTile implements RectangularMapTile {
   }
 
   @Override
+  public SimpleRectangularMapTile clone() {
+    try {
+      return (SimpleRectangularMapTile)super.clone();
+    } catch (final CloneNotSupportedException e) {
+      return null;
+    }
+  }
+
+  @Override
+  public boolean equals(final Object object) {
+    if (this == object) {
+      return true;
+    } else if (object == null) {
+      return false;
+    } else if (object instanceof SimpleRectangularMapTile) {
+      final SimpleRectangularMapTile tile = (SimpleRectangularMapTile)object;
+      if (DataType.equal(this.boundingBox, tile.boundingBox)) {
+        if (DataType.equal(this.grid, tile.grid)) {
+          if (DataType.equal(this.name, tile.name)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  @Override
   public BoundingBox getBoundingBox() {
-    return boundingBox;
+    return this.boundingBox;
   }
 
   @Override
   public String getFormattedName() {
-    return formattedName;
+    return this.formattedName;
   }
 
   @Override
   public RectangularMapGrid getGrid() {
-    return grid;
+    return this.grid;
   }
 
   @Override
   public String getName() {
-    return name;
+    return this.name;
   }
 
   @Override
-  public Polygon getPolygon(final com.revolsys.jts.geom.GeometryFactory factory, final int numPoints) {
-    return boundingBox.toPolygon(factory, numPoints);
+  public Polygon getPolygon(final GeometryFactory factory, final int numPoints) {
+    return this.boundingBox.toPolygon(factory, numPoints);
   }
 
   @Override
-  public Polygon getPolygon(final com.revolsys.jts.geom.GeometryFactory factory,
-    final int numXPoints, final int numYPoints) {
-    return boundingBox.toPolygon(factory, numXPoints, numYPoints);
+  public Polygon getPolygon(final GeometryFactory factory, final int numXPoints,
+    final int numYPoints) {
+    return this.boundingBox.toPolygon(factory, numXPoints, numYPoints);
   }
 
   @Override
   public Polygon getPolygon(final int numPoints) {
-    final com.revolsys.jts.geom.GeometryFactory factory = GeometryFactory.getFactory(4326);
+    final GeometryFactory factory = GeometryFactory.floating3(4326);
     return getPolygon(factory, numPoints);
   }
 
   @Override
   public Polygon getPolygon(final int numXPoints, final int numYPoints) {
-    final com.revolsys.jts.geom.GeometryFactory factory = GeometryFactory.getFactory(4326);
+    final GeometryFactory factory = GeometryFactory.floating3(4326);
     return getPolygon(factory, numXPoints, numYPoints);
   }
 
   @Override
+  public int hashCode() {
+    return this.name.hashCode();
+  }
+
+  @Override
   public String toString() {
-    return name;
+    return this.name;
   }
 }

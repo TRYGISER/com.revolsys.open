@@ -5,11 +5,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import com.revolsys.util.CollectionUtil;
+import com.revolsys.util.Strings;
 
 public abstract class AbstractMultipleProcess extends AbstractProcess {
 
-  private final List<Process> processes = new ArrayList<Process>();
+  private final List<Process> processes = new ArrayList<>();
 
   public AbstractMultipleProcess() {
   }
@@ -23,16 +23,16 @@ public abstract class AbstractMultipleProcess extends AbstractProcess {
   }
 
   public void addProcess(final Process process) {
-    processes.add(process);
+    this.processes.add(process);
   }
 
   public List<Process> getProcesses() {
-    return processes;
+    return this.processes;
   }
 
   @Override
   public String toString() {
-    return CollectionUtil.toString("\n  ", processes);
+    return Strings.toString("\n  ", this.processes);
   }
 
 }

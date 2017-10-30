@@ -3,15 +3,15 @@ package com.revolsys.spring.factory;
 import org.springframework.beans.factory.config.AbstractFactoryBean;
 
 public class SystemPropertyFactoryBean extends AbstractFactoryBean<String> {
-  private String name;
-
   private String defaultValue;
+
+  private String name;
 
   @Override
   protected String createInstance() throws Exception {
-    final String propertyValue = System.getProperty(name);
+    final String propertyValue = System.getProperty(this.name);
     if (propertyValue == null) {
-      return defaultValue;
+      return this.defaultValue;
     } else {
       return propertyValue;
     }
@@ -19,16 +19,16 @@ public class SystemPropertyFactoryBean extends AbstractFactoryBean<String> {
 
   @Override
   protected void destroyInstance(final String instance) throws Exception {
-    name = null;
-    defaultValue = null;
+    this.name = null;
+    this.defaultValue = null;
   }
 
   public String getDefaultValue() {
-    return defaultValue;
+    return this.defaultValue;
   }
 
   public String getName() {
-    return name;
+    return this.name;
   }
 
   @Override

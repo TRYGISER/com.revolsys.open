@@ -5,11 +5,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-public abstract class AbstractWriter<T> extends AbstractObjectWithProperties
-  implements Writer<T> {
+import com.revolsys.properties.BaseObjectWithProperties;
+
+public abstract class AbstractWriter<T> extends BaseObjectWithProperties implements Writer<T> {
 
   public static void close(final Collection<? extends Writer<?>> writers) {
-    final List<RuntimeException> exceptions = new ArrayList<RuntimeException>();
+    final List<RuntimeException> exceptions = new ArrayList<>();
     for (final Writer<?> writer : writers) {
       if (writer != null) {
         try {

@@ -1,103 +1,80 @@
 package com.revolsys.io.file;
 
 import java.io.File;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.nio.file.Path;
+import java.util.List;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.gis.model.data.equals.EqualsRegistry;
+import com.revolsys.collection.Parent;
+import com.revolsys.collection.map.MapEx;
+import com.revolsys.datatype.DataType;
 import com.revolsys.io.FileUtil;
-import com.revolsys.io.map.MapSerializer;
+import com.revolsys.io.connection.AbstractConnection;
+import com.revolsys.util.Property;
 
-public class FolderConnection implements MapSerializer {
-  private final Map<String, Object> config = new LinkedHashMap<String, Object>();
-
-  private String name;
-
+public class FolderConnection extends AbstractConnection<FolderConnection, FolderConnectionRegistry>
+  implements Parent<Path> {
   private File file;
 
-  private FolderConnectionRegistry registry;
+  private Path path;
 
-  public FolderConnection(final FolderConnectionRegistry registry,
-    final String name, final File file) {
-    this.registry = registry;
-    setNameAndFile(name, file);
+  public FolderConnection(final FolderConnectionRegistry registry, final String name,
+    final File file) {
+    super(registry, name);
+    setFile(file);
   }
 
-  public void delete() {
-    if (registry != null) {
-      registry.removeConnection(this);
-    }
-    registry = null;
+  public FolderConnection(final FolderConnectionRegistry registry, final String name,
+    final Path path) {
+    super(registry, name);
+    setFile(path.toFile());
   }
 
   @Override
   public boolean equals(final Object obj) {
-    if (obj instanceof FolderConnection) {
-      final FolderConnection folderConnection = (FolderConnection)obj;
-      if (registry == folderConnection.registry) {
-        if (EqualsRegistry.equal(name, folderConnection.name)) {
-          if (EqualsRegistry.equal(getFile(), folderConnection.getFile())) {
-            return true;
-          }
-        }
+    if (super.equals(obj)) {
+      if (DataType.equal(getFile(), ((FolderConnection)obj).getFile())) {
+        return true;
       }
     }
     return false;
   }
 
+  @Override
+  public List<Path> getChildren() {
+    return Paths.getChildPaths(this.path);
+  }
+
   public File getFile() {
-    return file;
-  }
-
-  public String getName() {
-    return name;
-  }
-
-  public FolderConnectionRegistry getRegistry() {
-    return registry;
+    return this.file;
   }
 
   @Override
-  public int hashCode() {
-    if (name == null) {
-      return 0;
-    } else {
-      return name.hashCode();
-    }
+  public String getIconName() {
+    return "folder";
   }
 
-  public boolean isReadOnly() {
-    if (registry == null) {
-      return true;
-    } else {
-      return registry.isReadOnly();
-    }
+  public Path getPath() {
+    return this.path;
   }
 
-  public void setNameAndFile(final String name, final File file) {
+  public void setFile(final File file) {
     if (file == null) {
       throw new IllegalArgumentException("File must not be null");
     }
-    if (StringUtils.hasText(name)) {
-      this.name = name;
-    } else {
-      this.name = FileUtil.getFileName(file);
+    if (!Property.hasValue(getName())) {
+      final String fileName = FileUtil.getFileName(file);
+      setName(fileName);
     }
     this.file = file;
-    this.config.put("type", "folderConnection");
-    this.config.put("name", this.name);
-    this.config.put("file", FileUtil.getCanonicalPath(file));
+    this.path = file.toPath();
   }
 
   @Override
-  public Map<String, Object> toMap() {
-    return config;
-  }
-
-  @Override
-  public String toString() {
-    return name;
+  public MapEx toMap() {
+    final MapEx map = super.toMap();
+    addTypeToMap(map, "folderConnection");
+    map.put("name", getName());
+    map.put("file", FileUtil.getCanonicalPath(this.file));
+    return map;
   }
 }

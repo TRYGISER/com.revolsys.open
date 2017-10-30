@@ -1,6 +1,5 @@
 package com.revolsys.swing.map.layer;
 
-import java.awt.Graphics2D;
 import java.beans.PropertyChangeListener;
 import java.util.List;
 
@@ -8,15 +7,14 @@ import javax.swing.Icon;
 
 import com.revolsys.beans.PropertyChangeSupportProxy;
 import com.revolsys.io.map.MapSerializer;
-import com.revolsys.swing.component.ValueField;
+import com.revolsys.properties.ObjectWithProperties;
+import com.revolsys.swing.component.Form;
 import com.revolsys.swing.map.Viewport2D;
 
-public interface LayerRenderer<T extends Layer> extends PropertyChangeListener,
-  PropertyChangeSupportProxy, MapSerializer, Cloneable {
+public interface LayerRenderer<T extends Layer> extends ObjectWithProperties,
+  PropertyChangeListener, PropertyChangeSupportProxy, MapSerializer, Cloneable {
 
   LayerRenderer<T> clone();
-
-  ValueField createStylePanel();
 
   Icon getIcon();
 
@@ -34,13 +32,19 @@ public interface LayerRenderer<T extends Layer> extends PropertyChangeListener,
 
   boolean isEditing();
 
+  boolean isOpen();
+
   boolean isVisible();
 
-  void render(Viewport2D viewport, Graphics2D graphics);
+  Form newStylePanel();
+
+  void render(Viewport2D viewport);
 
   void setEditing(boolean editing);
 
   void setLayer(T layer);
+
+  void setOpen(boolean open);
 
   void setParent(LayerRenderer<?> parent);
 

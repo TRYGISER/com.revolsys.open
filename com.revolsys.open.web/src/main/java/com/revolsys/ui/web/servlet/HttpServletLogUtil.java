@@ -4,21 +4,20 @@ import java.io.IOException;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.slf4j.Logger;
+import com.revolsys.logging.Logs;
+import com.revolsys.ui.web.utils.HttpServletUtils;
 
 public final class HttpServletLogUtil {
-  public static void logRequestException(final Logger log,
-    final HttpServletRequest request, final Throwable exception) {
-    logRequestException(log, request, exception, null);
+  public static void logRequestException(final Object logCategory, final HttpServletRequest request,
+    final Throwable exception) {
+    logRequestException(logCategory, request, exception, null);
   }
 
-  public static void logRequestException(final Logger log,
-    final HttpServletRequest request, final Throwable exception,
-    final String[] headerNames) {
-    if (!(exception instanceof IOException)
-      && !exception.getMessage().contains("Broken pipe")) {
+  public static void logRequestException(final Object logCategory, final HttpServletRequest request,
+    final Throwable exception, final String[] headerNames) {
+    if (!(exception instanceof IOException) && !exception.getMessage().contains("Broken pipe")) {
       if (request.getAttribute("LogException") != exception) {
-        final StringBuffer text = new StringBuffer();
+        final StringBuilder text = new StringBuilder();
         final String message = exception.getMessage();
         if (message != null) {
           text.append(message);
@@ -44,18 +43,22 @@ public final class HttpServletLogUtil {
         }
 
         if (headerNames != null) {
-          for (int i = 0; i < headerNames.length; i++) {
-            final String headerName = headerNames[i];
+          for (final String headerName : headerNames) {
             final String value = request.getHeader(headerName);
             if (value != null) {
               text.append('\n').append(headerName).append('\t').append(value);
             }
           }
         }
-        log.error(text.toString(), exception);
+        Logs.error(logCategory, text.toString(), exception);
         request.setAttribute("LogException", exception);
       }
     }
+  }
+
+  public static void logRequestException(final Object logCategory, final Throwable exception) {
+    final HttpServletRequest request = HttpServletUtils.getRequest();
+    logRequestException(logCategory, request, exception, null);
   }
 
   private HttpServletLogUtil() {

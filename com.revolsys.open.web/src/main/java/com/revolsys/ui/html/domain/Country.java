@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,20 +32,24 @@ import com.revolsys.io.FileUtil;
  * @version 1.0
  */
 public final class Country implements Serializable {
+  private static List<Country> countries;
+
+  private static Map<String, Country> countryCodeAlpha2Map = new HashMap<>();
+
+  private static Map<String, Country> countryNameMap = new HashMap<>();
+
+  private static Map<String, Country> countryPhoneCodeMap = new HashMap<>();
+
   /** The unique serial version UID for the class. */
   private static final long serialVersionUID = -3530333279679048002L;
 
-  private static List<Country> countries;
-
-  private static Map<String, Country> countryCodeAlpha2Map = new HashMap<String, Country>();
-
-  private static Map<String, Country> countryPhoneCodeMap = new HashMap<String, Country>();
-
-  private static Map<String, Country> countryNameMap = new HashMap<String, Country>();
+  static {
+    loadCountryCodes();
+  }
 
   /**
    * Get the list of all countries.
-   * 
+   *
    * @return The list of countries.
    */
   public static List<Country> getCountries() {
@@ -54,7 +58,7 @@ public final class Country implements Serializable {
 
   /**
    * Get the Country by the ISO 2 character code (ignoring case).
-   * 
+   *
    * @param codeAplha2 The ISO 2 character code.
    * @return The country or null if not found.
    */
@@ -67,7 +71,7 @@ public final class Country implements Serializable {
 
   /**
    * Get a Country by it's name (ignoring case).
-   * 
+   *
    * @param name The country name.
    * @return The country or null if not found.
    */
@@ -80,7 +84,7 @@ public final class Country implements Serializable {
 
   /**
    * Get a Country by it's ITU-T phone country code.
-   * 
+   *
    * @param code The ITU-T phone country code.
    * @return The country or null if not found.
    */
@@ -93,7 +97,7 @@ public final class Country implements Serializable {
 
   /**
    * Get a Country for a phone number.
-   * 
+   *
    * @param phoneNumber The normalized phone number.
    * @return The country or null if not found.
    */
@@ -110,37 +114,16 @@ public final class Country implements Serializable {
     return null;
   }
 
-  private final short codeNum;
-
-  private final String codeAplha2;
-
-  private final String codeAlpha3;
-
-  private final String name;
-
-  private String phoneCode;
-
-  private String phoneRegEx;
-
-  private String phoneNationalFormat;
-
-  private String phoneInternationalFormat;
-
-  static {
-    loadCountryCodes();
-  }
-
   /**
    * Load the list of countries from the
    * com.revolsys.iaf.core.domain.CountryCodes.txt resource.
    */
   private static void loadCountryCodes() {
     if (countries == null) {
-      countries = new ArrayList<Country>();
+      countries = new ArrayList<>();
       final InputStream in = Country.class.getResourceAsStream("CountryCodes.txt");
       if (in != null) {
-        final BufferedReader lineReader = new BufferedReader(
-          FileUtil.createUtf8Reader(in));
+        final BufferedReader lineReader = new BufferedReader(FileUtil.newUtf8Reader(in));
         try {
           String line = lineReader.readLine();
           for (line = lineReader.readLine(); line != null; line = lineReader.readLine()) {
@@ -165,9 +148,8 @@ public final class Country implements Serializable {
             if (columns.hasMoreTokens()) {
               phoneInternationalFormat = columns.nextToken();
             }
-            final Country country = new Country(num, alpha2, alpha3, name,
-              phoneCode, phoneRegEx, phoneNationalFormat,
-              phoneInternationalFormat);
+            final Country country = new Country(num, alpha2, alpha3, name, phoneCode, phoneRegEx,
+              phoneNationalFormat, phoneInternationalFormat);
             countries.add(country);
             countryCodeAlpha2Map.put(country.getCodeAplha2(), country);
             countryNameMap.put(name.toUpperCase(), country);
@@ -181,18 +163,33 @@ public final class Country implements Serializable {
 
   }
 
-  private Country(final short codeNum, final String codeAplha2,
-    final String codeAlpha3, final String name) {
+  private final String codeAlpha3;
+
+  private final String codeAplha2;
+
+  private final short codeNum;
+
+  private final String name;
+
+  private String phoneCode;
+
+  private String phoneInternationalFormat;
+
+  private String phoneNationalFormat;
+
+  private String phoneRegEx;
+
+  private Country(final short codeNum, final String codeAplha2, final String codeAlpha3,
+    final String name) {
     this.codeNum = codeNum;
     this.codeAplha2 = codeAplha2.toUpperCase().intern();
     this.codeAlpha3 = codeAlpha3.toUpperCase().intern();
     this.name = name.intern();
   }
 
-  private Country(final short codeNum, final String codeAplha2,
-    final String codeAlpha3, final String name, final String phoneCode,
-    final String phoneRegEx, final String phoneNationalFormat,
-    final String phoneInternationalFormat) {
+  private Country(final short codeNum, final String codeAplha2, final String codeAlpha3,
+    final String name, final String phoneCode, final String phoneRegEx,
+    final String phoneNationalFormat, final String phoneInternationalFormat) {
     this.codeNum = codeNum;
     this.codeAplha2 = codeAplha2.toUpperCase().intern();
     this.codeAlpha3 = codeAlpha3.toUpperCase().intern();
@@ -207,60 +204,60 @@ public final class Country implements Serializable {
    * @return
    */
   public String getCodeAlpha3() {
-    return codeAlpha3;
+    return this.codeAlpha3;
   }
 
   /**
    * @return
    */
   public String getCodeAplha2() {
-    return codeAplha2;
+    return this.codeAplha2;
   }
 
   /**
    * @return
    */
   public short getCodeNum() {
-    return codeNum;
+    return this.codeNum;
   }
 
   /**
    * @return
    */
   public String getName() {
-    return name;
+    return this.name;
   }
 
   /**
    * @return Returns the phoneCode.
    */
   public String getPhoneCode() {
-    return phoneCode;
+    return this.phoneCode;
   }
 
   /**
    * @return Returns the phoneInternationalFormat.
    */
   public String getPhoneInternationalFormat() {
-    return phoneInternationalFormat;
+    return this.phoneInternationalFormat;
   }
 
   /**
    * @return Returns the phoneNationalFormat.
    */
   public String getPhoneNationalFormat() {
-    return phoneNationalFormat;
+    return this.phoneNationalFormat;
   }
 
   /**
    * @return Returns the phoneRegEx.
    */
   public String getPhoneRegEx() {
-    return phoneRegEx;
+    return this.phoneRegEx;
   }
 
   @Override
   public String toString() {
-    return name;
+    return this.name;
   }
 }

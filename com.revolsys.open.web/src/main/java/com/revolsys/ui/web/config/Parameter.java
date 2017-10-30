@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,9 +21,9 @@ import java.lang.reflect.InvocationTargetException;
 public class Parameter {
   private final String name;
 
-  private Object value;
-
   private final Class type;
+
+  private Object value;
 
   public Parameter(final String name, final String value) {
     this(name, value, String.class);
@@ -45,8 +45,7 @@ public class Parameter {
         });
       } catch (final NoSuchMethodException e) {
         throw new IllegalArgumentException(
-          type.getName()
-            + " must have a constructor that takes a java.lang.String as an argument");
+          type.getName() + " must have a constructor that takes a java.lang.String as an argument");
       } catch (final InstantiationException e) {
         throw new RuntimeException(e.getMessage(), e);
       } catch (final IllegalAccessException e) {
@@ -65,14 +64,14 @@ public class Parameter {
   }
 
   public String getName() {
-    return name;
+    return this.name;
   }
 
   public Class getType() {
-    return type;
+    return this.type;
   }
 
   public Object getValue() {
-    return value;
+    return this.value;
   }
 }

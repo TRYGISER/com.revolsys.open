@@ -1,12 +1,12 @@
 /*
  * Copyright 2004-2005 Revolution Systems Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,7 +27,7 @@ import org.apache.commons.jexl.JexlContext;
 import org.apache.log4j.Logger;
 
 public class WebUiContext {
-  private static final ThreadLocal<WebUiContext> local = new ThreadLocal<WebUiContext>();
+  private static final ThreadLocal<WebUiContext> local = new ThreadLocal<>();
 
   private static final Logger log = Logger.getLogger(WebUiContext.class);
 
@@ -67,9 +67,8 @@ public class WebUiContext {
   public WebUiContext() {
   }
 
-  public WebUiContext(final Config config, final String contextPath,
-    final Page page, final HttpServletRequest request,
-    final HttpServletResponse response) {
+  public WebUiContext(final Config config, final String contextPath, final Page page,
+    final HttpServletRequest request, final HttpServletResponse response) {
     this.config = config;
     this.contextPath = contextPath;
     this.page = page;
@@ -81,12 +80,12 @@ public class WebUiContext {
   }
 
   public Object evaluateExpression(final Expression expression) {
-    final JexlContext jexlContext = new JexlHttpServletRequestContext(request);
+    final JexlContext jexlContext = new JexlHttpServletRequestContext(this.request);
     try {
       return expression.evaluate(jexlContext);
     } catch (final Exception e) {
-      log.error("Unable to evaluate expression " + expression.getExpression()
-        + ": " + e.getMessage(), e);
+      log.error(
+        "Unable to evaluate expression " + expression.getExpression() + ": " + e.getMessage(), e);
       return null;
     }
   }
@@ -95,50 +94,49 @@ public class WebUiContext {
     try {
       return evaluateExpression(ExpressionFactory.createExpression(expression));
     } catch (final Exception e) {
-      log.error(
-        "Unable to create expression " + expression + ": " + e.getMessage(), e);
+      log.error("Unable to create expression " + expression + ": " + e.getMessage(), e);
       return null;
     }
   }
 
   public Config getConfig() {
-    return config;
+    return this.config;
   }
 
   public String getContextPath() {
-    return contextPath;
+    return this.contextPath;
   }
 
   public Layout getCurrentLayout() {
-    return (Layout)layouts.peek();
+    return (Layout)this.layouts.peek();
   }
 
   public Menu getMenu() {
-    return menu;
+    return this.menu;
   }
 
   public Menu getMenu(final String name) {
-    return config.getMenu(name);
+    return this.config.getMenu(name);
   }
 
   public Page getPage() {
-    return page;
+    return this.page;
   }
 
   public HttpServletRequest getRequest() {
-    return request;
+    return this.request;
   }
 
   public HttpServletResponse getResponse() {
-    return response;
+    return this.response;
   }
 
   public Layout popLayout() {
-    return (Layout)layouts.pop();
+    return (Layout)this.layouts.pop();
   }
 
   public void pushLayout(final Layout layout) {
-    layouts.push(layout);
+    this.layouts.push(layout);
   }
 
   public void setPage(final Page page) {

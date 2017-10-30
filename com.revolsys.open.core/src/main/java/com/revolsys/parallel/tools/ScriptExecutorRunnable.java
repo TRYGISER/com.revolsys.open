@@ -5,8 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.InvalidPropertyException;
 import org.springframework.beans.MethodInvocationException;
 import org.springframework.beans.MutablePropertyValues;
@@ -17,22 +15,19 @@ import org.springframework.beans.factory.support.GenericBeanDefinition;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.context.support.GenericApplicationContext;
 
-import com.revolsys.beans.ResourceEditorRegistrar;
-import com.revolsys.collection.ThreadSharedAttributes;
+import com.revolsys.beans.propertyeditor.ResourceEditorRegistrar;
+import com.revolsys.collection.map.ThreadSharedProperties;
+import com.revolsys.logging.Logs;
 import com.revolsys.logging.log4j.ThreadLocalFileAppender;
 import com.revolsys.parallel.AbstractRunnable;
 import com.revolsys.parallel.process.ProcessNetwork;
 import com.revolsys.spring.factory.Parameter;
 
 public class ScriptExecutorRunnable extends AbstractRunnable {
-  private static final Logger LOG = LoggerFactory.getLogger(ScriptExecutorRunnable.class);
-
   private static Throwable getBeanExceptionCause(final BeanCreationException e) {
     Throwable cause = e.getCause();
-    while (cause instanceof BeanCreationException
-      || cause instanceof MethodInvocationException
-      || cause instanceof PropertyAccessException
-      || cause instanceof PropertyBatchUpdateException
+    while (cause instanceof BeanCreationException || cause instanceof MethodInvocationException
+      || cause instanceof PropertyAccessException || cause instanceof PropertyBatchUpdateException
       || cause instanceof InvalidPropertyException) {
       Throwable newCause;
       if (cause instanceof PropertyBatchUpdateException) {
@@ -50,38 +45,45 @@ public class ScriptExecutorRunnable extends AbstractRunnable {
     return cause;
   }
 
-  private Map<String, Object> attributes = new LinkedHashMap<String, Object>();
+  private Map<String, Object> attributes = new LinkedHashMap<>();
 
-  private Map<String, Object> beans = new LinkedHashMap<String, Object>();
-
-  private final String script;
+  private Map<String, Object> beans = new LinkedHashMap<>();
 
   private boolean logScriptInfo = true;
+
+  private final String script;
 
   public ScriptExecutorRunnable(final String script) {
     this.script = script;
   }
 
-  public ScriptExecutorRunnable(final String script,
-    final Map<String, Object> attributes) {
+  public ScriptExecutorRunnable(final String script, final Map<String, Object> attributes) {
     this.script = script;
     this.attributes = attributes;
   }
 
   public void addBean(final String name, final Object value) {
-    beans.put(name, value);
+    this.beans.put(name, value);
   }
 
   public void addBeans(final Map<String, ?> beans) {
     this.beans.putAll(beans);
   }
 
+  public Map<String, Object> getBeans() {
+    return this.beans;
+  }
+
+  public boolean isLogScriptInfo() {
+    return this.logScriptInfo;
+  }
+
   @Override
-  public void doRun() {
+  public void runDo() {
     final long startTime = System.currentTimeMillis();
     try {
       String logPath = null;
-      final String logFileName = (String)attributes.get("logFile");
+      final String logFileName = (String)this.attributes.get("logFile");
       if (logFileName != null && logFileName.trim().length() > 0) {
         final File logFile = new File(logFileName);
         final File parentFile = logFile.getParentFile();
@@ -91,30 +93,29 @@ public class ScriptExecutorRunnable extends AbstractRunnable {
         logPath = logFile.getAbsolutePath();
         ThreadLocalFileAppender.getAppender().setLocalFile(logPath);
       }
-      if (logScriptInfo) {
-        final StringBuffer message = new StringBuffer("Processing ");
+      if (this.logScriptInfo) {
+        final StringBuilder message = new StringBuilder("Processing ");
         message.append(" -s ");
-        message.append(script);
+        message.append(this.script);
         if (logPath != null) {
           message.append(" -l ");
           message.append(logPath);
 
         }
-        for (final Entry<String, Object> parameter : attributes.entrySet()) {
+        for (final Entry<String, Object> parameter : this.attributes.entrySet()) {
           message.append(" ");
           message.append(parameter.getKey());
           message.append("=");
           message.append(parameter.getValue());
         }
-        LOG.info(message.toString());
+        Logs.info(this, message.toString());
       }
-      ThreadSharedAttributes.setAttributes(attributes);
+      ThreadSharedProperties.setProperties(this.attributes);
 
       final GenericApplicationContext applicationContext = new GenericApplicationContext();
-      applicationContext.getBeanFactory().addPropertyEditorRegistrar(
-        new ResourceEditorRegistrar());
+      applicationContext.getBeanFactory().addPropertyEditorRegistrar(new ResourceEditorRegistrar());
 
-      for (final Entry<String, Object> entry : beans.entrySet()) {
+      for (final Entry<String, Object> entry : this.beans.entrySet()) {
         final String key = entry.getKey();
         if (key.indexOf('.') == -1 && key.indexOf('[') == -1) {
           final Object value = entry.getValue();
@@ -127,12 +128,11 @@ public class ScriptExecutorRunnable extends AbstractRunnable {
         }
       }
 
-      final XmlBeanDefinitionReader beanReader = new XmlBeanDefinitionReader(
-        applicationContext);
-      if (new File(script).exists()) {
-        beanReader.loadBeanDefinitions("file:" + script);
+      final XmlBeanDefinitionReader beanReader = new XmlBeanDefinitionReader(applicationContext);
+      if (new File(this.script).exists()) {
+        beanReader.loadBeanDefinitions("file:" + this.script);
       } else {
-        beanReader.loadBeanDefinitions("classpath:" + script);
+        beanReader.loadBeanDefinitions("classpath:" + this.script);
       }
       applicationContext.refresh();
       try {
@@ -145,28 +145,20 @@ public class ScriptExecutorRunnable extends AbstractRunnable {
       }
     } catch (final BeanCreationException e) {
       final Throwable cause = getBeanExceptionCause(e);
-      LOG.error(cause.getMessage(), cause);
+      Logs.error(this, cause.getMessage(), cause);
       System.err.println(cause.getMessage());
       System.err.flush();
     } catch (final Throwable t) {
-      LOG.error(t.getMessage(), t);
+      Logs.error(this, t.getMessage(), t);
     }
-    if (logScriptInfo) {
+    if (this.logScriptInfo) {
       final long endTime = System.currentTimeMillis();
       final long time = endTime - startTime;
       long seconds = time / 1000;
       final long minutes = seconds / 60;
       seconds = seconds % 60;
-      LOG.info(minutes + " minutes " + seconds + " seconds");
+      Logs.info(this, minutes + " minutes " + seconds + " seconds");
     }
-  }
-
-  public Map<String, Object> getBeans() {
-    return beans;
-  }
-
-  public boolean isLogScriptInfo() {
-    return logScriptInfo;
   }
 
   public void setBeans(final Map<String, Object> beans) {

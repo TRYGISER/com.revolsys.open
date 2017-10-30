@@ -1,15 +1,15 @@
 package com.revolsys.ui.html.fields;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.record.io.format.xml.XmlWriter;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
+import com.revolsys.util.Property;
 
 public abstract class NumberField extends TextField {
 
-  private Number minimumValue;
-
   private Number maximumValue;
+
+  private Number minimumValue;
 
   private String units;
 
@@ -23,67 +23,78 @@ public abstract class NumberField extends TextField {
   }
 
   public NumberField(final String name, final int size, final int maxLength,
-    final Object defaultValue, final boolean required,
-    final Number minimumValue, final Number maximumValue) {
+    final Object defaultValue, final boolean required, final Number minimumValue,
+    final Number maximumValue) {
     super(name, size, maxLength, defaultValue, required);
     setValue(defaultValue);
     setMinimumValue(minimumValue);
     setMaximumValue(maximumValue);
     setCssClass("number");
+    setType("number");
   }
 
   /**
    * @return Returns the maximumValue.
    */
   public Number getMaximumValue() {
-    return maximumValue;
+    return this.maximumValue;
   }
 
   /**
    * @return Returns the minimumValue.
    */
   public Number getMinimumValue() {
-    return minimumValue;
+    return this.minimumValue;
   }
 
   public abstract Number getNumber(final String value);
 
   public String getUnits() {
-    return units;
+    return this.units;
+  }
+
+  @Override
+  protected void serializeAttributes(final XmlWriter out) {
+    if (this.minimumValue != null) {
+      out.attribute("min", this.minimumValue);
+    }
+    if (this.maximumValue != null) {
+      out.attribute("max", this.maximumValue);
+    }
   }
 
   @Override
   public void serializeElement(final XmlWriter out) {
     super.serializeElement(out);
-    if (StringUtils.hasText(units)) {
-      out.startTag(HtmlUtil.SPAN);
-      out.attribute(HtmlUtil.ATTR_CLASS, "units");
+    if (Property.hasValue(this.units)) {
+      out.startTag(HtmlElem.SPAN);
+      out.attribute(HtmlAttr.CLASS, "units");
       out.text(" ");
-      out.text(units);
-      out.endTag(HtmlUtil.SPAN);
+      out.text(this.units);
+      out.endTag(HtmlElem.SPAN);
     }
-    if (minimumValue != null || maximumValue != null) {
-      out.startTag(HtmlUtil.SCRIPT);
-      out.attribute(HtmlUtil.ATTR_TYPE, "text/javascript");
+    if (this.minimumValue != null || this.maximumValue != null) {
+      out.startTag(HtmlElem.SCRIPT);
+      out.attribute(HtmlAttr.TYPE, "text/javascript");
       out.text("$(document).ready(function() {");
       out.text("$('#");
       out.text(getForm().getName());
       out.text(" input[name=");
       out.text(getName());
       out.text("]').rules('add', {");
-      if (minimumValue != null) {
+      if (this.minimumValue != null) {
         out.text("min:");
-        out.text(minimumValue);
+        out.text(this.minimumValue);
       }
-      if (maximumValue != null) {
-        if (minimumValue != null) {
+      if (this.maximumValue != null) {
+        if (this.minimumValue != null) {
           out.text(",");
         }
         out.text("max:");
-        out.text(maximumValue);
+        out.text(this.maximumValue);
       }
       out.text("});});");
-      out.endTag(HtmlUtil.SCRIPT);
+      out.endTag(HtmlElem.SCRIPT);
     }
   }
 
@@ -104,15 +115,15 @@ public abstract class NumberField extends TextField {
   @Override
   public void setTextValue(final String value) {
     super.setTextValue(value);
-    if (StringUtils.hasLength(value)) {
+    if (Property.hasValue(value)) {
       try {
         final Number number = getNumber(value);
-        if (minimumValue != null
-          && ((Comparable<Number>)minimumValue).compareTo(number) > 0) {
-          throw new IllegalArgumentException("Must be >= " + minimumValue);
-        } else if (maximumValue != null
-          && ((Comparable<Number>)maximumValue).compareTo(number) < 0) {
-          throw new IllegalArgumentException("Must be <= " + maximumValue);
+        if (this.minimumValue != null
+          && ((Comparable<Number>)this.minimumValue).compareTo(number) > 0) {
+          throw new IllegalArgumentException("Must be >= " + this.minimumValue);
+        } else if (this.maximumValue != null
+          && ((Comparable<Number>)this.maximumValue).compareTo(number) < 0) {
+          throw new IllegalArgumentException("Must be <= " + this.maximumValue);
         } else {
           setValue(number);
         }

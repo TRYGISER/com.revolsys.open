@@ -4,20 +4,19 @@ import java.util.Date;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.springframework.util.StringUtils;
-
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.io.xml.XmlWriter;
-import com.revolsys.ui.html.HtmlUtil;
+import com.revolsys.datatype.DataTypes;
+import com.revolsys.record.io.format.xml.XmlWriter;
 import com.revolsys.ui.html.form.Form;
-import com.revolsys.util.DateUtil;
+import com.revolsys.util.Dates;
+import com.revolsys.util.HtmlAttr;
+import com.revolsys.util.HtmlElem;
+import com.revolsys.util.Property;
 
 public class DateTimeField extends Field {
 
   private String inputValue;
 
-  public DateTimeField(final String name, final boolean required,
-    final Object defaultValue) {
+  public DateTimeField(final String name, final boolean required, final Object defaultValue) {
     super(name, required);
     setInitialValue(defaultValue);
     setValue(defaultValue);
@@ -26,11 +25,12 @@ public class DateTimeField extends Field {
 
   @Override
   public void initialize(final Form form, final HttpServletRequest request) {
-    inputValue = request.getParameter(getName());
-    if (inputValue == null) {
+    this.inputValue = request.getParameter(getName());
+    if (this.inputValue == null) {
       setValue(getInitialValue(request));
       if (getValue() != null) {
-        inputValue = StringConverterRegistry.toString(Date.class, getValue());
+        final Date date = getValue();
+        this.inputValue = Dates.toDateTimeString(date);
       }
     }
   }
@@ -44,7 +44,7 @@ public class DateTimeField extends Field {
 
       if (valid) {
         try {
-          final Date date = DateUtil.getDate(inputValue);
+          final Date date = Dates.getDate(this.inputValue);
           setValue(date);
         } catch (final Throwable e) {
           addValidationError("Invalid Date Time");
@@ -58,27 +58,28 @@ public class DateTimeField extends Field {
 
   @Override
   public void serializeElement(final XmlWriter out) {
-    out.startTag(HtmlUtil.INPUT);
-    out.attribute(HtmlUtil.ATTR_NAME, getName());
-    out.attribute(HtmlUtil.ATTR_TYPE, "text");
-    if (StringUtils.hasText(inputValue)) {
-      out.attribute(HtmlUtil.ATTR_VALUE, inputValue);
+    out.startTag(HtmlElem.INPUT);
+    out.attribute(HtmlAttr.NAME, getName());
+    out.attribute(HtmlAttr.TYPE, "text");
+    out.attribute(HtmlAttr.CLASS, "form-control input-sm");
+    if (Property.hasValue(this.inputValue)) {
+      out.attribute(HtmlAttr.VALUE, this.inputValue);
     }
-    out.attribute(HtmlUtil.ATTR_SIZE, 30);
+    out.attribute(HtmlAttr.SIZE, 30);
     if (isRequired()) {
-      out.attribute(HtmlUtil.ATTR_CLASS, "required");
+      out.attribute(HtmlAttr.REQUIRED, true);
     }
 
-    out.endTag(HtmlUtil.INPUT);
+    out.endTag(HtmlElem.INPUT);
   }
 
   @Override
   public void setValue(final Object value) {
     super.setValue(value);
     if (value != null) {
-      inputValue = StringConverterRegistry.toString(value);
+      this.inputValue = DataTypes.toString(value);
     } else {
-      inputValue = null;
+      this.inputValue = null;
     }
   }
 

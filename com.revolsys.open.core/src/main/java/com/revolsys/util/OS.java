@@ -5,24 +5,22 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.revolsys.io.FileUtil;
-import com.revolsys.io.json.JsonMapIoFactory;
+import com.revolsys.record.io.format.json.Json;
 
 public class OS {
-
   public static final String OS_ARCH = System.getProperty("os.arch");
 
   public final static String OS_NAME = System.getProperty("os.name");
 
-  public final static boolean IS_WINDOWS = OS_NAME.startsWith("Windows");
+  public final static boolean IS_LINUX = OS_NAME.equals("Linux");
+
+  public final static boolean IS_MAC = OS_NAME.contains("OS X") || OS_NAME.equals("Darwin");
 
   public final static boolean IS_SOLARIS = OS_NAME.equals("SunOS");
 
-  public final static boolean IS_LINUX = OS_NAME.equals("Linux");
+  public final static boolean IS_WINDOWS = OS_NAME.startsWith("Windows");
 
-  public final static boolean IS_MAC = OS_NAME.contains("OS X")
-    || OS_NAME.equals("Darwin");
-
-  public static File getApplicationDataDirectory(final String applicationName) {
+  public static File getApplicationDataDirectory() {
     String path;
     if (OS.isWindows()) {
       path = System.getenv("APPDATA");
@@ -31,8 +29,13 @@ public class OS {
     } else {
       path = System.getProperty("user.home") + "/.config";
     }
-    final File directory = FileUtil.getFile(path + "/" + applicationName);
-    directory.mkdirs();
+    final File directory = FileUtil.getDirectory(path);
+    return directory;
+  }
+
+  public static File getApplicationDataDirectory(final String applicationName) {
+    final File appsDirectory = getApplicationDataDirectory();
+    final File directory = FileUtil.getDirectory(appsDirectory, applicationName);
     return directory;
   }
 
@@ -54,15 +57,14 @@ public class OS {
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> T getPreference(final String applicationName,
-    final String path, final String propertyName) {
-    final Map<String, Object> preferences = getPreferences(applicationName,
-      path);
+  public static <T> T getPreference(final String applicationName, final String path,
+    final String propertyName) {
+    final Map<String, Object> preferences = getPreferences(applicationName, path);
     return (T)Property.get(preferences, propertyName);
   }
 
-  public static <T> T getPreference(final String applicationName,
-    final String path, final String propertyName, final T defaultValue) {
+  public static <T> T getPreference(final String applicationName, final String path,
+    final String propertyName, final T defaultValue) {
     final T value = getPreference(applicationName, path, propertyName);
     if (value == null) {
       return defaultValue;
@@ -71,8 +73,25 @@ public class OS {
     }
   }
 
-  public static File getPreferenceFile(final String applicationName,
-    final String path) {
+  public static boolean getPreferenceBoolean(final String applicationName, final String path,
+    final String propertyName) {
+    final Map<String, Object> preferences = getPreferences(applicationName, path);
+    final Object value = preferences.get(propertyName);
+    return !Booleans.isFalse(value);
+  }
+
+  public static boolean getPreferenceBoolean(final String applicationName, final String path,
+    final String propertyName, final boolean defaultValue) {
+    final Map<String, Object> preferences = getPreferences(applicationName, path);
+    final Object value = preferences.get(propertyName);
+    if (value == null) {
+      return defaultValue;
+    } else {
+      return !Booleans.isFalse(value);
+    }
+  }
+
+  public static File getPreferenceFile(final String applicationName, final String path) {
     if (path.contains("..")) {
       throw new IllegalArgumentException(
         "Path cannot contain the '..' character sequernce: " + path);
@@ -83,13 +102,13 @@ public class OS {
     return file;
   }
 
-  public static Map<String, Object> getPreferences(
-    final String applicationName, final String path) {
+  public static Map<String, Object> getPreferences(final String applicationName,
+    final String path) {
     final File file = getPreferenceFile(applicationName, path);
     if (file.exists()) {
-      return JsonMapIoFactory.toMap(file);
+      return Json.toMap(file);
     } else {
-      return new LinkedHashMap<String, Object>();
+      return new LinkedHashMap<>();
     }
   }
 
@@ -98,11 +117,9 @@ public class OS {
     if (OS.isWindows()) {
       path = System.getenv("APPDATA") + "/" + applicationName + "/Preferences";
     } else if (OS.isMac()) {
-      path = System.getProperty("user.home") + "/Library/Preferences/"
-        + applicationName;
+      path = System.getProperty("user.home") + "/Library/Preferences/" + applicationName;
     } else {
-      path = System.getProperty("user.home") + "/.config/" + applicationName
-        + "/Preferences";
+      path = System.getProperty("user.home") + "/.config/" + applicationName + "/Preferences";
     }
     final File directory = FileUtil.getFile(path);
     directory.mkdirs();
@@ -131,13 +148,12 @@ public class OS {
     return IS_WINDOWS;
   }
 
-  public static void setPreference(final String applicationName,
-    final String path, final String propertyName, final Object value) {
-    final Map<String, Object> preferences = getPreferences(applicationName,
-      path);
-    Property.set(preferences, propertyName, value);
+  public static void setPreference(final String applicationName, final String path,
+    final String propertyName, final Object value) {
+    final Map<String, Object> preferences = getPreferences(applicationName, path);
+    preferences.put(propertyName, value);
     final File file = getPreferenceFile(applicationName, path);
-    JsonMapIoFactory.write(preferences, file, true);
+    Json.writeMap(preferences, file, true);
   }
 
 }

@@ -1,33 +1,67 @@
 package com.revolsys.gis.wms.capabilities;
 
-import java.net.URL;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
-public class WmsCapabilities {
-  private String version;
+import org.w3c.dom.Element;
 
-  private String updateSequence;
+import com.revolsys.gis.wms.WmsClient;
+import com.revolsys.record.io.format.xml.XmlUtil;
+import com.revolsys.spring.resource.UrlResource;
+
+public class WmsCapabilities {
+  private Capability capability;
 
   private Service service;
 
-  private Capability capability;
+  private final String updateSequence;
+
+  private final String version;
+
+  private String exceptionFormat;
+
+  public WmsCapabilities(final WmsClient wmsClient, final Element element) {
+    this.version = element.getAttribute("version");
+    this.updateSequence = element.getAttribute("updateSequence");
+    XmlUtil.forFirstElement(element, "Service", (serviceElement) -> {
+      this.service = new Service(serviceElement);
+    });
+    XmlUtil.forFirstElement(element, "Capability", (capabilityElement) -> {
+      this.capability = new Capability(wmsClient, capabilityElement);
+    });
+  }
 
   public Capability getCapability() {
-    return capability;
+    return this.capability;
   }
 
-  public WmsLayer getLayer(final String name) {
-    return getLayer(capability.getLayer(), name);
+  public String getExceptionFormat() {
+    if (this.exceptionFormat == null) {
+      final List<String> exceptionFormats = this.capability.getExceptionFormats();
+      for (final String exceptionFormat : Arrays.asList("application/vnd.ogc.se_inimage", "INIMAGE",
+        "application/vnd.ogc.se_blank", "BLANK", "application/vnd.ogc.se_xml", "XML")) {
+        if (exceptionFormats.contains(exceptionFormat)) {
+          this.exceptionFormat = exceptionFormat;
+          return exceptionFormat;
+        }
+      }
+    }
+    return this.exceptionFormat;
   }
 
-  private WmsLayer getLayer(final WmsLayer layer, final String name) {
+  public WmsLayerDefinition getLayer(final String name) {
+    return getLayer(this.capability.getLayer(), name);
+  }
+
+  private WmsLayerDefinition getLayer(final WmsLayerDefinition layer, final String name) {
 
     final String layerName = layer.getName();
     if (layerName != null && layerName.equals(name)) {
       return layer;
     }
-    for (final WmsLayer childLayer : layer.getLayers()) {
-      final WmsLayer matchedLayer = getLayer(childLayer, name);
+    for (final WmsLayerDefinition childLayer : layer.getLayers()) {
+      final WmsLayerDefinition matchedLayer = getLayer(childLayer, name);
       if (matchedLayer != null) {
         return matchedLayer;
       }
@@ -35,8 +69,13 @@ public class WmsCapabilities {
     return null;
   }
 
+  public List<WmsLayerDefinition> getLayers() {
+    final WmsLayerDefinition rootLayer = this.capability.getLayer();
+    return Collections.singletonList(rootLayer);
+  }
+
   public Request getRequest(final String requestName) {
-    for (final Request request : capability.getRequests()) {
+    for (final Request request : this.capability.getRequests()) {
       if (request.getName().equalsIgnoreCase(requestName)) {
         return request;
       }
@@ -44,7 +83,7 @@ public class WmsCapabilities {
     return null;
   }
 
-  public URL getRequestUrl(final String requestName, final String methodName) {
+  public UrlResource getRequestUrl(final String requestName, final String methodName) {
     final Request request = getRequest(requestName);
     if (request != null) {
       for (final DcpType type : request.getDcpTypes()) {
@@ -62,28 +101,27 @@ public class WmsCapabilities {
   }
 
   public Service getService() {
-    return service;
+    return this.service;
   }
 
   public String getUpdateSequence() {
-    return updateSequence;
+    return this.updateSequence;
   }
 
   public String getVersion() {
-    return version;
+    return this.version;
   }
 
   public boolean hasLayer(final String name) {
     return getLayer(name) != null;
   }
 
-  public boolean isSrsSupported(final String srsId,
-    final List<String> layerNames) {
-    final WmsLayer layer = capability.getLayer();
+  public boolean isSrsSupported(final String srsId, final List<String> layerNames) {
+    final WmsLayerDefinition layer = this.capability.getLayer();
     return isSrsSupported(srsId, layer, layerNames, false);
   }
 
-  private boolean isSrsSupported(final String srsId, final WmsLayer layer,
+  private boolean isSrsSupported(final String srsId, final WmsLayerDefinition layer,
     final List<String> layerNames, final boolean parentHasSrs) {
     final boolean hasSrs = layer.getSrs().contains(srsId) || parentHasSrs;
     if (layerNames.contains(layer.getName())) {
@@ -91,27 +129,11 @@ public class WmsCapabilities {
         return true;
       }
     }
-    for (final WmsLayer childLayer : layer.getLayers()) {
+    for (final WmsLayerDefinition childLayer : layer.getLayers()) {
       if (isSrsSupported(srsId, childLayer, layerNames, hasSrs)) {
         return true;
       }
     }
     return false;
-  }
-
-  public void setCapability(final Capability capability) {
-    this.capability = capability;
-  }
-
-  public void setService(final Service service) {
-    this.service = service;
-  }
-
-  public void setUpdateSequence(final String updateSequence) {
-    this.updateSequence = updateSequence;
-  }
-
-  public void setVersion(final String version) {
-    this.version = version;
   }
 }

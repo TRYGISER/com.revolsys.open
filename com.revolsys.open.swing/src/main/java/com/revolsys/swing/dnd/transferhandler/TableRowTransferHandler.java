@@ -11,15 +11,13 @@ import javax.swing.JTable;
 import javax.swing.TransferHandler;
 import javax.swing.table.TableModel;
 
-import org.slf4j.LoggerFactory;
-
+import com.revolsys.logging.Logs;
 import com.revolsys.util.Reorderable;
 
 public class TableRowTransferHandler extends TransferHandler {
   private static final long serialVersionUID = 1L;
 
-  private final DataFlavor localObjectFlavor = new DataFlavor(Integer.class,
-    "Integer Row Index");
+  private final DataFlavor localObjectFlavor = new DataFlavor(Integer.class, "Integer Row Index");
 
   private final String mimeType = this.localObjectFlavor.getMimeType();
 
@@ -56,8 +54,7 @@ public class TableRowTransferHandler extends TransferHandler {
   }
 
   @Override
-  protected void exportDone(final JComponent c, final Transferable t,
-    final int action) {
+  protected void exportDone(final JComponent c, final Transferable t, final int action) {
     if (action == TransferHandler.MOVE) {
       this.table.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
     }
@@ -91,7 +88,7 @@ public class TableRowTransferHandler extends TransferHandler {
         return true;
       }
     } catch (final Exception e) {
-      LoggerFactory.getLogger(getClass()).error("Unexpected error", e);
+      Logs.error(this, "Unexpected error", e);
     }
     return false;
   }

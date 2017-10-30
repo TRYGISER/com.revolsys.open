@@ -22,8 +22,8 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableModel;
 
-import com.revolsys.converter.string.BooleanStringConverter;
-import com.revolsys.converter.string.StringConverterRegistry;
+import com.revolsys.datatype.DataTypes;
+import com.revolsys.util.Booleans;
 
 public class SortableTableCellHeaderRenderer extends DefaultTableCellRenderer
   implements UIResource {
@@ -51,16 +51,14 @@ public class SortableTableCellHeaderRenderer extends DefaultTableCellRenderer
     }
 
     @Override
-    public void paintIcon(final Component component, final Graphics g,
-      final int i, final int j) {
+    public void paintIcon(final Component component, final Graphics g, final int i, final int j) {
     }
 
   }
 
   private static final long serialVersionUID = 1L;
 
-  public static SortOrder getColumnSortOrder(final JTable table,
-    final int column) {
+  public static SortOrder getColumnSortOrder(final JTable table, final int column) {
     if (table != null) {
       final RowSorter<? extends TableModel> rowSorter = table.getRowSorter();
       if (rowSorter != null) {
@@ -100,19 +98,17 @@ public class SortableTableCellHeaderRenderer extends DefaultTableCellRenderer
     rectangle.y = insets.top;
     rectangle.width = getWidth() - (insets.left + insets.right);
     rectangle.height = getHeight() - (insets.top + insets.bottom);
-    SwingUtilities.layoutCompoundLabel(this, fontmetrics, getText(),
-      this.sortArrow, getVerticalAlignment(), getHorizontalAlignment(),
-      getVerticalTextPosition(), getHorizontalTextPosition(), rectangle,
-      rectangle2, rectangle1, getIconTextGap());
+    SwingUtilities.layoutCompoundLabel(this, fontmetrics, getText(), this.sortArrow,
+      getVerticalAlignment(), getHorizontalAlignment(), getVerticalTextPosition(),
+      getHorizontalTextPosition(), rectangle, rectangle2, rectangle1, getIconTextGap());
     final int i = getWidth() - insets.right - this.sortArrow.getIconWidth();
     final int j = rectangle2.y;
     return new Point(i, j);
   }
 
   @Override
-  public Component getTableCellRendererComponent(final JTable table,
-    final Object value, final boolean isSelected, final boolean hasFocus,
-    final int row, final int column) {
+  public Component getTableCellRendererComponent(final JTable table, final Object value,
+    final boolean isSelected, final boolean hasFocus, final int row, final int column) {
     Icon icon = (Icon)UIManager.get("Table.naturalSortIcon");
     boolean isPrint = false;
     if (table != null) {
@@ -158,7 +154,7 @@ public class SortableTableCellHeaderRenderer extends DefaultTableCellRenderer
         }
       }
     }
-    final String text = StringConverterRegistry.toString(value);
+    final String text = DataTypes.toString(value);
     setText(text);
     setIcon(icon);
     this.sortArrow = icon;
@@ -175,7 +171,7 @@ public class SortableTableCellHeaderRenderer extends DefaultTableCellRenderer
 
   @Override
   public void paintComponent(final Graphics g) {
-    final boolean flag = BooleanStringConverter.getBoolean(UIManager.get("TableHeader.rightAlignSortArrow"));
+    final boolean flag = Booleans.getBoolean(UIManager.get("TableHeader.rightAlignSortArrow"));
     if (flag && this.sortArrow != null) {
       this.emptyIcon.width = this.sortArrow.getIconWidth();
       this.emptyIcon.height = this.sortArrow.getIconHeight();

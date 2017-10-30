@@ -5,13 +5,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Site implements Cloneable {
-  /** The list of pages defined as direct children of the site. */
-  private final Map pages = new HashMap();
+  private String name;
 
   /** The cache of pages that can be found from the decendents of this site. */
   private final Map pageCache = new HashMap();
 
-  private String name;
+  /** The list of pages defined as direct children of the site. */
+  private final Map pages = new HashMap();
 
   private SiteNode rootNode = new SiteNode();
 
@@ -31,41 +31,41 @@ public class Site implements Cloneable {
 
   /**
    * Get the site node controller for the specified path.
-   * 
+   *
    * @param path The path
    * @return The contoller or null if not found.
    */
   public SiteNodeController getController(final String path) {
     if (path.equals("/")) {
-      return rootNode.getController();
+      return this.rootNode.getController();
     } else {
-      return rootNode.getController(path);
+      return this.rootNode.getController(path);
     }
   }
 
   /**
    * Get the nane of the site.
-   * 
+   *
    * @return The nane of the site.
    */
   public String getName() {
-    return name;
+    return this.name;
   }
 
   public Collection getNodes() {
-    return rootNode.getNodes();
+    return this.rootNode.getNodes();
   }
 
   /**
    * @return Returns the rootNode.
    */
   public SiteNode getRootNode() {
-    return rootNode;
+    return this.rootNode;
   }
 
   /**
    * Set the nane of the site.
-   * 
+   *
    * @param name The name of the site.
    */
   public void setName(final String name) {
@@ -73,7 +73,7 @@ public class Site implements Cloneable {
   }
 
   public void setNodes(final Collection nodes) {
-    rootNode.setNodes(nodes);
+    this.rootNode.setNodes(nodes);
   }
 
   /**

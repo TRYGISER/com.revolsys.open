@@ -8,63 +8,49 @@ import java.util.Date;
 import javax.swing.JFormattedTextField;
 
 import org.jdesktop.swingx.JXDatePicker;
-import org.springframework.util.StringUtils;
 
-import com.revolsys.converter.string.StringConverterRegistry;
-import com.revolsys.gis.model.data.equals.EqualsRegistry;
-import com.revolsys.swing.undo.CascadingUndoManager;
-import com.revolsys.swing.undo.UndoManager;
+import com.revolsys.datatype.DataType;
+import com.revolsys.datatype.DataTypes;
 import com.revolsys.util.Property;
 
-public class DateField extends JXDatePicker implements Field,
-  PropertyChangeListener {
+public class DateField extends JXDatePicker implements Field, PropertyChangeListener {
   private static final long serialVersionUID = 1L;
 
-  private String fieldName;
-
-  private String errorMessage;
-
-  private Date fieldValue;
-
-  private String originalToolTip;
-
-  private final CascadingUndoManager undoManager = new CascadingUndoManager();
+  private final FieldSupport fieldSupport;
 
   public DateField() {
     this("fieldValue");
   }
 
   public DateField(final String fieldName) {
-    this.fieldName = fieldName;
+    this(fieldName, null);
+  }
+
+  public DateField(final String fieldName, final Object fieldValue) {
+    this.fieldSupport = new FieldSupport(this, fieldName, fieldValue, true);
     Property.addListener(this, "date", this);
-    this.undoManager.addKeyMap(getEditor());
+    getUndoManager().addKeyMap(getEditor());
   }
 
   @Override
-  public void firePropertyChange(final String propertyName,
-    final Object oldValue, final Object newValue) {
+  public DateField clone() {
+    return new DateField(getFieldName(), getFieldValue());
+  }
+
+  @Override
+  public void firePropertyChange(final String propertyName, final Object oldValue,
+    final Object newValue) {
     super.firePropertyChange(propertyName, oldValue, newValue);
   }
 
   @Override
-  public String getFieldName() {
-    return this.fieldName;
+  public Color getFieldSelectedTextColor() {
+    return getEditor().getSelectedTextColor();
   }
 
   @Override
-  public String getFieldValidationMessage() {
-    return this.errorMessage;
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public <T> T getFieldValue() {
-    return (T)this.fieldValue;
-  }
-
-  @Override
-  public boolean isFieldValid() {
-    return true;
+  public FieldSupport getFieldSupport() {
+    return this.fieldSupport;
   }
 
   @Override
@@ -74,7 +60,6 @@ public class DateField extends JXDatePicker implements Field,
       final Object date = evt.getNewValue();
       setFieldValue(date);
     }
-
   }
 
   @Override
@@ -85,7 +70,7 @@ public class DateField extends JXDatePicker implements Field,
   @Override
   public void setFieldBackgroundColor(Color color) {
     if (color == null) {
-      color = TextField.DEFAULT_BACKGROUND;
+      color = Field.DEFAULT_BACKGROUND;
     }
     final JFormattedTextField editor = getEditor();
     editor.setBackground(color);
@@ -94,25 +79,19 @@ public class DateField extends JXDatePicker implements Field,
   @Override
   public void setFieldForegroundColor(Color color) {
     if (color == null) {
-      color = TextField.DEFAULT_BACKGROUND;
+      color = Field.DEFAULT_BACKGROUND;
     }
     final JFormattedTextField editor = getEditor();
     editor.setForeground(color);
   }
 
   @Override
-  public void setFieldInvalid(final String message,
-    final Color foregroundColor, final Color backgroundColor) {
+  public void setFieldSelectedTextColor(Color color) {
+    if (color == null) {
+      color = Field.DEFAULT_SELECTED_FOREGROUND;
+    }
     final JFormattedTextField editor = getEditor();
-    editor.setForeground(foregroundColor);
-    editor.setSelectedTextColor(foregroundColor);
-    editor.setBackground(backgroundColor);
-    this.errorMessage = message;
-    setFieldToolTip(this.errorMessage);
-  }
-
-  public void setFieldName(final String fieldName) {
-    this.fieldName = fieldName;
+    editor.setSelectedTextColor(color);
   }
 
   @Override
@@ -122,41 +101,20 @@ public class DateField extends JXDatePicker implements Field,
   }
 
   @Override
-  public void setFieldValid() {
-    final JFormattedTextField editor = getEditor();
-    editor.setForeground(TextField.DEFAULT_FOREGROUND);
-    editor.setSelectedTextColor(TextField.DEFAULT_SELECTED_FOREGROUND);
-    editor.setBackground(TextField.DEFAULT_BACKGROUND);
-    this.errorMessage = null;
-    setFieldToolTip(this.originalToolTip);
-  }
-
-  @Override
-  public void setFieldValue(final Object value) {
-    final Date oldValue = this.fieldValue;
-    final Date date = StringConverterRegistry.toObject(Date.class, value);
-    if (!EqualsRegistry.equal(getDate(), date)) {
+  public boolean setFieldValue(final Object value) {
+    final Date date = DataTypes.DATE_TIME.toObject(value);
+    if (!DataType.equal(getDate(), date)) {
       setDate(date);
     }
-    if (!EqualsRegistry.equal(oldValue, date)) {
-      this.fieldValue = date;
-      firePropertyChange(this.fieldName, oldValue, date);
-      SetFieldValueUndoableEdit.create(this.undoManager.getParent(), this,
-        oldValue, date);
-    }
+    return this.fieldSupport.setValue(date);
   }
 
   @Override
   public void setToolTipText(final String text) {
-    this.originalToolTip = text;
-    if (!StringUtils.hasText(this.errorMessage)) {
+    final FieldSupport fieldSupport = getFieldSupport();
+    if (fieldSupport == null || fieldSupport.setOriginalTooltipText(text)) {
       super.setToolTipText(text);
     }
-  }
-
-  @Override
-  public void setUndoManager(final UndoManager undoManager) {
-    this.undoManager.setParent(undoManager);
   }
 
   @Override

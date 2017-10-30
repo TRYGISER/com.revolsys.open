@@ -8,6 +8,7 @@ import java.io.IOException;
 public class ObjectTransferable<T> implements Transferable {
 
   public static final DataFlavor FLAVOR;
+
   static {
     try {
       FLAVOR = new DataFlavor(DataFlavor.javaJVMLocalObjectMimeType);

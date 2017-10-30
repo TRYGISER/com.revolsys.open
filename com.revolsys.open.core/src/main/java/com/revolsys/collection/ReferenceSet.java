@@ -15,12 +15,12 @@ public class ReferenceSet<V> extends AbstractSet<V> {
 
   @Override
   public Iterator<V> iterator() {
-    return new ReferenceIterator<V>(collection);
+    return new ReferenceIterator<>(this.collection);
   }
 
   @Override
   public int size() {
-    return collection.size();
+    return this.collection.size();
   }
 
 }

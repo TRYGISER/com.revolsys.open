@@ -1,10 +1,10 @@
 package com.revolsys.parallel.channel;
 
-import com.revolsys.util.ThreadLocalMap;
+import com.revolsys.collection.map.ThreadLocalMap;
 
 public class ChannelThreadConnection {
 
-  private static final ThreadLocalMap<ChannelOutput<?>, ChannelThreadConnection> connections = new ThreadLocalMap<ChannelOutput<?>, ChannelThreadConnection>();
+  private static final ThreadLocalMap<ChannelOutput<?>, ChannelThreadConnection> connections = new ThreadLocalMap<>();
 
   public static void writeConnect(final ChannelOutput<?> channel) {
     synchronized (connections) {
@@ -25,6 +25,6 @@ public class ChannelThreadConnection {
 
   @Override
   public void finalize() {
-    channel.writeDisconnect();
+    this.channel.writeDisconnect();
   }
 }

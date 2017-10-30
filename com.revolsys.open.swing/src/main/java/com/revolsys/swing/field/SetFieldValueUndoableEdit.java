@@ -2,25 +2,20 @@ package com.revolsys.swing.field;
 
 import javax.swing.JComponent;
 
-import com.revolsys.gis.model.data.equals.EqualsRegistry;
+import com.revolsys.datatype.DataType;
 import com.revolsys.swing.undo.AbstractUndoableEdit;
 import com.revolsys.swing.undo.UndoManager;
 
-@SuppressWarnings("serial")
 public class SetFieldValueUndoableEdit extends AbstractUndoableEdit {
-
-  /**
-   * 
-   */
   private static final long serialVersionUID = 1L;
 
-  public static SetFieldValueUndoableEdit create(final UndoManager undoManager,
+  public static SetFieldValueUndoableEdit newUndoableEdit(final UndoManager undoManager,
     final Field field, final Object oldValue, final Object newValue) {
     if (undoManager == null) {
       return null;
     } else {
-      final SetFieldValueUndoableEdit edit = new SetFieldValueUndoableEdit(
-        field, oldValue, newValue);
+      final SetFieldValueUndoableEdit edit = new SetFieldValueUndoableEdit(field, oldValue,
+        newValue);
       undoManager.addEdit(edit);
       return edit;
     }
@@ -28,9 +23,9 @@ public class SetFieldValueUndoableEdit extends AbstractUndoableEdit {
 
   private final Field field;
 
-  private final Object oldValue;
-
   private final Object newValue;
+
+  private final Object oldValue;
 
   public SetFieldValueUndoableEdit(final Field field, final Object oldValue,
     final Object newValue) {
@@ -44,7 +39,7 @@ public class SetFieldValueUndoableEdit extends AbstractUndoableEdit {
   public boolean canRedo() {
     if (super.canRedo()) {
       final Object value = this.field.getFieldValue();
-      if (EqualsRegistry.equal(value, this.oldValue)) {
+      if (DataType.equal(value, this.oldValue)) {
         return true;
       }
     }
@@ -55,7 +50,7 @@ public class SetFieldValueUndoableEdit extends AbstractUndoableEdit {
   public boolean canUndo() {
     if (super.canUndo()) {
       final Object value = this.field.getFieldValue();
-      if (EqualsRegistry.equal(value, this.newValue)) {
+      if (DataType.equal(value, this.newValue)) {
         return true;
       }
     }
@@ -63,20 +58,19 @@ public class SetFieldValueUndoableEdit extends AbstractUndoableEdit {
   }
 
   @Override
-  public void doRedo() {
+  public void redoDo() {
     this.field.setFieldValue(this.newValue);
     ((JComponent)this.field).requestFocusInWindow();
   }
 
   @Override
-  public void doUndo() {
-    this.field.setFieldValue(this.oldValue);
-    ((JComponent)this.field).requestFocusInWindow();
+  public String toString() {
+    return this.field.getFieldName() + " old=" + this.oldValue + ", new=" + this.newValue;
   }
 
   @Override
-  public String toString() {
-    return this.field.getFieldName() + " old=" + this.oldValue + ", new="
-      + this.newValue;
+  public void undoDo() {
+    this.field.setFieldValue(this.oldValue);
+    ((JComponent)this.field).requestFocusInWindow();
   }
 }

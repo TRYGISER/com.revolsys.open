@@ -1,33 +1,30 @@
 package com.revolsys.gis.parallel;
 
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.io.Statistics;
 import com.revolsys.parallel.channel.Channel;
 import com.revolsys.parallel.process.BaseInOutProcess;
+import com.revolsys.record.Record;
+import com.revolsys.util.count.LabelCountMap;
 
-public class StatisticsProcess extends BaseInOutProcess<DataObject, DataObject> {
+public class StatisticsProcess extends BaseInOutProcess<Record, Record> {
 
-  private Statistics statistics;
+  private LabelCountMap labelCountMap;
 
   @Override
-  protected void postRun(final Channel<DataObject> in,
-    final Channel<DataObject> out) {
-    if (statistics != null) {
-      statistics.disconnect();
+  protected void postRun(final Channel<Record> in, final Channel<Record> out) {
+    if (this.labelCountMap != null) {
+      this.labelCountMap.disconnect();
     }
   }
 
   @Override
-  protected void preRun(final Channel<DataObject> in,
-    final Channel<DataObject> out) {
-    statistics = new Statistics(getBeanName());
-    statistics.connect();
+  protected void preRun(final Channel<Record> in, final Channel<Record> out) {
+    this.labelCountMap = new LabelCountMap(getBeanName());
+    this.labelCountMap.connect();
   }
 
   @Override
-  protected void process(final Channel<DataObject> in,
-    final Channel<DataObject> out, final DataObject object) {
-    statistics.add(object);
+  protected void process(final Channel<Record> in, final Channel<Record> out, final Record object) {
+    this.labelCountMap.addCount(object);
     out.write(object);
   }
 

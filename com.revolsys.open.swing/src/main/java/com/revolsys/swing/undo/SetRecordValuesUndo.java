@@ -3,20 +3,20 @@ package com.revolsys.swing.undo;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.revolsys.gis.model.data.equals.MapEquals;
-import com.revolsys.swing.map.layer.dataobject.LayerDataObject;
+import com.revolsys.collection.map.Maps;
+import com.revolsys.swing.map.layer.record.AbstractRecordLayer;
+import com.revolsys.swing.map.layer.record.LayerRecord;
 
 public class SetRecordValuesUndo extends AbstractUndoableEdit {
   private static final long serialVersionUID = 1L;
 
-  private final LayerDataObject record;
+  private final Map<String, Object> newValues = new HashMap<>();
 
-  private final Map<String, Object> originalValues = new HashMap<String, Object>();
+  private final Map<String, Object> originalValues = new HashMap<>();
 
-  private final Map<String, Object> newValues = new HashMap<String, Object>();
+  private final LayerRecord record;
 
-  public SetRecordValuesUndo(final LayerDataObject record,
-    final Map<String, Object> newValues) {
+  public SetRecordValuesUndo(final LayerRecord record, final Map<String, Object> newValues) {
     this.record = record;
     if (record != null) {
       this.originalValues.putAll(record);
@@ -29,7 +29,7 @@ public class SetRecordValuesUndo extends AbstractUndoableEdit {
   @Override
   public boolean canRedo() {
     if (super.canRedo()) {
-      return MapEquals.equalMap1Keys(record, originalValues);
+      return Maps.equalMap1Keys(this.record, this.originalValues);
     }
     return false;
   }
@@ -37,27 +37,29 @@ public class SetRecordValuesUndo extends AbstractUndoableEdit {
   @Override
   public boolean canUndo() {
     if (super.canUndo()) {
-      return MapEquals.equalMap1Keys(record, newValues);
+      return Maps.equalMap1Keys(this.record, this.newValues);
     }
     return false;
   }
 
   @Override
-  protected void doRedo() {
-    if (record != null) {
-      record.getLayer().replaceValues(record, newValues);
-    }
-  }
-
-  @Override
-  protected void doUndo() {
-    if (record != null) {
-      record.getLayer().replaceValues(record, originalValues);
+  protected void redoDo() {
+    if (this.record != null) {
+      final AbstractRecordLayer layer = this.record.getLayer();
+      layer.replaceValues(this.record, this.newValues);
     }
   }
 
   @Override
   public String toString() {
     return "Set record values";
+  }
+
+  @Override
+  protected void undoDo() {
+    if (this.record != null) {
+      final AbstractRecordLayer layer = this.record.getLayer();
+      layer.replaceValues(this.record, this.originalValues);
+    }
   }
 }

@@ -3,41 +3,40 @@ package com.revolsys.swing.action.enablecheck;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 
-import com.revolsys.gis.model.data.equals.EqualsRegistry;
+import com.revolsys.datatype.DataType;
 import com.revolsys.util.Property;
 
 public class ObjectPropertyEnableCheck extends AbstractEnableCheck {
+  private boolean inverse = false;
+
   private final Reference<Object> object;
 
   private final String propertyName;
 
   private final Object value;
 
-  private boolean inverse = false;
-
-  public ObjectPropertyEnableCheck(final Object object,
-    final String propertyName) {
+  public ObjectPropertyEnableCheck(final Object object, final String propertyName) {
     this(object, propertyName, true);
   }
 
-  public ObjectPropertyEnableCheck(final Object object,
-    final String propertyName, final Object value) {
+  public ObjectPropertyEnableCheck(final Object object, final String propertyName,
+    final Object value) {
     this(object, propertyName, value, false);
   }
 
-  public ObjectPropertyEnableCheck(final Object object,
-    final String propertyName, final Object value, final boolean inverse) {
+  public ObjectPropertyEnableCheck(final Object object, final String propertyName,
+    final Object value, final boolean inverse) {
     this.object = new WeakReference<>(object);
-    Property.addListener(object, propertyName, this);
     this.propertyName = propertyName;
     this.value = value;
     this.inverse = inverse;
+    Property.addListener(object, propertyName, this);
   }
 
   @Override
   public boolean isEnabled() {
     final Object value = Property.get(this.object.get(), this.propertyName);
-    final boolean equal = EqualsRegistry.equal(value, this.value);
+    final boolean equal = DataType.equal(value, this.value);
     if (equal == !this.inverse) {
       return enabled();
     } else {
@@ -47,6 +46,6 @@ public class ObjectPropertyEnableCheck extends AbstractEnableCheck {
 
   @Override
   public String toString() {
-    return this.object.toString() + "." + this.propertyName + "=" + this.value;
+    return this.object.get() + "." + this.propertyName + "=" + this.value;
   }
 }

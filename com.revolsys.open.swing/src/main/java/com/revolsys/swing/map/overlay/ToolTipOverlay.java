@@ -7,8 +7,6 @@ import java.awt.geom.Point2D;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 
-import org.jdesktop.swingx.color.ColorUtil;
-
 import com.revolsys.awt.WebColors;
 import com.revolsys.swing.map.MapPanel;
 
@@ -22,7 +20,7 @@ public class ToolTipOverlay extends AbstractOverlay {
     setLayout(null);
     this.label.setOpaque(true);
     this.label.setBorder(BorderFactory.createLineBorder(WebColors.Black));
-    this.label.setBackground(ColorUtil.setAlpha(WebColors.Yellow, 111));
+    this.label.setBackground(WebColors.newAlpha(WebColors.Yellow, 111));
     add(this.label);
     clearText();
   }
@@ -33,7 +31,7 @@ public class ToolTipOverlay extends AbstractOverlay {
     repaint();
   }
 
-  public void setText(final Point2D point, final CharSequence text) {
+  public void setText(int x, int y, final CharSequence text) {
     this.label.setText(text.toString());
     this.label.setVisible(true);
     final Dimension preferredSize = this.label.getPreferredSize();
@@ -41,11 +39,9 @@ public class ToolTipOverlay extends AbstractOverlay {
 
     final int width = preferredSize.width;
     final int height = preferredSize.height;
-    final int offset = 20;
+    final int offset = 50;
     final int overlayWidth = getWidth() - offset;
     final int overlayHeight = getHeight() - offset;
-    int x = (int)point.getX();
-    int y = (int)point.getY();
     if (x > offset) {
       x += offset;
     }
@@ -65,5 +61,11 @@ public class ToolTipOverlay extends AbstractOverlay {
 
     getMap().moveToFront(this);
     repaint();
+  }
+
+  public void setText(final Point2D point, final CharSequence text) {
+    final int x = (int)point.getX();
+    final int y = (int)point.getY();
+    setText(x, y, text);
   }
 }

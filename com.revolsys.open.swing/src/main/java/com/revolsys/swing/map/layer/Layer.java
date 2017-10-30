@@ -1,21 +1,27 @@
 package com.revolsys.swing.map.layer;
 
+import java.awt.Component;
 import java.beans.PropertyChangeListener;
-import java.io.File;
+import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+
+import javax.swing.Icon;
 
 import com.revolsys.beans.PropertyChangeSupportProxy;
 import com.revolsys.collection.Child;
-import com.revolsys.jts.geom.BoundingBox;
-import com.revolsys.io.ObjectWithProperties;
+import com.revolsys.geometry.model.BoundingBox;
+import com.revolsys.geometry.model.GeometryFactoryProxy;
 import com.revolsys.io.map.MapSerializer;
+import com.revolsys.properties.ObjectWithProperties;
 import com.revolsys.swing.component.TabbedValuePanel;
+import com.revolsys.swing.map.MapPanel;
+import com.revolsys.swing.map.Viewport2D;
 
-public interface Layer extends PropertyChangeSupportProxy,
-  ObjectWithProperties, PropertyChangeListener, Comparable<Layer>,
-  MapSerializer, Child<LayerGroup> {
-
-  TabbedValuePanel createPropertiesPanel();
+public interface Layer
+  extends GeometryFactoryProxy, PropertyChangeSupportProxy, ObjectWithProperties,
+  PropertyChangeListener, Comparable<Layer>, MapSerializer, Child<LayerGroup>, Cloneable {
 
   void delete();
 
@@ -23,11 +29,22 @@ public interface Layer extends PropertyChangeSupportProxy,
 
   BoundingBox getBoundingBox(boolean visibleLayersOnly);
 
-  com.revolsys.jts.geom.GeometryFactory getGeometryFactory();
+  Collection<Class<?>> getChildClasses();
+
+  Icon getIcon();
 
   long getId();
 
   LayerGroup getLayerGroup();
+
+  default MapPanel getMapPanel() {
+    final LayerGroup project = getProject();
+    if (project == null) {
+      return null;
+    } else {
+      return project.getProperty(MapPanel.MAP_PANEL);
+    }
+  }
 
   long getMaximumScale();
 
@@ -35,6 +52,10 @@ public interface Layer extends PropertyChangeSupportProxy,
 
   String getName();
 
+  /**
+   * Get the path from the root project. The name of the layer group at the root is not included.
+   * @return
+   */
   String getPath();
 
   List<Layer> getPathList();
@@ -47,7 +68,20 @@ public interface Layer extends PropertyChangeSupportProxy,
 
   String getType();
 
+  default Viewport2D getViewport() {
+    final MapPanel mapPanel = getMapPanel();
+    if (mapPanel == null) {
+      return null;
+    } else {
+      return mapPanel.getViewport();
+    }
+  }
+
   void initialize();
+
+  boolean isClonable();
+
+  boolean isDeleted();
 
   boolean isEditable();
 
@@ -55,11 +89,19 @@ public interface Layer extends PropertyChangeSupportProxy,
 
   boolean isExists();
 
-  boolean isHasChanges();
+  default boolean isHasChanges() {
+    return false;
+  }
 
-  boolean isHasGeometry();
+  default boolean isHasGeometry() {
+    return true;
+  }
+
+  boolean isHasSelectedRecords();
 
   boolean isInitialized();
+
+  boolean isOpen();
 
   boolean isQueryable();
 
@@ -77,11 +119,15 @@ public interface Layer extends PropertyChangeSupportProxy,
 
   boolean isVisible(double scale);
 
+  TabbedValuePanel newPropertiesPanel();
+
   void refresh();
+
+  void refreshAll();
 
   boolean saveChanges();
 
-  boolean saveSettings(File directory);
+  boolean saveSettings(Path directory);
 
   void setEditable(boolean editable);
 
@@ -105,6 +151,8 @@ public interface Layer extends PropertyChangeSupportProxy,
 
   void setName(String name);
 
+  void setOpen(boolean open);
+
   void setQueryable(boolean b);
 
   void setReadOnly(boolean readOnly);
@@ -120,4 +168,8 @@ public interface Layer extends PropertyChangeSupportProxy,
   void showProperties(String tabName);
 
   void showRendererProperties(final LayerRenderer<?> renderer);
+
+  void showTableView();
+
+  <C extends Component> C showTableView(Map<String, Object> config);
 }

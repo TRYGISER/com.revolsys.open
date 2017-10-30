@@ -8,13 +8,14 @@ import java.awt.Window;
 import javax.swing.RootPaneContainer;
 import javax.swing.SwingUtilities;
 
-import com.revolsys.util.ExceptionUtil;
+import com.revolsys.logging.Logs;
 
 public abstract class AbstractRunnable implements Runnable {
   private static final Cursor WAIT_CURSOR = Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR);
 
   public static Window getActiveWindow() {
-    final KeyboardFocusManager keyboardFocusManager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
+    final KeyboardFocusManager keyboardFocusManager = KeyboardFocusManager
+      .getCurrentKeyboardFocusManager();
     final Window activeWindow = keyboardFocusManager.getActiveWindow();
     if (activeWindow == null) {
       final Window[] windows = Window.getOwnerlessWindows();
@@ -35,43 +36,55 @@ public abstract class AbstractRunnable implements Runnable {
     }
   }
 
-  protected void doRun() {
+  private boolean showWaitCursor = false;
 
+  public boolean isShowWaitCursor() {
+    return this.showWaitCursor;
   }
 
   @Override
   public final void run() {
-    if (isEventDispatchThread()) {
-      final Window activeWindow = getActiveWindow();
-      if (activeWindow == null) {
-        doRun();
-      } else {
-        Component component;
-        Component glassPane = null;
-        if (activeWindow instanceof RootPaneContainer) {
-          final RootPaneContainer container = (RootPaneContainer)activeWindow;
-          glassPane = container.getGlassPane();
-          glassPane.setVisible(true);
-          component = glassPane;
+    try {
+      if (isShowWaitCursor() && isEventDispatchThread()) {
+        final Window activeWindow = getActiveWindow();
+        if (activeWindow == null) {
+          runDo();
         } else {
-          component = activeWindow;
-        }
-
-        final Cursor cursor = activeWindow.getCursor();
-        try {
-          component.setCursor(WAIT_CURSOR);
-          doRun();
-        } catch (final Throwable t) {
-          ExceptionUtil.log(getClass(), t);
-        } finally {
-          if (glassPane != null) {
-            glassPane.setVisible(false);
+          Component component;
+          Component glassPane = null;
+          if (activeWindow instanceof RootPaneContainer) {
+            final RootPaneContainer container = (RootPaneContainer)activeWindow;
+            glassPane = container.getGlassPane();
+            glassPane.setVisible(true);
+            component = glassPane;
+          } else {
+            component = activeWindow;
           }
-          component.setCursor(cursor);
+
+          final Cursor cursor = activeWindow.getCursor();
+          try {
+            component.setCursor(WAIT_CURSOR);
+            runDo();
+          } finally {
+            if (glassPane != null) {
+              glassPane.setVisible(false);
+            }
+            component.setCursor(cursor);
+          }
         }
+      } else {
+        runDo();
       }
-    } else {
-      doRun();
+    } catch (final Throwable t) {
+      Logs.error(this, t);
     }
+  }
+
+  protected void runDo() {
+
+  }
+
+  public void setShowWaitCursor(final boolean showWaitCursor) {
+    this.showWaitCursor = showWaitCursor;
   }
 }

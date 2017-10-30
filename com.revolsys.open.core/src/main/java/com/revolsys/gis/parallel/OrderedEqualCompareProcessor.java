@@ -6,47 +6,40 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-import org.slf4j.LoggerFactory;
-import org.springframework.util.StringUtils;
-
-import com.revolsys.gis.data.model.DataObject;
-import com.revolsys.gis.data.model.DataObjectLog;
-import com.revolsys.gis.data.model.DataObjectMetaData;
-import com.revolsys.gis.model.coordinates.list.CoordinatesListUtil;
-import com.revolsys.gis.model.data.equals.EqualsInstance;
-import com.revolsys.jts.geom.CoordinatesList;
-import com.revolsys.jts.geom.Geometry;
-import com.revolsys.jts.geom.GeometryCollection;
-import com.revolsys.jts.geom.PrecisionModel;
+import com.revolsys.datatype.DataType;
+import com.revolsys.geometry.model.Geometry;
+import com.revolsys.logging.Logs;
 import com.revolsys.parallel.channel.Channel;
 import com.revolsys.parallel.channel.MultiInputSelector;
 import com.revolsys.parallel.channel.store.Buffer;
 import com.revolsys.parallel.process.AbstractInProcess;
-import com.revolsys.util.CollectionUtil;
+import com.revolsys.record.Record;
+import com.revolsys.record.RecordLog;
+import com.revolsys.record.schema.RecordDefinition;
+import com.revolsys.util.Property;
+import com.revolsys.util.Strings;
 
-public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> {
+public class OrderedEqualCompareProcessor extends AbstractInProcess<Record> {
 
-  private Channel<DataObject> otherIn;
+  private List<String> equalExclude = new ArrayList<>();
+
+  private String fieldName;
+
+  private final Set<String> fieldNames = new TreeSet<>();
+
+  private Channel<Record> otherIn;
 
   private int otherInBufferSize = 0;
 
-  private String attributeName;
+  private String otherName = "Other";
+
+  private RecordDefinition recordDefinition1;
+
+  private RecordDefinition recordDefinition2;
 
   private boolean running;
 
   private String sourceName = "Source";
-
-  private String otherName = "Other";
-
-  private List<String> equalExclude = new ArrayList<String>();
-
-  private final PrecisionModel precisionModel = new PrecisionModel(1000);
-
-  private DataObjectMetaData metaData1;
-
-  private DataObjectMetaData metaData2;
-
-  private final Set<String> attributeNames = new TreeSet<String>();
 
   private boolean equals(final Geometry geometry1, final Geometry geometry2) {
     if (geometry1 == null) {
@@ -54,7 +47,7 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
     } else if (geometry2 == null) {
       return false;
     } else if (geometry1.getClass() == geometry2.getClass()) {
-      if (geometry1 instanceof GeometryCollection) {
+      if (geometry1.isGeometryCollection()) {
         if (geometry1.getGeometryCount() == geometry2.getGeometryCount()) {
           for (int i = 0; i < geometry1.getGeometryCount(); i++) {
             final Geometry subGeometry1 = geometry1.getGeometry(i);
@@ -68,160 +61,119 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
           return false;
         }
       } else {
-        final List<CoordinatesList> parts1 = CoordinatesListUtil.getAll(geometry1);
-        final List<CoordinatesList> parts2 = CoordinatesListUtil.getAll(geometry2);
-        if (parts1.size() == parts2.size()) {
-          for (int i = 0; i < parts1.size(); i++) {
-            final CoordinatesList points1 = parts1.get(i);
-            final CoordinatesList points2 = parts2.get(i);
-            if (points1.size() == points2.size()
-              && points1.getAxisCount() == points2.getAxisCount()) {
-              for (int j = 0; j < points1.size(); j++) {
-                for (int k = 0; k < points1.getAxisCount(); k++) {
-                  double value1 = points1.getValue(j, k);
-                  double value2 = points2.getValue(j, k);
-                  value1 = precisionModel.makePrecise(value1);
-                  value2 = precisionModel.makePrecise(value2);
-                  if (Double.compare(value1, value2) != 0) {
-                    return false;
-                  }
-                }
-              }
-            } else {
-              return false;
-            }
-          }
-          return true;
-        } else {
-          return false;
-        }
-
+        return geometry1.equals(geometry1.getAxisCount(), geometry2);
       }
     } else {
       return false;
     }
   }
 
-  protected boolean geometryEquals(final DataObject object1,
-    final DataObject object2) {
-    final Geometry geometry1 = object1.getGeometryValue();
-    final Geometry geometry2 = object2.getGeometryValue();
+  protected boolean geometryEquals(final Record object1, final Record object2) {
+    final Geometry geometry1 = object1.getGeometry();
+    final Geometry geometry2 = object2.getGeometry();
 
     return equals(geometry1, geometry2);
   }
 
-  public String getAttributeName() {
-    return attributeName;
-  }
-
   public List<String> getEqualExclude() {
-    return equalExclude;
+    return this.equalExclude;
   }
 
-  protected Set<String> getNotEqualAttributeNames(final DataObject object1,
-    final DataObject object2) {
-    final Set<String> notEqualAttributeNames = new LinkedHashSet<String>();
-    final String geometryAttributeName1 = metaData1.getGeometryAttributeName();
-    final String geometryAttributeName2 = metaData2.getGeometryAttributeName();
-    for (final String attributeName : attributeNames) {
-      if (!equalExclude.contains(attributeName)
-        && !attributeName.equals(geometryAttributeName1)
-        && !attributeName.equals(geometryAttributeName2)) {
-        final Object value1 = object1.getValue(attributeName);
-        final Object value2 = object2.getValue(attributeName);
+  public String getFieldName() {
+    return this.fieldName;
+  }
+
+  protected Set<String> getNotEqualFieldNames(final Record object1, final Record object2) {
+    final Set<String> notEqualFieldNames = new LinkedHashSet<>();
+    final String geometryFieldName1 = this.recordDefinition1.getGeometryFieldName();
+    final String geometryFieldName2 = this.recordDefinition2.getGeometryFieldName();
+    for (final String fieldName : this.fieldNames) {
+      if (!this.equalExclude.contains(fieldName) && !fieldName.equals(geometryFieldName1)
+        && !fieldName.equals(geometryFieldName2)) {
+        final Object value1 = object1.getValue(fieldName);
+        final Object value2 = object2.getValue(fieldName);
         if (!valueEquals(value1, value2)) {
-          notEqualAttributeNames.add(attributeName);
+          notEqualFieldNames.add(fieldName);
         }
       }
     }
-    return notEqualAttributeNames;
+    return notEqualFieldNames;
   }
 
   /**
    * @return the in
    */
-  public Channel<DataObject> getOtherIn() {
-    if (otherIn == null) {
-      if (otherInBufferSize < 1) {
-        setOtherIn(new Channel<DataObject>());
+  public Channel<Record> getOtherIn() {
+    if (this.otherIn == null) {
+      if (this.otherInBufferSize < 1) {
+        setOtherIn(new Channel<Record>());
       } else {
-        final Buffer<DataObject> buffer = new Buffer<DataObject>(
-          otherInBufferSize);
-        setOtherIn(new Channel<DataObject>(buffer));
+        final Buffer<Record> buffer = new Buffer<>(this.otherInBufferSize);
+        setOtherIn(new Channel<>(buffer));
       }
     }
-    return otherIn;
+    return this.otherIn;
   }
 
   public int getOtherInBufferSize() {
-    return otherInBufferSize;
+    return this.otherInBufferSize;
   }
 
   public String getOtherName() {
-    return otherName;
+    return this.otherName;
   }
 
   public String getSourceName() {
-    return sourceName;
+    return this.sourceName;
   }
 
   private void initAttributes() {
-    final List<String> attributeNames1 = new ArrayList<>(
-      metaData1.getAttributeNames());
-    final List<String> attributeNames2 = new ArrayList<>(
-      metaData2.getAttributeNames());
-    attributeNames.addAll(attributeNames1);
-    attributeNames.retainAll(attributeNames2);
-    attributeNames1.removeAll(attributeNames);
-    attributeNames1.remove(metaData1.getGeometryAttributeName());
-    if (!attributeNames1.isEmpty()) {
-      LoggerFactory.getLogger(getClass()).error(
-        "Extra columns in file 1: " + attributeNames1);
+    final List<String> fieldNames1 = new ArrayList<>(this.recordDefinition1.getFieldNames());
+    final List<String> fieldNames2 = new ArrayList<>(this.recordDefinition2.getFieldNames());
+    this.fieldNames.addAll(fieldNames1);
+    this.fieldNames.retainAll(fieldNames2);
+    fieldNames1.removeAll(this.fieldNames);
+    fieldNames1.remove(this.recordDefinition1.getGeometryFieldName());
+    if (!fieldNames1.isEmpty()) {
+      Logs.error(this, "Extra columns in file 1: " + fieldNames1);
     }
-    attributeNames2.removeAll(attributeNames);
-    attributeNames2.remove(metaData2.getGeometryAttributeName());
-    if (!attributeNames2.isEmpty()) {
-      LoggerFactory.getLogger(getClass()).error(
-        "Extra columns in file 2: " + attributeNames2);
+    fieldNames2.removeAll(this.fieldNames);
+    fieldNames2.remove(this.recordDefinition2.getGeometryFieldName());
+    if (!fieldNames2.isEmpty()) {
+      Logs.error(this, "Extra columns in file 2: " + fieldNames2);
     }
   }
 
-  protected void logNoMatch(final DataObject object, final boolean other) {
+  protected void logNoMatch(final Record record, final boolean other) {
     if (other) {
-      DataObjectLog.warn(getClass(), otherName + " has no match in "
-        + sourceName, object);
+      RecordLog.error(getClass(), this.otherName + " has no match in " + this.sourceName, record);
     } else {
-      DataObjectLog.warn(getClass(), sourceName + " has no match in "
-        + otherName, object);
+      RecordLog.error(getClass(), this.sourceName + " has no match in " + this.otherName, record);
     }
   }
 
-  private void logNoMatch(final DataObject[] objects,
-    final Channel<DataObject> channel, final boolean other) {
+  private void logNoMatch(final Record[] objects, final Channel<Record> channel,
+    final boolean other) {
     if (objects[0] != null) {
       logNoMatch(objects[0], false);
     }
     if (objects[1] != null) {
       logNoMatch(objects[1], true);
     }
-    while (running) {
-      final DataObject object = readObject(channel);
+    while (this.running) {
+      final Record object = readObject(channel);
       logNoMatch(object, other);
     }
   }
 
-  protected void logNotEqual(final DataObject sourceObject,
-    final DataObject otherObject, final Set<String> notEqualAttributeNames,
-    final boolean geometryEquals) {
-    final String attributeNames = CollectionUtil.toString(",",
-      notEqualAttributeNames);
-    DataObjectLog.error(getClass(), sourceName + " " + attributeNames,
-      sourceObject);
-    DataObjectLog.error(getClass(), otherName + " " + attributeNames,
-      otherObject);
+  protected void logNotEqual(final Record sourceRecord, final Record otherRecord,
+    final Set<String> notEqualFieldNames, final boolean geometryEquals) {
+    final String fieldNames = Strings.toString(",", notEqualFieldNames);
+    RecordLog.error(getClass(), this.sourceName + " " + fieldNames, sourceRecord);
+    RecordLog.error(getClass(), this.otherName + " " + fieldNames, otherRecord);
   }
 
-  protected DataObject readObject(final Channel<DataObject> channel) {
+  protected Record readObject(final Channel<Record> channel) {
     return channel.read();
   }
 
@@ -229,51 +181,48 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
     "unchecked", "rawtypes"
   })
   @Override
-  protected void run(final Channel<DataObject> in) {
-    running = true;
-    final Channel<DataObject>[] channels = new Channel[] {
-      in, otherIn
+  protected void run(final Channel<Record> in) {
+    this.running = true;
+    final Channel<Record>[] channels = new Channel[] {
+      in, this.otherIn
     };
-    DataObject previousEqualObject = null;
+    Record previousEqualObject = null;
 
-    final DataObject[] objects = new DataObject[2];
+    final Record[] objects = new Record[2];
     final boolean[] guard = new boolean[] {
       true, true
     };
     final MultiInputSelector alt = new MultiInputSelector();
-    while (running) {
+    while (this.running) {
       final int index = alt.select(channels, guard);
       if (index == -1) {
         if (in.isClosed()) {
-          logNoMatch(objects, otherIn, true);
+          logNoMatch(objects, this.otherIn, true);
           return;
-        } else if (otherIn.isClosed()) {
+        } else if (this.otherIn.isClosed()) {
           logNoMatch(objects, in, false);
           return;
         } else {
         }
       } else {
-        final Channel<DataObject> channel = channels[index];
-        final DataObject readObject = readObject(channel);
-        if (index == 0 && metaData1 == null) {
-          setMetaData1(readObject.getMetaData());
-        } else if (index == 1 && metaData2 == null) {
-          setMetaData2(readObject.getMetaData());
+        final Channel<Record> channel = channels[index];
+        final Record readObject = readObject(channel);
+        if (index == 0 && this.recordDefinition1 == null) {
+          setRecordDefinition1(readObject.getRecordDefinition());
+        } else if (index == 1 && this.recordDefinition2 == null) {
+          setRecordDefinition2(readObject.getRecordDefinition());
         }
 
         if (readObject != null) {
-          if (previousEqualObject != null
-            && EqualsInstance.INSTANCE.equals(previousEqualObject, readObject)) {
+          if (previousEqualObject != null && DataType.equal(previousEqualObject, readObject)) {
             if (index == 0) {
-              DataObjectLog.error(getClass(), "Duplicate in " + sourceName,
-                readObject);
+              RecordLog.error(getClass(), "Duplicate in " + this.sourceName, readObject);
             } else {
-              DataObjectLog.error(getClass(), "Duplicate in " + otherName,
-                readObject);
+              RecordLog.error(getClass(), "Duplicate in " + this.otherName, readObject);
             }
           } else {
-            DataObject sourceObject;
-            DataObject otherObject;
+            Record sourceObject;
+            Record otherObject;
             final int oppositeIndex = (index + 1) % 2;
             if (index == 0) {
               sourceObject = readObject;
@@ -282,16 +231,15 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
               sourceObject = objects[oppositeIndex];
               otherObject = readObject;
             }
-            final Object value = readObject.getValue(attributeName);
+            final Object value = readObject.getValue(this.fieldName);
             if (value == null) {
-              DataObjectLog.error(getClass(), "Missing key value for "
-                + attributeName, readObject);
+              RecordLog.error(getClass(), "Missing key value for " + this.fieldName, readObject);
             } else if (objects[oppositeIndex] == null) {
               objects[index] = readObject;
               guard[index] = false;
               guard[oppositeIndex] = true;
             } else {
-              final Object sourceValue = sourceObject.getValue(attributeName);
+              final Object sourceValue = sourceObject.getValue(this.fieldName);
               final Comparable<Object> sourceComparator;
               if (sourceValue instanceof Number) {
                 final Number number = (Number)sourceValue;
@@ -300,7 +248,7 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
               } else {
                 sourceComparator = (Comparable<Object>)sourceValue;
               }
-              Object otherValue = otherObject.getValue(attributeName);
+              Object otherValue = otherObject.getValue(this.fieldName);
               if (otherValue instanceof Number) {
                 final Number number = (Number)otherValue;
                 otherValue = number.doubleValue();
@@ -308,19 +256,17 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
               // TODO duplicates
               final int compare = sourceComparator.compareTo(otherValue);
               if (compare == 0) {
-                final Set<String> notEqualAttributeNames = getNotEqualAttributeNames(
-                  sourceObject, otherObject);
-
-                final boolean geometryEquals = geometryEquals(sourceObject,
+                final Set<String> notEqualFieldNames = getNotEqualFieldNames(sourceObject,
                   otherObject);
+
+                final boolean geometryEquals = geometryEquals(sourceObject, otherObject);
                 if (!geometryEquals) {
-                  final String geometryAttributeName = sourceObject.getMetaData()
-                    .getGeometryAttributeName();
-                  notEqualAttributeNames.add(geometryAttributeName);
+                  final String geometryFieldName = sourceObject.getRecordDefinition()
+                    .getGeometryFieldName();
+                  notEqualFieldNames.add(geometryFieldName);
                 }
-                if (!notEqualAttributeNames.isEmpty()) {
-                  logNotEqual(sourceObject, otherObject,
-                    notEqualAttributeNames, geometryEquals);
+                if (!notEqualFieldNames.isEmpty()) {
+                  logNotEqual(sourceObject, otherObject, notEqualFieldNames, geometryEquals);
                 }
                 objects[0] = null;
                 objects[1] = null;
@@ -328,7 +274,7 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
                 guard[1] = true;
                 previousEqualObject = sourceObject;
               } else if (compare < 0) { // other object is bigger, keep other
-                                        // object
+                // object
                 logNoMatch(sourceObject, false);
                 objects[0] = null;
                 objects[1] = otherObject;
@@ -349,32 +295,18 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
     }
   }
 
-  public void setAttributeName(final String attributeName) {
-    this.attributeName = attributeName;
-  }
-
   public void setEqualExclude(final List<String> equalExclude) {
     this.equalExclude = equalExclude;
   }
 
-  public void setMetaData1(final DataObjectMetaData metaData1) {
-    this.metaData1 = metaData1;
-    if (metaData2 != null) {
-      initAttributes();
-    }
-  }
-
-  public void setMetaData2(final DataObjectMetaData metaData2) {
-    this.metaData2 = metaData2;
-    if (metaData1 != null) {
-      initAttributes();
-    }
+  public void setFieldName(final String fieldName) {
+    this.fieldName = fieldName;
   }
 
   /**
    * @param in the in to set
    */
-  public void setOtherIn(final Channel<DataObject> in) {
+  public void setOtherIn(final Channel<Record> in) {
     this.otherIn = in;
     in.readConnect();
   }
@@ -387,6 +319,20 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
     this.otherName = otherName;
   }
 
+  public void setRecordDefinition1(final RecordDefinition recordDefinition1) {
+    this.recordDefinition1 = recordDefinition1;
+    if (this.recordDefinition2 != null) {
+      initAttributes();
+    }
+  }
+
+  public void setRecordDefinition2(final RecordDefinition recordDefinition2) {
+    this.recordDefinition2 = recordDefinition2;
+    if (this.recordDefinition1 != null) {
+      initAttributes();
+    }
+  }
+
   public void setSourceName(final String sourceName) {
     this.sourceName = sourceName;
   }
@@ -397,21 +343,20 @@ public class OrderedEqualCompareProcessor extends AbstractInProcess<DataObject> 
         return true;
       } else if (value2 instanceof String) {
         final String string2 = (String)value2;
-        return !StringUtils.hasText(string2);
+        return !Property.hasValue(string2);
       }
     } else if (value2 == null) {
       if (value1 instanceof String) {
         final String string1 = (String)value1;
-        return !StringUtils.hasText(string1);
+        return !Property.hasValue(string1);
       } else {
         return false;
       }
     } else if (value1 instanceof String && value2 instanceof String) {
-      if (!StringUtils.hasText((String)value1)
-        && !StringUtils.hasText((String)value2)) {
+      if (!Property.hasValue((String)value1) && !Property.hasValue((String)value2)) {
         return true;
       }
     }
-    return EqualsInstance.INSTANCE.equals(value1, value2);
+    return DataType.equal(value1, value2);
   }
 }

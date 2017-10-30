@@ -15,11 +15,10 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 
-public abstract class AbstractHttpMessageConverter<T> implements
-  HttpMessageConverter<T> {
+public abstract class AbstractHttpMessageConverter<T> implements HttpMessageConverter<T> {
 
   public static List<MediaType> getMediaTypes(final Collection<?> contentTypes) {
-    final List<MediaType> mediaTypes = new ArrayList<MediaType>();
+    final List<MediaType> mediaTypes = new ArrayList<>();
     if (contentTypes != null) {
       for (final Object mediaTypeObject : contentTypes) {
         if (mediaTypeObject instanceof MediaType) {
@@ -40,7 +39,7 @@ public abstract class AbstractHttpMessageConverter<T> implements
 
   private final List<Class<T>> supportedClasses;
 
-  private List<MediaType> supportedMediaTypes = new ArrayList<MediaType>();
+  private List<MediaType> supportedMediaTypes = new ArrayList<>();
 
   private final List<MediaType> writeMediaTypes;
 
@@ -49,16 +48,17 @@ public abstract class AbstractHttpMessageConverter<T> implements
     this.supportedClasses = Collections.singletonList(supportedClass);
     this.readMediaTypes = getMediaTypes(readMediaTypes);
     this.writeMediaTypes = getMediaTypes(writeMediaTypes);
-    final Set<MediaType> mediaTypes = new TreeSet<MediaType>();
+    final Set<MediaType> mediaTypes = new TreeSet<>();
     mediaTypes.addAll(this.readMediaTypes);
     mediaTypes.addAll(this.writeMediaTypes);
-    this.supportedMediaTypes = new ArrayList<MediaType>(mediaTypes);
+    this.supportedMediaTypes = new ArrayList<>(mediaTypes);
   }
 
+  @Override
   public boolean canRead(final Class<?> clazz, final MediaType mediaType) {
     if (supports(clazz)) {
       if (mediaType == null) {
-        return isReadSupported(defaultMediaType);
+        return isReadSupported(this.defaultMediaType);
       } else {
         return isReadSupported(mediaType);
       }
@@ -67,10 +67,11 @@ public abstract class AbstractHttpMessageConverter<T> implements
     }
   }
 
+  @Override
   public boolean canWrite(final Class<?> clazz, final MediaType mediaType) {
     if (supports(clazz)) {
       if (mediaType == null) {
-        return isWriteSupported(defaultMediaType);
+        return isWriteSupported(this.defaultMediaType);
       } else {
         return isWriteSupported(mediaType);
       }
@@ -80,18 +81,19 @@ public abstract class AbstractHttpMessageConverter<T> implements
   }
 
   public MediaType getDefaultMediaType() {
-    return defaultMediaType;
+    return this.defaultMediaType;
   }
 
+  @Override
   public List<MediaType> getSupportedMediaTypes() {
-    return supportedMediaTypes;
+    return this.supportedMediaTypes;
   }
 
   protected boolean isReadSupported(final MediaType mediaType) {
     if (mediaType == null) {
       return true;
     } else {
-      for (final MediaType supportedMediaType : readMediaTypes) {
+      for (final MediaType supportedMediaType : this.readMediaTypes) {
         if (supportedMediaType.includes(mediaType)) {
           return true;
         }
@@ -104,7 +106,7 @@ public abstract class AbstractHttpMessageConverter<T> implements
     if (mediaType == null) {
       return true;
     } else {
-      for (final MediaType supportedMediaType : writeMediaTypes) {
+      for (final MediaType supportedMediaType : this.writeMediaTypes) {
         if (supportedMediaType.includes(mediaType)) {
           return true;
         }
@@ -113,10 +115,9 @@ public abstract class AbstractHttpMessageConverter<T> implements
     }
   }
 
-  public T read(
-    final Class<? extends T> clazz,
-    final HttpInputMessage inputMessage) throws IOException,
-    HttpMessageNotReadableException {
+  @Override
+  public T read(final Class<? extends T> clazz, final HttpInputMessage inputMessage)
+    throws IOException, HttpMessageNotReadableException {
     return null;
   }
 
@@ -125,7 +126,7 @@ public abstract class AbstractHttpMessageConverter<T> implements
   }
 
   protected boolean supports(final Class<?> clazz) {
-    for (final Class<?> supportedClass : supportedClasses) {
+    for (final Class<?> supportedClass : this.supportedClasses) {
       if (supportedClass.isAssignableFrom(clazz)) {
         return true;
       }
@@ -133,10 +134,8 @@ public abstract class AbstractHttpMessageConverter<T> implements
     return false;
   }
 
-  public void write(
-    final T object,
-    final MediaType contentType,
-    final HttpOutputMessage outputMessage) throws IOException,
-    HttpMessageNotWritableException {
+  @Override
+  public void write(final T object, final MediaType contentType,
+    final HttpOutputMessage outputMessage) throws IOException, HttpMessageNotWritableException {
   }
 }

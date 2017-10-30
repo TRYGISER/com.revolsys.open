@@ -82,8 +82,6 @@
       <version>1.8</version>
     </dependency>
   </dependencies>
-<<<<<<< HEAD
-=======
 
   <repositories>
     <repository>
@@ -94,5 +92,4 @@
       <url>http://maven.geo-solutions.it/</url>
     </repository>
   </repositories>
->>>>>>> refs/tags/GEOMARK-SNAPSHOT
 </project>

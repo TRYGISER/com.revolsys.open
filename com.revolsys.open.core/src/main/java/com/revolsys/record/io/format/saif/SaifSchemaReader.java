@@ -62,15 +62,15 @@ public class SaifSchemaReader {
   static {
     addType("/Boolean", DataTypes.BOOLEAN);
     addType("/Numeric", DataTypes.DECIMAL);
-    addType("/Integer", DataTypes.INTEGER);
+    addType("/Integer", DataTypes.INT);
     addType("/Integer8", DataTypes.BYTE);
     addType("/Integer16", DataTypes.SHORT);
     addType("/Integer32", DataTypes.INT);
     addType("/Integer64", DataTypes.LONG);
-    addType("/Integer8Unsigned", DataTypes.INTEGER);
-    addType("/Integer16Unsigned", DataTypes.INTEGER);
-    addType("/Integer32Unsigned", DataTypes.INTEGER);
-    addType("/Integer64Unsigned", DataTypes.INTEGER);
+    addType("/Integer8Unsigned", DataTypes.SHORT);
+    addType("/Integer16Unsigned", DataTypes.INT);
+    addType("/Integer32Unsigned", DataTypes.LONG);
+    addType("/Integer64Unsigned", DataTypes.BIG_INTEGER);
     addType("/Real", DataTypes.DECIMAL);
     addType("/Real32", DataTypes.FLOAT);
     addType("/Real64", DataTypes.DOUBLE);
@@ -101,7 +101,7 @@ public class SaifSchemaReader {
     this.schema.addRecordDefinition(exportedObjectHandle);
     exportedObjectHandle.addField("referenceID", DataTypes.STRING, true);
     exportedObjectHandle.addField("type", DataTypes.STRING, true);
-    exportedObjectHandle.addField("offset", DataTypes.INTEGER, true);
+    exportedObjectHandle.addField("offset", DataTypes.INT, true);
     exportedObjectHandle.addField("sharable", DataTypes.BOOLEAN, true);
   }
 

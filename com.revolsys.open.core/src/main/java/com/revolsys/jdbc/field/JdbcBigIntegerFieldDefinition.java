@@ -14,7 +14,8 @@ public class JdbcBigIntegerFieldDefinition extends JdbcFieldDefinition {
   public JdbcBigIntegerFieldDefinition(final String dbName, final String name, final int sqlType,
     final int length, final boolean required, final String description,
     final Map<String, Object> properties) {
-    super(dbName, name, DataTypes.INTEGER, sqlType, length, 0, required, description, properties);
+    super(dbName, name, DataTypes.BIG_INTEGER, sqlType, length, 0, required, description,
+      properties);
   }
 
   @Override

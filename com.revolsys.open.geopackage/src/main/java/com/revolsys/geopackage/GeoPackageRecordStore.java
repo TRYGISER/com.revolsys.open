@@ -78,7 +78,7 @@ public class GeoPackageRecordStore extends AbstractJdbcRecordStore {
     addFieldAdder("BOOLEAN", DataTypes.BOOLEAN);
     addFieldAdder("TINYINT", DataTypes.BYTE);
     addFieldAdder("SMALLINT", DataTypes.SHORT);
-    addFieldAdder("MEDIUMINT", DataTypes.INTEGER);
+    addFieldAdder("MEDIUMINT", DataTypes.INT);
     addFieldAdder("INT", DataTypes.LONG);
     addFieldAdder("INTEGER", DataTypes.LONG);
     addFieldAdder("FLOAT", DataTypes.FLOAT);

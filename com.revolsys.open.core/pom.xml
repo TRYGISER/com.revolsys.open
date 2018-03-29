@@ -7,7 +7,7 @@
   <parent>
     <artifactId>com.revolsys.open.parent</artifactId>
     <groupId>com.revolsys.open</groupId>
-    <version>TRUNK-SNAPSHOT</version>
+    <version>0.0.0-GEOMARK_5_0_3_1-RELEASE</version>
   </parent>
   <artifactId>com.revolsys.open.core</artifactId>
   <name>RS Core</name>

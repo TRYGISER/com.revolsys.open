@@ -90,7 +90,12 @@ public interface Resource extends org.springframework.core.io.Resource {
         final String baseName = resource.getBaseName();
         final String fileNameExtension = resource.getFileNameExtension();
         final File file = FileUtil.newTempFile(baseName, fileNameExtension);
-        FileUtil.copy(resource.getInputStream(), file);
+        try (
+          InputStream inputStream = resource.getInputStream()) {
+          FileUtil.copy(inputStream, file);
+        } catch (final IOException e1) {
+          throw Exceptions.wrap("Error downloading: " + resource, e1);
+        }
         return file;
       } else {
         throw new IllegalArgumentException("Cannot get File for resource " + resource, e);

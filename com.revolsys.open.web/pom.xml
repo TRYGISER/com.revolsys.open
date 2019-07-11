@@ -11,7 +11,7 @@
   <parent>
     <artifactId>com.revolsys.open.parent</artifactId>
     <groupId>com.revolsys.open</groupId>
-    <version>TRUNK-SNAPSHOT</version>
+    <version>CPF-REVOLSYS-6.0.0-RC1</version>
   </parent>
 
   <dependencies>
